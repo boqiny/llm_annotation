@@ -63,7 +63,7 @@ class Codebook:
 
 # ---------  4 schemes filled with definitions and examples from ai behavior codebook ---------
 
-CODEBOOK = Codebook(
+AI_BEHAVIOR_CODEBOOK = Codebook(
     title="AI Behavior Codebook",
     schemes=[
         CodingScheme(
@@ -137,9 +137,9 @@ CODEBOOK = Codebook(
 # Example usage:
 if __name__ == "__main__":
     # Print the codebook in LLM-friendly format
-    print(CODEBOOK.render_for_llm())
+    print(AI_BEHAVIOR_CODEBOOK.render_for_llm())
     print("\n" + "="*80 + "\n")
 
     # Convert to dictionary (for JSON serialization, etc.)
     import json
-    print(json.dumps(CODEBOOK.to_dict(), indent=2))
+    print(json.dumps(AI_BEHAVIOR_CODEBOOK.to_dict(), indent=2))

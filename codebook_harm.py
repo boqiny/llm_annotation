@@ -63,7 +63,7 @@ class Codebook:
 
 # ---------  4 schemes filled with definitions and examples from harm codebook ---------
 
-CODEBOOK = Codebook(
+HARM_CODEBOOK = Codebook(
     title="Harm",
     schemes=[
         CodingScheme(
@@ -180,9 +180,9 @@ CODEBOOK = Codebook(
 # Example usage:
 if __name__ == "__main__":
     # Print the codebook in LLM-friendly format
-    print(CODEBOOK.render_for_llm())
+    print(HARM_CODEBOOK.render_for_llm())
     print("\n" + "="*80 + "\n")
 
     # Convert to dictionary (for JSON serialization, etc.)
     import json
-    print(json.dumps(CODEBOOK.to_dict(), indent=2))
+    print(json.dumps(HARM_CODEBOOK.to_dict(), indent=2))
