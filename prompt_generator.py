@@ -15,8 +15,9 @@ def build_messages(codebook, sentence: str) -> list[Dict[str, Any]]:
         "2) Pick EXACTLY ONE level from within that chosen scheme.\n"
         "3) Use ONLY scheme names and level names exactly as written in the codebook.\n"
         "4) Output MUST be valid JSON and NOTHING else.\n"
-        "5) Output JSON must have exactly these keys: scheme, level.\n"
-        "6) If multiple schemes/levels seem plausible, pick the MOST DOMINANT one.\n"
+        "5) Output JSON must have exactly these keys: scheme, level, confidence.\n"
+        "6) confidence must be a number between 0 and 1 (inclusive).\n"
+        "7) If multiple schemes/levels seem plausible, pick the MOST DOMINANT one.\n"
     )
 
     user = (
@@ -25,7 +26,14 @@ def build_messages(codebook, sentence: str) -> list[Dict[str, Any]]:
         f"{sentence}\n\n"
         "### Output JSON\n"
         "Return JSON with exactly this shape:\n"
-        + json.dumps({"scheme": "<one scheme name>", "level": "<one level name from that scheme>"}, indent=2)
+        + json.dumps(
+            {
+                "scheme": "<one scheme name>",
+                "level": "<one level name from that scheme>",
+                "confidence": 0.0
+            },
+            indent=2
+        )
     )
 
     return [
