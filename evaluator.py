@@ -5,7 +5,7 @@ from sklearn.metrics import precision_recall_fscore_support, accuracy_score
 def compute_prf(
     y_true: List[str],
     y_pred: List[str],
-    average: str = "macro",
+    average: str = "micro",
 ) -> Dict[str, float]:
     """
     Compute precision / recall / F1 for single-label classification.

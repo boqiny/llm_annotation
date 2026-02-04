@@ -8,7 +8,7 @@ import pandas as pd
 from prompt_generator import build_messages
 from llm_annotator import LLMAnnotator
 from codebook_ai_behavior import AI_BEHAVIOR_CODEBOOK
-from evaluator import compute_absolute_metrics
+from evaluator import compute_prf
 
 
 @dataclass(frozen=True)
@@ -62,7 +62,7 @@ def run_eval(cfg: EvalConfig) -> dict:
     annotator = LLMAnnotator(codebook=AI_BEHAVIOR_CODEBOOK)
     predictions = predict_levels(annotator, prompts)
 
-    results = compute_absolute_metrics(y_true=ground_truths, y_pred=predictions)
+    results = compute_prf(y_true=ground_truths, y_pred=predictions)
 
     print(f"predictions:   {predictions}")
     print(f"ground_truths: {ground_truths}")
@@ -72,7 +72,7 @@ def run_eval(cfg: EvalConfig) -> dict:
 
 
 if __name__ == "__main__":
-    cfg = EvalConfig(n_rows=10)  # change here
+    cfg = EvalConfig(n_rows=2)  # change here
     run_eval(cfg)
 
 # TODO: Add logs and store the prompts/outputs somewhere
@@ -83,10 +83,10 @@ Test outputs:
 2 rows
 predictions:   ['sympathetic responsiveness', 'question-asking']
 ground_truths: ['offers advice, opinions, perspectives, and personal experience', 'question-asking']
-{'precision': 0.5, 'recall': 0.5, 'f1': 0.5, 'accuracy': 0.5, 'tp': 1, 'fp': 1, 'fn': 1, 'n': 2}
+{'precision': 0.5, 'recall': 0.5, 'f1': 0.5, 'accuracy': 0.5}
 
 10 rows
 predictions:   ['sympathetic responsiveness', 'question-asking', 'question-asking', 'question-asking', 'question-asking', 'question-asking', 'question-asking', 'question-asking', 'question-asking', 'question-asking']
 ground_truths: ['offers advice, opinions, perspectives, and personal experience', 'question-asking', 'question-asking', 'question-asking', 'question-asking', 'question-asking', 'question-asking', 'sympathetic responsiveness', 'paraphrase', 'question-asking']
-{'precision': 0.7, 'recall': 0.7, 'f1': 0.7, 'accuracy': 0.7, 'tp': 7, 'fp': 3, 'fn': 3, 'n': 10}
+{'precision': 0.7, 'recall': 0.7, 'f1': 0.7, 'accuracy': 0.7}
 """
