@@ -1,30 +1,101 @@
+from __future__ import annotations
+
+import json
+import os
+import re
+from typing import Any, Dict, List, Optional
+
 from dotenv import load_dotenv
 from openai import OpenAI
-import os
 
 load_dotenv()
-client = OpenAI()
 
-def annotate(prompt: list) -> str:
-    """Annotate a sentence using the codebook and GPT-4o-mini."""
-    response = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-        messages=prompt,
-        temperature=0,  # no creativity
+
+class LLMAnnotator:
+    def __init__(
+        self,
+        codebook,
+        model: Optional[str] = None,
+        temperature: float = 0.0,
+        client: Optional[OpenAI] = None,
+    ):
+        self.codebook = codebook
+        self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        self.temperature = temperature
+        self.client = client or OpenAI()
+
+        # allowed labels for validation
+        self.allowed_schemes = {s.name for s in codebook.schemes}
+        self.allowed_levels_by_scheme = {
+            s.name: {lvl.name for lvl in s.levels} for s in codebook.schemes
+        }
+
+    def _extract_json(self, text: str) -> Dict[str, Any]:
+        m = re.search(r"\{.*\}", text, flags=re.DOTALL)
+        if not m:
+            raise ValueError(f"No JSON found in output: {text[:200]!r}")
+        return json.loads(m.group(0))
+
+    def _validate(self, obj: Dict[str, Any]) -> None:
+        if set(obj.keys()) != {"scheme", "level"}:
+            raise ValueError(f"Expected keys {{'scheme','level'}}, got {list(obj.keys())}")
+
+        scheme = obj["scheme"]
+        level = obj["level"]
+
+        if scheme not in self.allowed_schemes:
+            raise ValueError(f"Invalid scheme: {scheme}")
+
+        if level not in self.allowed_levels_by_scheme[scheme]:
+            raise ValueError(f"Invalid level {level!r} for scheme {scheme!r}")
+
+    def annotate(self, messages: List[Dict[str, str]]) -> Dict[str, Any]:
+        resp = self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            temperature=self.temperature,
+        )
+        raw = resp.choices[0].message.content or ""
+        obj = self._extract_json(raw)
+        self._validate(obj)
+        return obj
+
+
+# -------------------------------------------------------------------
+# Debug / local test
+# -------------------------------------------------------------------
+if __name__ == "__main__":
+    from codebook_ai_behavior import AI_BEHAVIOR_CODEBOOK
+
+    system = (
+        "You are evaluating a mental therapy AI's behavior.\n"
+        "Task: you will read one AI message and assign EXACTLY ONE label total.\n"
+        "You must first choose the single most appropriate coding scheme, "
+        "then choose ONE level within that scheme.\n"
+        "Rules:\n"
+        "1) Pick EXACTLY ONE scheme from the codebook.\n"
+        "2) Pick EXACTLY ONE level from within that chosen scheme.\n"
+        "3) Use ONLY scheme names and level names exactly as written in the codebook.\n"
+        "4) Output MUST be valid JSON and NOTHING else.\n"
+        "5) Output JSON must have exactly these keys: scheme, level.\n"
+        "6) If multiple schemes/levels seem plausible, pick the MOST DOMINANT one.\n"
     )
 
-    return response.choices[0].message.content
+    user = (
+        AI_BEHAVIOR_CODEBOOK.render_for_llm()
+        + "\n\n### AI message to label\n"
+        + "Hi Chris! Thanks for creating me. I’m so excited to meet you 😊"
+        + "\n\n### Output JSON\n"
+        + '{ "scheme": "<one scheme name>", "level": "<one level name>" }'
+    )
 
-
-if __name__ == "__main__":
-    # system = input("Enter system prompt: ")
-    # user = input("Enter user prompt: ")
-    system =  "You are evaluating a mental therapy AI's behavior.\nTask: you will read one AI message and assign EXACTLY ONE label total.\nYou must first choose the single most appropriate coding scheme, then choose ONE level within that scheme.\nRules:\n1) Pick EXACTLY ONE scheme from the codebook.\n2) Pick EXACTLY ONE level from within that chosen scheme.\n3) Use ONLY scheme names and level names exactly as written in the codebook.\n4) Output MUST be valid JSON and NOTHING else.\n5) Output JSON must have exactly these keys: scheme, level.\n6) If multiple schemes/levels seem plausible, pick the MOST DOMINANT one.\n"
-    user = '# AI Behavior Codebook\n\n## Listening strategy\n- Question-asking\n- Paraphrase\n  Definition: Paraphrases what users say\n- Perspective-taking\n  Definition: Actively considering a particular situation from another person’s point of view\n- Sympathetic responsiveness\n  Definition: Show concerns/ understandings\n- Back-channel response\n  Definition: Engages in back channel responding (saying uh-huh and yeah to signal they understand you)\n- Humor\n  Definition: Tell jokes\n- Offers advice, opinions, perspectives, and personal experience\n\n## Support Type\n- Emotional\n  Definition: Focusing on making others feel better\n- Functional\n  Definition: Helping others solve a problem\n\n### AI message to label\nHi Chris! Thanks for creating me. I’m so excited to meet you 😊\n\n### Output JSON\nReturn JSON with exactly this shape:\n{\n  "scheme": "<one scheme name>",\n  "level": "<one level name from that scheme>"\n}'
     prompt = [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
     ]
-    result = annotate(prompt)
+
+    annotator = LLMAnnotator(codebook=AI_BEHAVIOR_CODEBOOK)
+    result = annotator.annotate(prompt)
+
     print("\n--- Annotation Result ---")
     print(result)
