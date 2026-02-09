@@ -78,6 +78,7 @@ def save_run_artifacts(
     ground_truth_schemes: List[str],
     prompts: List[list],
     outputs: List[Dict[str, Any]],
+    model: str,   # NEW
 ) -> str:
     """
     Save a CSV containing sentence/gt/pred + scheme/confidence (+ optional prompt text).
@@ -95,6 +96,7 @@ def save_run_artifacts(
     for i, (sent, gt, prompt, out) in enumerate(zip(sentences, ground_truth_levels, prompts, outputs)):
         row = {
             "run_id": run_id,
+            "model": model,
             "row_idx": i,
             "sentence": sent,
             "ground_truth": gt,
@@ -123,12 +125,13 @@ def save_run_artifacts(
 def run_eval(cfg: EvalConfig) -> Dict[str, float]:
     sentences, ground_truth_levels, ground_truth_schemes = load_eval_data(cfg)
     prompts = build_prompts(sentences)
+    model = "gpt-4o-mini"
 
-    annotator = LLMAnnotator(codebook=AI_BEHAVIOR_CODEBOOK)
+    annotator = LLMAnnotator(codebook=AI_BEHAVIOR_CODEBOOK, model = model)
     outputs = predict_outputs(annotator, prompts)  # keep as dicts
 
     # Save artifacts FIRST
-    run_id = save_run_artifacts(cfg, sentences, ground_truth_levels, ground_truth_schemes, prompts, outputs)
+    run_id = save_run_artifacts(cfg, sentences, ground_truth_levels, ground_truth_schemes, prompts, outputs, model)
     print(f"Saved run artifacts to {cfg.output_path} (run_id={run_id})")
 
     # --- Reload saved CSV and compute metrics from file ---
