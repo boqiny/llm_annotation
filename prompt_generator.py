@@ -46,7 +46,7 @@ if __name__ == "__main__":
     # print(ai_behavior_df.head())
     prompts = []
     sentences = ai_behavior_df['Relevant quotes '].tolist()
-    for sentence in sentences[:2]:
+    for sentence in sentences[:1]:
         prompt = build_messages(codebook=AI_BEHAVIOR_CODEBOOK, sentence=sentence)
         prompts.append(prompt)
     print(prompts)

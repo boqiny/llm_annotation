@@ -51,11 +51,27 @@ class Codebook:
     title: str
     schemes: List[CodingScheme]
 
-    def render_for_llm(self) -> str:
-        # Concise, deterministic formatting for prompt injection
-        blocks = [f"# {self.title}"]
-        blocks.extend([s.render() for s in self.schemes])
-        return "\n\n".join(blocks)
+    def render_for_llm(self, include_examples: bool = False) -> str:
+        lines = [f"# {self.title}", "Allowed schemes and levels:"]
+        for s in self.schemes:
+            lines.append(f"- scheme: {s.name}")
+            lines.append("  levels:")
+            for lvl in s.levels:
+                # Level line
+                if lvl.definition:
+                    lines.append(f"    - {lvl.name} — {lvl.definition}")
+                else:
+                    lines.append(f"    - {lvl.name}")
+
+                # Optional examples
+                if include_examples and lvl.examples:
+                    lines.append("      examples:")
+                    for ex in lvl.examples:
+                        lines.append(f"        • {ex}")
+
+        return "\n".join(lines)
+
+
 
     def to_dict(self) -> Dict[str, Any]:
         return {"title": self.title, "schemes": [s.to_dict() for s in self.schemes]}
