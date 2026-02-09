@@ -10,7 +10,7 @@ import pandas as pd
 from prompt_generator import build_messages
 from llm_annotator import LLMAnnotator
 from codebook_ai_behavior import AI_BEHAVIOR_CODEBOOK
-from evaluator import compute_prf, compute_full_eval
+from evaluator import compute_full_eval
 
 
 # -----------------------------
@@ -89,6 +89,8 @@ def save_run_artifacts(
 
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     rows: List[Dict[str, Any]] = []
+    
+    assert len(sentences) == len(ground_truth_levels) == len(ground_truth_schemes) == len(outputs)
 
     for i, (sent, gt, prompt, out) in enumerate(zip(sentences, ground_truth_levels, prompts, outputs)):
         row = {
@@ -146,7 +148,7 @@ def run_eval(cfg: EvalConfig) -> Dict[str, float]:
 
 
 if __name__ == "__main__":
-    cfg = EvalConfig(n_rows=2, include_prompt_text=False)
+    cfg = EvalConfig(n_rows=2, include_prompt_text=True)
     run_eval(cfg)
 
 
