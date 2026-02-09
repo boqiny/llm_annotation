@@ -10,7 +10,7 @@ import pandas as pd
 from prompt_generator import build_messages
 from llm_annotator import LLMAnnotator
 from codebook_ai_behavior import AI_BEHAVIOR_CODEBOOK
-from evaluator import compute_prf
+from evaluator import compute_prf, compute_full_eval
 
 
 # -----------------------------
@@ -44,9 +44,10 @@ def load_eval_data(cfg: EvalConfig) -> Tuple[List[str], List[str]]:
     df = pd.read_csv(cfg.csv_path, skiprows=cfg.skiprows)
 
     sentences = df[cfg.text_col].tolist()[: cfg.n_rows]
-    ground_truths = [normalize_label(x) for x in df[cfg.label_col].tolist()[: cfg.n_rows]]
+    ground_truth_levels = [normalize_label(x) for x in df[cfg.label_col].tolist()[: cfg.n_rows]]
+    ground_truth_schemes = [normalize_label(x) for x in df["Coding theme"].tolist()[: cfg.n_rows]]
 
-    return sentences, ground_truths
+    return sentences, ground_truth_levels, ground_truth_schemes
 
 
 def build_prompts(sentences: List[str]) -> List[list]:
@@ -73,7 +74,8 @@ def predict_outputs(annotator: LLMAnnotator, prompts: List[list]) -> List[Dict[s
 def save_run_artifacts(
     cfg: EvalConfig,
     sentences: List[str],
-    ground_truths: List[str],
+    ground_truth_levels: List[str],
+    ground_truth_schemes: List[str],
     prompts: List[list],
     outputs: List[Dict[str, Any]],
 ) -> str:
@@ -88,12 +90,13 @@ def save_run_artifacts(
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     rows: List[Dict[str, Any]] = []
 
-    for i, (sent, gt, prompt, out) in enumerate(zip(sentences, ground_truths, prompts, outputs)):
+    for i, (sent, gt, prompt, out) in enumerate(zip(sentences, ground_truth_levels, prompts, outputs)):
         row = {
             "run_id": run_id,
             "row_idx": i,
             "sentence": sent,
             "ground_truth": gt,
+            "ground_truth_scheme": normalize_label(ground_truth_schemes[i]),
             "pred_scheme": out.get("scheme", ""),
             "pred_level": normalize_label(out.get("level", "")),
             "confidence": out.get("confidence", None),
@@ -107,7 +110,7 @@ def save_run_artifacts(
         rows.append(row)
 
     df_out = pd.DataFrame(rows)
-    df_out.to_csv(out_path, mode="a", header=not out_path.exists(), index=False)
+    df_out.to_csv(out_path, header=True, index=False)
 
     return run_id
 
@@ -116,23 +119,28 @@ def save_run_artifacts(
 # Main runner
 # -----------------------------
 def run_eval(cfg: EvalConfig) -> Dict[str, float]:
-    sentences, ground_truths = load_eval_data(cfg)
+    sentences, ground_truth_levels, ground_truth_schemes = load_eval_data(cfg)
     prompts = build_prompts(sentences)
 
     annotator = LLMAnnotator(codebook=AI_BEHAVIOR_CODEBOOK)
-    outputs = predict_outputs(annotator, prompts)
+    outputs = predict_outputs(annotator, prompts)  # keep as dicts
 
-    predictions = [normalize_label(o.get("level", "")) for o in outputs]
-
-    # NOTE: choose micro if you want straightforward global metrics
-    results = compute_prf(y_true=ground_truths, y_pred=predictions, average="micro")
-
-    print(f"predictions:   {predictions}")
-    print(f"ground_truths: {ground_truths}")
-    print(results)
-
-    run_id = save_run_artifacts(cfg, sentences, ground_truths, prompts, outputs)
+    # Save artifacts FIRST
+    run_id = save_run_artifacts(cfg, sentences, ground_truth_levels, ground_truth_schemes, prompts, outputs)
     print(f"Saved run artifacts to {cfg.output_path} (run_id={run_id})")
+
+    # --- Reload saved CSV and compute metrics from file ---
+    df = pd.read_csv(cfg.output_path)
+
+    y_true = [normalize_label(x) for x in df["ground_truth"].tolist()]
+    y_pred = [normalize_label(x) for x in df["pred_level"].tolist()]
+    schemes = [normalize_label(x) for x in df["ground_truth_scheme"].tolist()]
+
+    results = compute_full_eval(y_true=y_true, y_pred=y_pred, schemes=schemes)
+
+    print(f"predictions:   {y_pred}")
+    print(f"ground_truths: {y_true}")
+    print(results)
 
     return results
 
