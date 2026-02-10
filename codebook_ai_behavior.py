@@ -57,20 +57,20 @@ class Codebook:
             lines.append(f"- scheme: {s.name}")
             lines.append("  levels:")
             for lvl in s.levels:
-                # Level line
+                # Level name ONLY (this is what the model must output)
+                lines.append(f"    - {lvl.name}")
+
+                # Definition on its own field (NOT part of the name)
                 if lvl.definition:
-                    lines.append(f"    - {lvl.name} — {lvl.definition}")
-                else:
-                    lines.append(f"    - {lvl.name}")
+                    lines.append(f"      definition: {lvl.definition}")
 
                 # Optional examples
                 if include_examples and lvl.examples:
                     lines.append("      examples:")
                     for ex in lvl.examples:
-                        lines.append(f"        • {ex}")
+                        lines.append(f"        - {ex}")
 
         return "\n".join(lines)
-
 
 
     def to_dict(self) -> Dict[str, Any]:

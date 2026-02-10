@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Optional
+import os
 
 import pandas as pd
 
@@ -25,7 +26,7 @@ class EvalConfig:
     n_rows: int = 2
 
     # artifact output
-    output_path: str = "./artifacts/ai_behavior_runs.csv"
+    output_dir: str = "./artifacts/ai_behavior_runs"
     include_prompt_text: bool = False  # set True if you want to save system/user strings too
 
 
@@ -80,15 +81,13 @@ def save_run_artifacts(
     outputs: List[Dict[str, Any]],
     model: str,   # NEW
 ) -> str:
-    """
-    Save a CSV containing sentence/gt/pred + scheme/confidence (+ optional prompt text).
-    Appends to cfg.output_path (adds header if file doesn't exist).
-    Returns run_id.
-    """
-    out_path = Path(cfg.output_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(cfg.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    safe_model = model.replace("/", "_")
+    out_path = out_dir / f"{run_id}__{safe_model}.csv"
+
     rows: List[Dict[str, Any]] = []
     
     assert len(sentences) == len(ground_truth_levels) == len(ground_truth_schemes) == len(outputs)
@@ -113,10 +112,9 @@ def save_run_artifacts(
 
         rows.append(row)
 
-    df_out = pd.DataFrame(rows)
-    df_out.to_csv(out_path, header=True, index=False)
+    pd.DataFrame(rows).to_csv(out_path, index=False)
+    return str(out_path)   # return the file path
 
-    return run_id
 
 
 # -----------------------------
@@ -125,17 +123,19 @@ def save_run_artifacts(
 def run_eval(cfg: EvalConfig) -> Dict[str, float]:
     sentences, ground_truth_levels, ground_truth_schemes = load_eval_data(cfg)
     prompts = build_prompts(sentences)
-    model = "gpt-4o-mini"
+    # model = "gpt-4o-mini"
+    model = os.getenv("OPENAI_MODEL", "unknown")
 
     annotator = LLMAnnotator(codebook=AI_BEHAVIOR_CODEBOOK, model = model)
     outputs = predict_outputs(annotator, prompts)  # keep as dicts
 
     # Save artifacts FIRST
-    run_id = save_run_artifacts(cfg, sentences, ground_truth_levels, ground_truth_schemes, prompts, outputs, model)
-    print(f"Saved run artifacts to {cfg.output_path} (run_id={run_id})")
+    saved_path = save_run_artifacts(cfg, sentences, ground_truth_levels, ground_truth_schemes, prompts, outputs, model)
+    print(f"Saved run artifacts to {saved_path}")
 
     # --- Reload saved CSV and compute metrics from file ---
-    df = pd.read_csv(cfg.output_path)
+    df = pd.read_csv(saved_path)
+
 
     y_true = [normalize_label(x) for x in df["ground_truth"].tolist()]
     y_pred = [normalize_label(x) for x in df["pred_level"].tolist()]

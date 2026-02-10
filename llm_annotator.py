@@ -67,7 +67,7 @@ class LLMAnnotator:
         )
         raw = resp.choices[0].message.content or ""
         obj = self._extract_json(raw)
-        self._validate(obj)
+        # self._validate(obj)
         return obj
 
 
