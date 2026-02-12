@@ -16,13 +16,17 @@ class LLMAnnotator:
         self,
         codebook,
         model: Optional[str] = None,
-        temperature: float = 0.0,
+        temperature: float = 1,
         client: Optional[OpenAI] = None,
+        scheme_aliases: Optional[Dict[str, str]] = None,
+        level_aliases: Optional[Dict[str, Dict[str, str]]] = None,
     ):
         self.codebook = codebook
         self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.temperature = temperature
         self.client = client or OpenAI()
+        self.scheme_aliases = scheme_aliases or {}
+        self.level_aliases = level_aliases or {}
 
         # allowed labels for validation
         self.allowed_schemes = {s.name for s in codebook.schemes}
@@ -36,7 +40,7 @@ class LLMAnnotator:
             raise ValueError(f"No JSON found in output: {text[:200]!r}")
         return json.loads(m.group(0))
 
-    def _validate(self, obj: Dict[str, Any]) -> None:
+    def _validate(self, obj: Dict[str, Any]) -> Dict[str, Any]:
         required = {"scheme", "level"}
         if not required.issubset(obj.keys()):
             raise ValueError(f"Missing required keys {required}, got {list(obj.keys())}")
@@ -48,8 +52,16 @@ class LLMAnnotator:
         scheme = obj["scheme"]
         level = obj["level"]
 
+        if scheme in self.scheme_aliases:
+            scheme = self.scheme_aliases[scheme]
+            obj["scheme"] = scheme
+
         if scheme not in self.allowed_schemes:
             raise ValueError(f"Invalid scheme: {scheme}")
+
+        if scheme in self.level_aliases and level in self.level_aliases[scheme]:
+            level = self.level_aliases[scheme][level]
+            obj["level"] = level
 
         if level not in self.allowed_levels_by_scheme[scheme]:
             raise ValueError(f"Invalid level {level!r} for scheme {scheme!r}")
@@ -58,17 +70,18 @@ class LLMAnnotator:
             c = obj["confidence"]
             if not isinstance(c, (int, float)) or not (0.0 <= float(c) <= 1.0):
                 raise ValueError(f"Invalid confidence {c!r}; must be a number in [0, 1]")
+        return obj
 
     def annotate(self, messages: List[Dict[str, str]]) -> Dict[str, Any]:
         resp = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
             temperature=self.temperature,
+            response_format={"type": "json_object"},
         )
         raw = resp.choices[0].message.content or ""
         obj = self._extract_json(raw)
-        self._validate(obj)
-        return obj
+        return self._validate(obj)
 
 
 # -------------------------------------------------------------------
