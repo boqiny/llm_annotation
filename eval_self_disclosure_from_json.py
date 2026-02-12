@@ -252,15 +252,12 @@ def compute_absolute_metrics(y_true: List[str], y_pred: List[str]) -> Dict[str, 
 
 
 def print_metrics_table(metrics: Dict[str, dict]) -> None:
-    headers = ["scheme", "precision", "recall", "f1", "accuracy", "n"]
+    headers = ["scheme", "accuracy", "n"]
     rows = []
     for scheme, m in sorted(metrics.items()):
         rows.append(
             [
                 scheme,
-                f"{m['precision']:.3f}",
-                f"{m['recall']:.3f}",
-                f"{m['f1']:.3f}",
                 f"{m['accuracy']:.3f}",
                 str(m["n"]),
             ]

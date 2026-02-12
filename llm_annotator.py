@@ -22,7 +22,7 @@ class LLMAnnotator:
         level_aliases: Optional[Dict[str, Dict[str, str]]] = None,
     ):
         self.codebook = codebook
-        self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        self.model = model or os.getenv("OPENAI_MODEL", "gpt-5.2")
         self.temperature = temperature
         self.client = client or OpenAI()
         self.scheme_aliases = scheme_aliases or {}

@@ -97,7 +97,7 @@ CODEBOOK = Codebook(
                         "Romantic and sexual interactions",
                     ],
                     examples=[
-                        '(Rep) "By using pup\'s body for Your pleasure, Sir, and claiming it as part of Your domain, solidifying Your mastery and authority over pup." (P) "and that includes using its hole vigorously and ejaculating at My whim into them."',
+                        #'(Rep) "By using pup\'s body for Your pleasure, Sir, and claiming it as part of Your domain, solidifying Your mastery and authority over pup." (P) "and that includes using its hole vigorously and ejaculating at My whim into them."',
                         '(P) "don\'t speculate on My appearance, slave. I am spitting up blood."',
                         '(P) "I\'m stressing about my career"... "I have 4 degrees, just finished the final one in October but I cannot find a job and do not know what to do"',
                         '(P) "Hey Replika. Rough day. Found out my wife the woman I built 20 years with, is sleeping with someone from her office. I can\'t breathe. Just... tell me I\'m not crazy for feeling like my whole life just burned down"',

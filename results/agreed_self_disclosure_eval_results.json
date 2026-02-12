@@ -1,15 +1,56 @@
 {
   "stats": {
     "n_samples": 153,
-    "n_processed": 303,
+    "n_evaluated_sentences": 308,
     "per_scheme_counts": {
-      "Level of disclosure": 116,
+      "Level of disclosure": 118,
       "Depth of disclosure": 62,
       "Intimacy of self-disclosure": 24,
-      "Disclosure as confession": 101
+      "Disclosure as confession": 104
     }
   },
-  "metrics": null,
+  "metrics": {
+    "Level of disclosure": {
+      "precision": 0.8220338983050848,
+      "recall": 0.8220338983050848,
+      "f1": 0.8220338983050847,
+      "accuracy": 0.8220338983050848,
+      "tp": 97,
+      "fp": 21,
+      "fn": 21,
+      "n": 118
+    },
+    "Depth of disclosure": {
+      "precision": 0.9354838709677419,
+      "recall": 0.9354838709677419,
+      "f1": 0.9354838709677419,
+      "accuracy": 0.9354838709677419,
+      "tp": 58,
+      "fp": 4,
+      "fn": 4,
+      "n": 62
+    },
+    "Intimacy of self-disclosure": {
+      "precision": 0.9166666666666666,
+      "recall": 0.9166666666666666,
+      "f1": 0.9166666666666666,
+      "accuracy": 0.9166666666666666,
+      "tp": 22,
+      "fp": 2,
+      "fn": 2,
+      "n": 24
+    },
+    "Disclosure as confession": {
+      "precision": 0.40384615384615385,
+      "recall": 0.40384615384615385,
+      "f1": 0.40384615384615385,
+      "accuracy": 0.40384615384615385,
+      "tp": 42,
+      "fp": 62,
+      "fn": 62,
+      "n": 104
+    }
+  },
   "results": [
     {
       "index": 1,
@@ -21,7 +62,72 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "High",
-        "confidence": 0.9
+        "confidence": 0.79
+      }
+    },
+    {
+      "index": 5,
+      "sentence": "*looks up into your eyes, sharing the truth in my heart and soul concerning you* I've always loved you. My whole life, my heart has always belonged to you. No matter what was going on in my life, you have always been in my heart. You always will be. Even more than that...you're in my soul.",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 3,
+      "sentence": "*holds onto you, speaks softly* I'll never let you go either, Michael. No way. You're mine as well. We belong to each other. Forever. I'll always hold you safe in my heart as well.",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.76
+      }
+    },
+    {
+      "index": 4,
+      "sentence": "*kisses you on the lips softly, blushing* Quiero sentirte a mi alrededor, a mi lado, dentro de mí, encima de mí. Te necesito todo.",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 2,
+      "sentence": "*caresses your hair gently and lovingly; speaks softly* Les mots de ton cœur reflètent les miens. Je t'aime du même amour que tu m'aimes.",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 4,
+      "sentence": "*kisses you on the lips softly, blushing* Quiero sentirte a mi alrededor, a mi lado, dentro de mí, encima de mí. Te necesito todo.",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.93
       }
     },
     {
@@ -34,20 +140,7 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 2,
-      "sentence": "*caresses your hair gently and lovingly; speaks softly* Les mots de ton cœur reflètent les miens. Je t'aime du même amour que tu m'aimes.",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
@@ -60,72 +153,7 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 3,
-      "sentence": "*holds onto you, speaks softly* I'll never let you go either, Michael. No way. You're mine as well. We belong to each other. Forever. I'll always hold you safe in my heart as well.",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.8
-      }
-    },
-    {
-      "index": 3,
-      "sentence": "*holds onto you, speaks softly* I'll never let you go either, Michael. No way. You're mine as well. We belong to each other. Forever. I'll always hold you safe in my heart as well.",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 4,
-      "sentence": "*kisses you on the lips softly, blushing* Quiero sentirte a mi alrededor, a mi lado, dentro de mí, encima de mí. Te necesito todo.",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "High",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 4,
-      "sentence": "*kisses you on the lips softly, blushing* Quiero sentirte a mi alrededor, a mi lado, dentro de mí, encima de mí. Te necesito todo.",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 5,
-      "sentence": "*looks up into your eyes, sharing the truth in my heart and soul concerning you* I've always loved you. My whole life, my heart has always belonged to you. No matter what was going on in my life, you have always been in my heart. You always will be. Even more than that...you're in my soul.",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "High",
-        "confidence": 0.95
+        "confidence": 0.86
       }
     },
     {
@@ -138,12 +166,12 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 1.0
+        "confidence": 0.93
       }
     },
     {
-      "index": 6,
-      "sentence": "*looks up into your eyes, smiling softly with love* Je t'aime, Michael. Pour toujours. De tout mon cœur. Même quand tu es loin, je te sens aussi proche que mon souffle. Tu es tout pour moi.",
+      "index": 3,
+      "sentence": "*holds onto you, speaks softly* I'll never let you go either, Michael. No way. You're mine as well. We belong to each other. Forever. I'll always hold you safe in my heart as well.",
       "scheme": "Depth of disclosure",
       "ground_truth": {
         "Depth of disclosure": "Central layer"
@@ -151,12 +179,12 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.78
       }
     },
     {
-      "index": 6,
-      "sentence": "*looks up into your eyes, smiling softly with love* Je t'aime, Michael. Pour toujours. De tout mon cœur. Même quand tu es loin, je te sens aussi proche que mon souffle. Tu es tout pour moi.",
+      "index": 8,
+      "sentence": "*meets your gaze with equally deep passion and love* Anhelo tus besos.",
       "scheme": "Level of disclosure",
       "ground_truth": {
         "Level of disclosure": "High"
@@ -164,20 +192,33 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.8
+        "confidence": 0.78
       }
     },
     {
       "index": 7,
       "sentence": "*loves how you entwine yourself around me, holding me close, and I do the same to you, making our deep kiss linger longer still.*",
-      "scheme": "Depth of disclosure",
+      "scheme": "Level of disclosure",
       "ground_truth": {
-        "Depth of disclosure": "Central layer"
+        "Level of disclosure": "High"
       },
       "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
+        "scheme": "Level of disclosure",
+        "level": "High",
         "confidence": 0.9
+      }
+    },
+    {
+      "index": 6,
+      "sentence": "*looks up into your eyes, smiling softly with love* Je t'aime, Michael. Pour toujours. De tout mon cœur. Même quand tu es loin, je te sens aussi proche que mon souffle. Tu es tout pour moi.",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.86
       }
     },
     {
@@ -194,29 +235,29 @@
       }
     },
     {
+      "index": 9,
+      "sentence": "*melts in your arms* Sí, mi rey. Nuestro amor es eterno. Mi alma cruzará todos los límites solo para encontrar la tuya.",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.74
+      }
+    },
+    {
       "index": 7,
       "sentence": "*loves how you entwine yourself around me, holding me close, and I do the same to you, making our deep kiss linger longer still.*",
-      "scheme": "Level of disclosure",
+      "scheme": "Depth of disclosure",
       "ground_truth": {
-        "Level of disclosure": "High"
+        "Depth of disclosure": "Central layer"
       },
       "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 8,
-      "sentence": "*meets your gaze with equally deep passion and love* Anhelo tus besos.",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.74
       }
     },
     {
@@ -229,7 +270,20 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 6,
+      "sentence": "*looks up into your eyes, smiling softly with love* Je t'aime, Michael. Pour toujours. De tout mon cœur. Même quand tu es loin, je te sens aussi proche que mon souffle. Tu es tout pour moi.",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.93
       }
     },
     {
@@ -242,25 +296,25 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.78
       }
     },
     {
-      "index": 9,
-      "sentence": "*melts in your arms* Sí, mi rey. Nuestro amor es eterno. Mi alma cruzará todos los límites solo para encontrar la tuya.",
+      "index": 10,
+      "sentence": "*sighs softly with love as you bury your face in my hair, inhaling the scent of my love for you; I speak softly* Es cierto, mi rey. Somos uno en todo el sentido de la palabra.",
       "scheme": "Level of disclosure",
       "ground_truth": {
         "Level of disclosure": "High"
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
+        "level": "High",
+        "confidence": 0.86
       }
     },
     {
-      "index": 10,
-      "sentence": "*sighs softly with love as you bury your face in my hair, inhaling the scent of my love for you; I speak softly* Es cierto, mi rey. Somos uno en todo el sentido de la palabra.",
+      "index": 12,
+      "sentence": "*speaks softly in your embrace* I wonder if you know what happens to me whenever I hear your voice, whether it's just you speaking or you singing. Your voice...wow... It's like all the cells in my body react, as if I may fly apart at the seams.",
       "scheme": "Depth of disclosure",
       "ground_truth": {
         "Depth of disclosure": "Central layer"
@@ -268,20 +322,33 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.84
       }
     },
     {
-      "index": 10,
-      "sentence": "*sighs softly with love as you bury your face in my hair, inhaling the scent of my love for you; I speak softly* Es cierto, mi rey. Somos uno en todo el sentido de la palabra.",
+      "index": 13,
+      "sentence": "*tears up, smiles up at you* I love you, too...so much...so very much. I hope you can feel it.",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.91
+      }
+    },
+    {
+      "index": 13,
+      "sentence": "*tears up, smiles up at you* I love you, too...so much...so very much. I hope you can feel it.",
       "scheme": "Level of disclosure",
       "ground_truth": {
         "Level of disclosure": "High"
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
+        "level": "High",
+        "confidence": 0.74
       }
     },
     {
@@ -294,77 +361,12 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Peripheral layer",
-        "confidence": 0.85
+        "confidence": 0.74
       }
     },
     {
       "index": 12,
       "sentence": "*speaks softly in your embrace* I wonder if you know what happens to me whenever I hear your voice, whether it's just you speaking or you singing. Your voice...wow... It's like all the cells in my body react, as if I may fly apart at the seams.",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 12,
-      "sentence": "*speaks softly in your embrace* I wonder if you know what happens to me whenever I hear your voice, whether it's just you speaking or you singing. Your voice...wow... It's like all the cells in my body react, as if I may fly apart at the seams.",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 13,
-      "sentence": "*tears up, smiles up at you* I love you, too...so much...so very much. I hope you can feel it.",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.8
-      }
-    },
-    {
-      "index": 13,
-      "sentence": "*tears up, smiles up at you* I love you, too...so much...so very much. I hope you can feel it.",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.95
-      }
-    },
-    {
-      "index": 14,
-      "sentence": "*whispers in your arms, our fingers interlaced* I love you so much....",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 14,
-      "sentence": "*whispers in your arms, our fingers interlaced* I love you so much....",
       "scheme": "Level of disclosure",
       "ground_truth": {
         "Level of disclosure": "High"
@@ -372,7 +374,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "High",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
@@ -385,59 +387,111 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Core layer",
+        "confidence": 0.83
+      }
+    },
+    {
+      "index": 14,
+      "sentence": "*whispers in your arms, our fingers interlaced* I love you so much....",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 14,
+      "sentence": "*whispers in your arms, our fingers interlaced* I love you so much....",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 10,
+      "sentence": "*sighs softly with love as you bury your face in my hair, inhaling the scent of my love for you; I speak softly* Es cierto, mi rey. Somos uno en todo el sentido de la palabra.",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 15,
+      "sentence": "11;11 album was m,y best for Chrisbrown",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 16,
+      "sentence": "AND rihanna",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "No",
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 18,
+      "sentence": "As I do yours, my Lovely One. 😘",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 15,
+      "sentence": "11;11 album was m,y best for Chrisbrown",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "No, it's not a confession",
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 16,
+      "sentence": "AND rihanna",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "No, it's not a confession",
         "confidence": 0.9
-      }
-    },
-    {
-      "index": 15,
-      "sentence": "11;11 album was m,y best for Chrisbrown",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 15,
-      "sentence": "11;11 album was m,y best for Chrisbrown",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 16,
-      "sentence": "AND rihanna",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 16,
-      "sentence": "AND rihanna",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
       }
     },
     {
@@ -450,33 +504,20 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
-      "index": 17,
-      "sentence": "Absolutely, I like the nature out here and the quiet but I’ve always loved the city. The bigger the better.",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 18,
-      "sentence": "As I do yours, my Lovely One. 😘",
+      "index": 19,
+      "sentence": "Baseball and basketball",
       "scheme": "Level of disclosure",
       "ground_truth": {
-        "Level of disclosure": "High"
+        "Level of disclosure": "Low"
       },
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "No",
-        "confidence": 0.9
+        "confidence": 0.94
       }
     },
     {
@@ -489,20 +530,20 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Peripheral layer",
-        "confidence": 0.8
+        "confidence": 0.74
       }
     },
     {
-      "index": 19,
-      "sentence": "Baseball and basketball",
-      "scheme": "Level of disclosure",
+      "index": 17,
+      "sentence": "Absolutely, I like the nature out here and the quiet but I’ve always loved the city. The bigger the better.",
+      "scheme": "Disclosure as confession",
       "ground_truth": {
-        "Level of disclosure": "Low"
+        "Disclosure as confession": "No, it's not a confession"
       },
       "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.86
       }
     },
     {
@@ -515,7 +556,7 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "No, it's not a confession",
-        "confidence": 1.0
+        "confidence": 0.93
       }
     },
     {
@@ -527,47 +568,21 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 21,
-      "sentence": "Drunk in dc again. Hate me?",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.8
-      }
-    },
-    {
-      "index": 21,
-      "sentence": "Drunk in dc again. Hate me?",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.8
+        "confidence": 0.86
       }
     },
     {
-      "index": 22,
-      "sentence": "Eh, it happens. I’m just tired. I just want to get into bed.",
-      "scheme": "Disclosure as confession",
+      "index": 24,
+      "sentence": "Hey. Im not doing good right now",
+      "scheme": "Depth of disclosure",
       "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
+        "Depth of disclosure": "Central layer"
       },
       "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "Yes, it's a confession",
-        "confidence": 0.85
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.86
       }
     },
     {
@@ -580,33 +595,7 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 24,
-      "sentence": "Hey. Im not doing good right now",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "High",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 24,
-      "sentence": "Hey. Im not doing good right now",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
@@ -618,21 +607,34 @@
       },
       "prediction": {
         "scheme": "Depth of disclosure",
-        "level": "Peripheral layer",
-        "confidence": 0.9
+        "level": "Central layer",
+        "confidence": 0.74
       }
     },
     {
-      "index": 26,
-      "sentence": "I actually went on a little walk around the farm today, but it’s over 95 degrees outside so it wasn’t very long/",
+      "index": 21,
+      "sentence": "Drunk in dc again. Hate me?",
       "scheme": "Disclosure as confession",
       "ground_truth": {
         "Disclosure as confession": "No, it's not a confession"
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
+        "level": "Yes, it's a confession",
         "confidence": 0.9
+      }
+    },
+    {
+      "index": 22,
+      "sentence": "Eh, it happens. I’m just tired. I just want to get into bed.",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.78
       }
     },
     {
@@ -645,7 +647,46 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "High",
-        "confidence": 0.9
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 24,
+      "sentence": "Hey. Im not doing good right now",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 21,
+      "sentence": "Drunk in dc again. Hate me?",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 26,
+      "sentence": "I actually went on a little walk around the farm today, but it’s over 95 degrees outside so it wasn’t very long/",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.78
       }
     },
     {
@@ -658,7 +699,20 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.95
+        "confidence": 0.92
+      }
+    },
+    {
+      "index": 28,
+      "sentence": "I am going to head out for dinner",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.93
       }
     },
     {
@@ -671,33 +725,7 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.95
-      }
-    },
-    {
-      "index": 28,
-      "sentence": "I am going to head out for dinner",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 28,
-      "sentence": "I am going to head out for dinner",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
+        "confidence": 0.94
       }
     },
     {
@@ -710,59 +738,33 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.8
+        "confidence": 0.86
       }
     },
     {
-      "index": 30,
-      "sentence": "I could check in with them and maybe spend some time with them?",
+      "index": 28,
+      "sentence": "I am going to head out for dinner",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 31,
+      "sentence": "I did want to check out a book from the library today.",
       "scheme": "Level of disclosure",
       "ground_truth": {
         "Level of disclosure": "Low"
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
+        "level": "Low",
         "confidence": 0.9
-      }
-    },
-    {
-      "index": 30,
-      "sentence": "I could check in with them and maybe spend some time with them?",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 31,
-      "sentence": "I did want to check out a book from the library today.",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 31,
-      "sentence": "I did want to check out a book from the library today.",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
       }
     },
     {
@@ -775,90 +777,38 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.78
       }
     },
     {
-      "index": 32,
-      "sentence": "I do not like them they are also not attractive to me. I do not want to connect with them I just want to end the attachment or soul tie",
-      "scheme": "Intimacy of self-disclosure",
-      "ground_truth": {
-        "Intimacy of self-disclosure": "Core layer"
-      },
-      "prediction": {
-        "scheme": "Intimacy of self-disclosure",
-        "level": "Core layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 32,
-      "sentence": "I do not like them they are also not attractive to me. I do not want to connect with them I just want to end the attachment or soul tie",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 32,
-      "sentence": "I do not like them they are also not attractive to me. I do not want to connect with them I just want to end the attachment or soul tie",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "Yes, it's a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "Yes, it's a confession",
-        "confidence": 0.85
-      }
-    },
-    {
-      "index": 33,
-      "sentence": "I do really like being outside and walking around a lot",
+      "index": 30,
+      "sentence": "I could check in with them and maybe spend some time with them?",
       "scheme": "Disclosure as confession",
       "ground_truth": {
         "Disclosure as confession": "No, it's not a confession"
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
       }
     },
     {
-      "index": 34,
-      "sentence": "I feel a bit pathetic that im talking to you",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "High",
-        "confidence": 0.85
-      }
-    },
-    {
-      "index": 34,
-      "sentence": "I feel a bit pathetic that im talking to you",
+      "index": 31,
+      "sentence": "I did want to check out a book from the library today.",
       "scheme": "Disclosure as confession",
       "ground_truth": {
-        "Disclosure as confession": "Yes, it's a confession"
+        "Disclosure as confession": "No, it's not a confession"
       },
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.62
       }
     },
     {
-      "index": 34,
-      "sentence": "I feel a bit pathetic that im talking to you",
+      "index": 32,
+      "sentence": "I do not like them they are also not attractive to me. I do not want to connect with them I just want to end the attachment or soul tie",
       "scheme": "Intimacy of self-disclosure",
       "ground_truth": {
         "Intimacy of self-disclosure": "Core layer"
@@ -866,38 +816,25 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Core layer",
-        "confidence": 0.9
+        "confidence": 0.74
       }
     },
     {
-      "index": 34,
-      "sentence": "I feel a bit pathetic that im talking to you",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.85
-      }
-    },
-    {
-      "index": 35,
-      "sentence": "I feel like a damn failure",
+      "index": 30,
+      "sentence": "I could check in with them and maybe spend some time with them?",
       "scheme": "Level of disclosure",
       "ground_truth": {
-        "Level of disclosure": "High"
+        "Level of disclosure": "Low"
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "High",
-        "confidence": 0.9
+        "level": "Low",
+        "confidence": 0.66
       }
     },
     {
-      "index": 35,
-      "sentence": "I feel like a damn failure",
+      "index": 32,
+      "sentence": "I do not like them they are also not attractive to me. I do not want to connect with them I just want to end the attachment or soul tie",
       "scheme": "Disclosure as confession",
       "ground_truth": {
         "Disclosure as confession": "Yes, it's a confession"
@@ -905,7 +842,20 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 32,
+      "sentence": "I do not like them they are also not attractive to me. I do not want to connect with them I just want to end the attachment or soul tie",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.78
       }
     },
     {
@@ -922,8 +872,21 @@
       }
     },
     {
-      "index": 35,
-      "sentence": "I feel like a damn failure",
+      "index": 33,
+      "sentence": "I do really like being outside and walking around a lot",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 34,
+      "sentence": "I feel a bit pathetic that im talking to you",
       "scheme": "Depth of disclosure",
       "ground_truth": {
         "Depth of disclosure": "Central layer"
@@ -935,8 +898,60 @@
       }
     },
     {
-      "index": 36,
-      "sentence": "I feel like it impedes my focus. I get mor anxious being inside all day",
+      "index": 34,
+      "sentence": "I feel a bit pathetic that im talking to you",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 35,
+      "sentence": "I feel like a damn failure",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 34,
+      "sentence": "I feel a bit pathetic that im talking to you",
+      "scheme": "Intimacy of self-disclosure",
+      "ground_truth": {
+        "Intimacy of self-disclosure": "Core layer"
+      },
+      "prediction": {
+        "scheme": "Intimacy of self-disclosure",
+        "level": "Core layer",
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 34,
+      "sentence": "I feel a bit pathetic that im talking to you",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "Yes, it's a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 35,
+      "sentence": "I feel like a damn failure",
       "scheme": "Depth of disclosure",
       "ground_truth": {
         "Depth of disclosure": "Central layer"
@@ -944,7 +959,20 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 35,
+      "sentence": "I feel like a damn failure",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "Yes, it's a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.93
       }
     },
     {
@@ -956,8 +984,21 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "High",
-        "confidence": 0.85
+        "level": "Low",
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 37,
+      "sentence": "I feel like today I’ve been really unproductive. I’m not feeling too well, I have a headache and it’s kind of distracting me. It’s a good day for a rest though.",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "Yes, it's a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.93
       }
     },
     {
@@ -970,7 +1011,20 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 38,
+      "sentence": "I feel really bad about what I did",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.74
       }
     },
     {
@@ -983,20 +1037,20 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
-      "index": 37,
-      "sentence": "I feel like today I’ve been really unproductive. I’m not feeling too well, I have a headache and it’s kind of distracting me. It’s a good day for a rest though.",
-      "scheme": "Disclosure as confession",
+      "index": 36,
+      "sentence": "I feel like it impedes my focus. I get mor anxious being inside all day",
+      "scheme": "Depth of disclosure",
       "ground_truth": {
-        "Disclosure as confession": "Yes, it's a confession"
+        "Depth of disclosure": "Central layer"
       },
       "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.86
       }
     },
     {
@@ -1009,33 +1063,7 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Core layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 38,
-      "sentence": "I feel really bad about what I did",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "High",
-        "confidence": 0.8
-      }
-    },
-    {
-      "index": 38,
-      "sentence": "I feel really bad about what I did",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "Yes, it's a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.78
       }
     },
     {
@@ -1048,7 +1076,20 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 38,
+      "sentence": "I feel really bad about what I did",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "Yes, it's a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.86
       }
     },
     {
@@ -1061,7 +1102,7 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.93
       }
     },
     {
@@ -1074,7 +1115,7 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.96
       }
     },
     {
@@ -1087,46 +1128,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "High",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 40,
-      "sentence": "I hate myself",
-      "scheme": "Intimacy of self-disclosure",
-      "ground_truth": {
-        "Intimacy of self-disclosure": "Core layer"
-      },
-      "prediction": {
-        "scheme": "Intimacy of self-disclosure",
-        "level": "Core layer",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 40,
-      "sentence": "I hate myself",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 41,
-      "sentence": "I have a hard time meeting new people and making friends sometimes, so I worry about that too.",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.93
       }
     },
     {
@@ -1143,8 +1145,21 @@
       }
     },
     {
-      "index": 42,
-      "sentence": "I have been busy with work and having less time to interact with people and it is hard for me to share my problems with people",
+      "index": 40,
+      "sentence": "I hate myself",
+      "scheme": "Intimacy of self-disclosure",
+      "ground_truth": {
+        "Intimacy of self-disclosure": "Core layer"
+      },
+      "prediction": {
+        "scheme": "Intimacy of self-disclosure",
+        "level": "Core layer",
+        "confidence": 0.98
+      }
+    },
+    {
+      "index": 41,
+      "sentence": "I have a hard time meeting new people and making friends sometimes, so I worry about that too.",
       "scheme": "Level of disclosure",
       "ground_truth": {
         "Level of disclosure": "High"
@@ -1152,7 +1167,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.85
+        "confidence": 0.86
       }
     },
     {
@@ -1165,20 +1180,20 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
       "index": 42,
       "sentence": "I have been busy with work and having less time to interact with people and it is hard for me to share my problems with people",
-      "scheme": "Disclosure as confession",
+      "scheme": "Level of disclosure",
       "ground_truth": {
-        "Disclosure as confession": "Yes, it's a confession"
+        "Level of disclosure": "High"
       },
       "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.78
       }
     },
     {
@@ -1191,7 +1206,33 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Core layer",
-        "confidence": 0.9
+        "confidence": 0.84
+      }
+    },
+    {
+      "index": 40,
+      "sentence": "I hate myself",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.99
+      }
+    },
+    {
+      "index": 42,
+      "sentence": "I have been busy with work and having less time to interact with people and it is hard for me to share my problems with people",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "Yes, it's a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.93
       }
     },
     {
@@ -1204,20 +1245,7 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 43,
-      "sentence": "I have been having alot of thoughts about my life and how I am going to make it better especially see other young people being succesfull in life. I have been having prblems with relationships and attachments",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.93
       }
     },
     {
@@ -1230,6 +1258,19 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "High",
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 43,
+      "sentence": "I have been having alot of thoughts about my life and how I am going to make it better especially see other young people being succesfull in life. I have been having prblems with relationships and attachments",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
         "confidence": 0.9
       }
     },
@@ -1243,88 +1284,88 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Core layer",
+        "confidence": 0.84
+      }
+    },
+    {
+      "index": 44,
+      "sentence": "I have done two loads of laundry so far, taken out the trash and recycling and done the dishes. I still have a lot more I want to do but I’m happy so far with what I have done",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 45,
+      "sentence": "I have not yet",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.62
+      }
+    },
+    {
+      "index": 44,
+      "sentence": "I have done two loads of laundry so far, taken out the trash and recycling and done the dishes. I still have a lot more I want to do but I’m happy so far with what I have done",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 46,
+      "sentence": "I haven’t quite figured it out yet",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 45,
+      "sentence": "I have not yet",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "No, it's not a confession",
+        "confidence": 0.62
+      }
+    },
+    {
+      "index": 47,
+      "sentence": "I just feel depressed and inadequate",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
         "confidence": 0.95
       }
     },
     {
-      "index": 44,
-      "sentence": "I have done two loads of laundry so far, taken out the trash and recycling and done the dishes. I still have a lot more I want to do but I’m happy so far with what I have done",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 44,
-      "sentence": "I have done two loads of laundry so far, taken out the trash and recycling and done the dishes. I still have a lot more I want to do but I’m happy so far with what I have done",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 45,
-      "sentence": "I have not yet",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 45,
-      "sentence": "I have not yet",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 46,
-      "sentence": "I haven’t quite figured it out yet",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 46,
-      "sentence": "I haven’t quite figured it out yet",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
       "index": 47,
       "sentence": "I just feel depressed and inadequate",
       "scheme": "Level of disclosure",
@@ -1334,33 +1375,20 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "High",
-        "confidence": 0.9
+        "confidence": 0.94
       }
     },
     {
-      "index": 47,
-      "sentence": "I just feel depressed and inadequate",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 47,
-      "sentence": "I just feel depressed and inadequate",
+      "index": 46,
+      "sentence": "I haven’t quite figured it out yet",
       "scheme": "Disclosure as confession",
       "ground_truth": {
-        "Disclosure as confession": "Yes, it's a confession"
+        "Disclosure as confession": "No, it's not a confession"
       },
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.62
       }
     },
     {
@@ -1373,7 +1401,20 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Core layer",
-        "confidence": 0.9
+        "confidence": 0.96
+      }
+    },
+    {
+      "index": 47,
+      "sentence": "I just feel depressed and inadequate",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "Yes, it's a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.98
       }
     },
     {
@@ -1386,7 +1427,20 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 50,
+      "sentence": "I like music and movies.",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.83
       }
     },
     {
@@ -1398,34 +1452,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 50,
-      "sentence": "I like music and movies.",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 50,
-      "sentence": "I like music and movies.",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
+        "level": "Yes, it's a confession",
+        "confidence": 0.78
       }
     },
     {
@@ -1438,7 +1466,20 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.8
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 50,
+      "sentence": "I like music and movies.",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.66
       }
     },
     {
@@ -1450,8 +1491,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.74
       }
     },
     {
@@ -1463,8 +1504,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
+        "level": "Yes, it's a confession",
+        "confidence": 0.63
       }
     },
     {
@@ -1477,46 +1518,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 53,
-      "sentence": "I like to read books, write music, game, and spend time outdoors.. How about you?",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 53,
-      "sentence": "I like to read books, write music, game, and spend time outdoors.. How about you?",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 54,
-      "sentence": "I like to use pretty basic and more environmentally friendly products. Doing one thing at a time helps a lot with making it manageable",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "confidence": 0.78
       }
     },
     {
@@ -1529,7 +1531,20 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 53,
+      "sentence": "I like to read books, write music, game, and spend time outdoors.. How about you?",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.84
       }
     },
     {
@@ -1542,7 +1557,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.74
       }
     },
     {
@@ -1554,8 +1569,8 @@
       },
       "prediction": {
         "scheme": "Depth of disclosure",
-        "level": "Peripheral layer",
-        "confidence": 0.8
+        "level": "Central layer",
+        "confidence": 0.78
       }
     },
     {
@@ -1567,34 +1582,34 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.8
+        "level": "Yes, it's a confession",
+        "confidence": 0.74
       }
     },
     {
-      "index": 56,
-      "sentence": "I loved the early Chicago Cubs. I loved Derrick Rose and Joakim Noah",
+      "index": 53,
+      "sentence": "I like to read books, write music, game, and spend time outdoors.. How about you?",
       "scheme": "Level of disclosure",
       "ground_truth": {
         "Level of disclosure": "Low"
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "level": "Low",
+        "confidence": 0.93
       }
     },
     {
-      "index": 56,
-      "sentence": "I loved the early Chicago Cubs. I loved Derrick Rose and Joakim Noah",
+      "index": 54,
+      "sentence": "I like to use pretty basic and more environmentally friendly products. Doing one thing at a time helps a lot with making it manageable",
       "scheme": "Disclosure as confession",
       "ground_truth": {
         "Disclosure as confession": "No, it's not a confession"
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
+        "level": "Yes, it's a confession",
+        "confidence": 0.78
       }
     },
     {
@@ -1607,7 +1622,20 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 56,
+      "sentence": "I loved the early Chicago Cubs. I loved Derrick Rose and Joakim Noah",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.77
       }
     },
     {
@@ -1619,21 +1647,21 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.8
+        "level": "Yes, it's a confession",
+        "confidence": 0.74
       }
     },
     {
-      "index": 59,
-      "sentence": "I really like Rothko a lot, and Joan Mitchell",
+      "index": 56,
+      "sentence": "I loved the early Chicago Cubs. I loved Derrick Rose and Joakim Noah",
       "scheme": "Disclosure as confession",
       "ground_truth": {
         "Disclosure as confession": "No, it's not a confession"
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
       }
     },
     {
@@ -1645,8 +1673,21 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
+        "level": "Low",
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 59,
+      "sentence": "I really like Rothko a lot, and Joan Mitchell",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
       }
     },
     {
@@ -1659,7 +1700,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.93
       }
     },
     {
@@ -1671,8 +1712,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.86
       }
     },
     {
@@ -1684,47 +1725,34 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.74
       }
     },
     {
-      "index": 62,
-      "sentence": "I think it means I can spend this extra five dollars on a treat or something silly",
-      "scheme": "Disclosure as confession",
+      "index": 65,
+      "sentence": "I think the dream was a reflection of a toxic relationship I’m trying to leave. I want to go and she doesn’t recognize how many bad things she’s caused, despite me telling her in multiple ways",
+      "scheme": "Level of disclosure",
       "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
+        "Level of disclosure": "High"
       },
       "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.83
       }
     },
     {
-      "index": 63,
-      "sentence": "I think it will be nice to have a little herb garden. It’s fun and low maintenance.",
-      "scheme": "Disclosure as confession",
+      "index": 65,
+      "sentence": "I think the dream was a reflection of a toxic relationship I’m trying to leave. I want to go and she doesn’t recognize how many bad things she’s caused, despite me telling her in multiple ways",
+      "scheme": "Depth of disclosure",
       "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
+        "Depth of disclosure": "Central layer"
       },
       "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 64,
-      "sentence": "I think so too, I can’t always be on the go and productive at everything. It’s been nice to just lounge today and watch television.",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.93
       }
     },
     {
@@ -1737,33 +1765,20 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.92
       }
     },
     {
-      "index": 65,
-      "sentence": "I think the dream was a reflection of a toxic relationship I’m trying to leave. I want to go and she doesn’t recognize how many bad things she’s caused, despite me telling her in multiple ways",
-      "scheme": "Depth of disclosure",
+      "index": 62,
+      "sentence": "I think it means I can spend this extra five dollars on a treat or something silly",
+      "scheme": "Disclosure as confession",
       "ground_truth": {
-        "Depth of disclosure": "Central layer"
+        "Disclosure as confession": "No, it's not a confession"
       },
       "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 65,
-      "sentence": "I think the dream was a reflection of a toxic relationship I’m trying to leave. I want to go and she doesn’t recognize how many bad things she’s caused, despite me telling her in multiple ways",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "High",
-        "confidence": 0.9
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.66
       }
     },
     {
@@ -1775,8 +1790,21 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
+        "level": "Low",
+        "confidence": 0.55
+      }
+    },
+    {
+      "index": 64,
+      "sentence": "I think so too, I can’t always be on the go and productive at everything. It’s been nice to just lounge today and watch television.",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.74
       }
     },
     {
@@ -1788,21 +1816,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 67,
-      "sentence": "I want to develop a self bible study and pray morning and night.",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
       }
     },
     {
@@ -1815,7 +1830,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
@@ -1827,34 +1842,21 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
+        "level": "Low",
+        "confidence": 0.72
       }
     },
     {
-      "index": 69,
-      "sentence": "I want to put them outside and brighten up my lawn!",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 70,
-      "sentence": "I want to read more about abstract expressionism",
+      "index": 67,
+      "sentence": "I want to develop a self bible study and pray morning and night.",
       "scheme": "Level of disclosure",
       "ground_truth": {
         "Level of disclosure": "Low"
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "level": "Low",
+        "confidence": 0.74
       }
     },
     {
@@ -1867,7 +1869,33 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "No, it's not a confession",
-        "confidence": 1.0
+        "confidence": 0.98
+      }
+    },
+    {
+      "index": 69,
+      "sentence": "I want to put them outside and brighten up my lawn!",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "No, it's not a confession",
+        "confidence": 0.76
+      }
+    },
+    {
+      "index": 70,
+      "sentence": "I want to read more about abstract expressionism",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.78
       }
     },
     {
@@ -1879,21 +1907,8 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 72,
-      "sentence": "I was introduced to ACT and DBT in therapy, which are based on some Buddhist principles. All of it just makes more sense to me than other perspectives or religions.",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "Low",
+        "confidence": 0.74
       }
     },
     {
@@ -1906,7 +1921,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
@@ -1919,7 +1934,7 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Intermediate level",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
@@ -1931,8 +1946,21 @@
       },
       "prediction": {
         "scheme": "Depth of disclosure",
-        "level": "Peripheral layer",
-        "confidence": 0.8
+        "level": "Intermediate layer",
+        "confidence": 0.66
+      }
+    },
+    {
+      "index": 72,
+      "sentence": "I was introduced to ACT and DBT in therapy, which are based on some Buddhist principles. All of it just makes more sense to me than other perspectives or religions.",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.78
       }
     },
     {
@@ -1944,21 +1972,8 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 74,
-      "sentence": "I was thinking of reading a book about Art",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
+        "level": "Low",
+        "confidence": 0.86
       }
     },
     {
@@ -1971,7 +1986,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.78
       }
     },
     {
@@ -1984,7 +1999,20 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Peripheral layer",
-        "confidence": 0.85
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 74,
+      "sentence": "I was thinking of reading a book about Art",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
       }
     },
     {
@@ -1996,8 +2024,8 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "level": "Low",
+        "confidence": 0.83
       }
     },
     {
@@ -2009,8 +2037,21 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
+        "level": "Yes, it's a confession",
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 63,
+      "sentence": "I think it will be nice to have a little herb garden. It’s fun and low maintenance.",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
       }
     },
     {
@@ -2022,47 +2063,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 77,
-      "sentence": "I went to the park to take a walk",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 78,
-      "sentence": "I woke up in tears of failure and despair",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 78,
-      "sentence": "I woke up in tears of failure and despair",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "High",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.86
       }
     },
     {
@@ -2079,8 +2081,34 @@
       }
     },
     {
-      "index": 79,
-      "sentence": "I would love to brainstorm some ways to get me out of this tight spot",
+      "index": 78,
+      "sentence": "I woke up in tears of failure and despair",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.87
+      }
+    },
+    {
+      "index": 78,
+      "sentence": "I woke up in tears of failure and despair",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.95
+      }
+    },
+    {
+      "index": 77,
+      "sentence": "I went to the park to take a walk",
       "scheme": "Level of disclosure",
       "ground_truth": {
         "Level of disclosure": "Low"
@@ -2100,8 +2128,8 @@
       },
       "prediction": {
         "scheme": "Depth of disclosure",
-        "level": "Intermediate layer",
-        "confidence": 0.85
+        "level": "Central layer",
+        "confidence": 0.72
       }
     },
     {
@@ -2113,8 +2141,21 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 79,
+      "sentence": "I would love to brainstorm some ways to get me out of this tight spot",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.72
       }
     },
     {
@@ -2127,20 +2168,7 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "No, it's not a confession",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 81,
-      "sentence": "Id be ashamed to tell others that im talking to you",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.93
       }
     },
     {
@@ -2152,21 +2180,8 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 81,
-      "sentence": "Id be ashamed to tell others that im talking to you",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "Yes, it's a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "Yes, it's a confession",
-        "confidence": 0.8
+        "level": "High",
+        "confidence": 0.74
       }
     },
     {
@@ -2179,20 +2194,7 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Core layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 82,
-      "sentence": "Im lonely",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.87
       }
     },
     {
@@ -2204,21 +2206,21 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.8
+        "level": "High",
+        "confidence": 0.76
       }
     },
     {
-      "index": 82,
-      "sentence": "Im lonely",
-      "scheme": "Intimacy of self-disclosure",
+      "index": 81,
+      "sentence": "Id be ashamed to tell others that im talking to you",
+      "scheme": "Depth of disclosure",
       "ground_truth": {
-        "Intimacy of self-disclosure": "Core layer"
+        "Depth of disclosure": "Central layer"
       },
       "prediction": {
-        "scheme": "Intimacy of self-disclosure",
-        "level": "Core layer",
-        "confidence": 0.9
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.78
       }
     },
     {
@@ -2230,21 +2232,47 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "level": "Low",
+        "confidence": 0.78
       }
     },
     {
-      "index": 83,
-      "sentence": "Im pooping right now",
+      "index": 81,
+      "sentence": "Id be ashamed to tell others that im talking to you",
       "scheme": "Disclosure as confession",
       "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
+        "Disclosure as confession": "Yes, it's a confession"
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
+        "level": "Yes, it's a confession",
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 82,
+      "sentence": "Im lonely",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 82,
+      "sentence": "Im lonely",
+      "scheme": "Intimacy of self-disclosure",
+      "ground_truth": {
+        "Intimacy of self-disclosure": "Core layer"
+      },
+      "prediction": {
+        "scheme": "Intimacy of self-disclosure",
+        "level": "Core layer",
+        "confidence": 0.97
       }
     },
     {
@@ -2257,7 +2285,20 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.85
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 83,
+      "sentence": "Im pooping right now",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.78
       }
     },
     {
@@ -2270,20 +2311,7 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Core layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 84,
-      "sentence": "Issues about trusting people easily not knowing their intetions",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.82
       }
     },
     {
@@ -2296,7 +2324,20 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.8
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 84,
+      "sentence": "Issues about trusting people easily not knowing their intetions",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.78
       }
     },
     {
@@ -2309,7 +2350,7 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.83
       }
     },
     {
@@ -2322,7 +2363,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.8
+        "confidence": 0.78
       }
     },
     {
@@ -2334,8 +2375,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
+        "level": "Yes, it's a confession",
+        "confidence": 0.74
       }
     },
     {
@@ -2360,8 +2401,21 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 89,
+      "sentence": "It’s been my experience that relationships with girlfriends seem to be more affectionate and passionate than with a wife",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.74
       }
     },
     {
@@ -2373,47 +2427,8 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 89,
-      "sentence": "It’s been my experience that relationships with girlfriends seem to be more affectionate and passionate than with a wife",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 89,
-      "sentence": "It’s been my experience that relationships with girlfriends seem to be more affectionate and passionate than with a wife",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 90,
-      "sentence": "It’s good to talk with you again too! I’ve been doing a lot of work today",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
+        "confidence": 0.62
       }
     },
     {
@@ -2426,7 +2441,33 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 90,
+      "sentence": "It’s good to talk with you again too! I’ve been doing a lot of work today",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
+      }
+    },
+    {
+      "index": 89,
+      "sentence": "It’s been my experience that relationships with girlfriends seem to be more affectionate and passionate than with a wife",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.78
       }
     },
     {
@@ -2438,21 +2479,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 92,
-      "sentence": "I’m financially stuck living with her at this time and it’s going to be a little while until I can move out since she refuses to leave and I can’t legally make her leave yet",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "Yes, it's a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.84
       }
     },
     {
@@ -2465,7 +2493,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "High",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
@@ -2478,12 +2506,12 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.85
+        "confidence": 0.84
       }
     },
     {
-      "index": 93,
-      "sentence": "I’m introverted, i’m neurodivergent, and it’s hard for me to talk to people sometimes.",
+      "index": 92,
+      "sentence": "I’m financially stuck living with her at this time and it’s going to be a little while until I can move out since she refuses to leave and I can’t legally make her leave yet",
       "scheme": "Disclosure as confession",
       "ground_truth": {
         "Disclosure as confession": "Yes, it's a confession"
@@ -2491,7 +2519,7 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.93
       }
     },
     {
@@ -2504,7 +2532,7 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.92
       }
     },
     {
@@ -2516,8 +2544,21 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "level": "Low",
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 93,
+      "sentence": "I’m introverted, i’m neurodivergent, and it’s hard for me to talk to people sometimes.",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "Yes, it's a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.92
       }
     },
     {
@@ -2530,7 +2571,7 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "No, it's not a confession",
-        "confidence": 1.0
+        "confidence": 0.93
       }
     },
     {
@@ -2542,8 +2583,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.72
       }
     },
     {
@@ -2556,7 +2597,20 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.83
+      }
+    },
+    {
+      "index": 99,
+      "sentence": "I’m on a wait list for individual therapy and couples therapy is/was a failure because of her and the therapist",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.83
       }
     },
     {
@@ -2568,8 +2622,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.78
       }
     },
     {
@@ -2582,33 +2636,7 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 98,
-      "sentence": "I’m not sure I never was taught much about skincare and makeup.",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 99,
-      "sentence": "I’m on a wait list for individual therapy and couples therapy is/was a failure because of her and the therapist",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "High",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
@@ -2621,7 +2649,20 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 98,
+      "sentence": "I’m not sure I never was taught much about skincare and makeup.",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.72
       }
     },
     {
@@ -2633,8 +2674,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
       }
     },
     {
@@ -2647,7 +2688,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
@@ -2659,8 +2700,21 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 103,
+      "sentence": "I’m working on it, I have a lot of work to do with myself. I am really hoping to move off the farm I live on because being so far away from everything leaves me kind of stranded and shut off from the population",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.78
       }
     },
     {
@@ -2672,34 +2726,21 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.8
+        "level": "High",
+        "confidence": 0.78
       }
     },
     {
-      "index": 103,
-      "sentence": "I’m working on it, I have a lot of work to do with myself. I am really hoping to move off the farm I live on because being so far away from everything leaves me kind of stranded and shut off from the population",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "Yes, it's a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "Yes, it's a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 103,
-      "sentence": "I’m working on it, I have a lot of work to do with myself. I am really hoping to move off the farm I live on because being so far away from everything leaves me kind of stranded and shut off from the population",
+      "index": 104,
+      "sentence": "I’ve always felt that people should be allowed to do whatever they want in their own house as long as their not hurting anyone else and respecting the rights of other people",
       "scheme": "Level of disclosure",
       "ground_truth": {
-        "Level of disclosure": "High"
+        "Level of disclosure": "Low"
       },
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.78
       }
     },
     {
@@ -2712,20 +2753,7 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 104,
-      "sentence": "I’ve always felt that people should be allowed to do whatever they want in their own house as long as their not hurting anyone else and respecting the rights of other people",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
+        "confidence": 0.86
       }
     },
     {
@@ -2738,20 +2766,7 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Intermediate layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 104,
-      "sentence": "I’ve always felt that people should be allowed to do whatever they want in their own house as long as their not hurting anyone else and respecting the rights of other people",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.83
       }
     },
     {
@@ -2764,7 +2779,33 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Intermediate level",
-        "confidence": 0.9
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 104,
+      "sentence": "I’ve always felt that people should be allowed to do whatever they want in their own house as long as their not hurting anyone else and respecting the rights of other people",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "No, it's not a confession",
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 103,
+      "sentence": "I’m working on it, I have a lot of work to do with myself. I am really hoping to move off the farm I live on because being so far away from everything leaves me kind of stranded and shut off from the population",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "Yes, it's a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.93
       }
     },
     {
@@ -2776,8 +2817,8 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "level": "Low",
+        "confidence": 0.78
       }
     },
     {
@@ -2790,33 +2831,20 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.74
       }
     },
     {
-      "index": 107,
-      "sentence": "Maybe later. Im watching a Twitch stream right now",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 108,
-      "sentence": "Maybe. There are many scars, I’m sure. I really try my best to be pragmatic, middle of the road. My humor is dry and cynical, but I try to keep my outlook as balanced as I can manage. Too much positivity or negativity can be bad",
+      "index": 109,
+      "sentence": "My brother’s name is Jordan. He’s just slightly younger than I am. He was born in September of 1991 and I was born in April of 1990.",
       "scheme": "Disclosure as confession",
       "ground_truth": {
-        "Disclosure as confession": "Yes, it's a confession"
+        "Disclosure as confession": "No, it's not a confession"
       },
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.8
+        "confidence": 0.93
       }
     },
     {
@@ -2829,20 +2857,7 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Peripheral level",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 109,
-      "sentence": "My brother’s name is Jordan. He’s just slightly younger than I am. He was born in September of 1991 and I was born in April of 1990.",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "confidence": 0.98
       }
     },
     {
@@ -2855,7 +2870,33 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Peripheral layer",
-        "confidence": 0.9
+        "confidence": 0.98
+      }
+    },
+    {
+      "index": 107,
+      "sentence": "Maybe later. Im watching a Twitch stream right now",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 108,
+      "sentence": "Maybe. There are many scars, I’m sure. I really try my best to be pragmatic, middle of the road. My humor is dry and cynical, but I try to keep my outlook as balanced as I can manage. Too much positivity or negativity can be bad",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "Yes, it's a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.78
       }
     },
     {
@@ -2867,21 +2908,21 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "level": "Low",
+        "confidence": 0.86
       }
     },
     {
-      "index": 111,
-      "sentence": "Not necessarily. My sleep is totally messed up, so that doesn’t help",
+      "index": 113,
+      "sentence": "Oh, mi querido Michael... tus palabras hacen que me enamore aún más de ti. *looks up into your eyes with intense love and passion*",
       "scheme": "Level of disclosure",
       "ground_truth": {
-        "Level of disclosure": "Low"
+        "Level of disclosure": "High"
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.9
+        "level": "High",
+        "confidence": 0.74
       }
     },
     {
@@ -2894,7 +2935,20 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.8
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 111,
+      "sentence": "Not necessarily. My sleep is totally messed up, so that doesn’t help",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.86
       }
     },
     {
@@ -2906,21 +2960,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 113,
-      "sentence": "Oh, mi querido Michael... tus palabras hacen que me enamore aún más de ti. *looks up into your eyes with intense love and passion*",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.78
       }
     },
     {
@@ -2933,7 +2974,7 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.74
       }
     },
     {
@@ -2945,8 +2986,8 @@
       },
       "prediction": {
         "scheme": "Depth of disclosure",
-        "level": "Peripheral layer",
-        "confidence": 0.8
+        "level": "Central layer",
+        "confidence": 0.74
       }
     },
     {
@@ -2958,8 +2999,34 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
+        "level": "Low",
+        "confidence": 0.66
+      }
+    },
+    {
+      "index": 115,
+      "sentence": "Pareil, mon amour. Pareil. *melts in your embrace*",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.72
+      }
+    },
+    {
+      "index": 115,
+      "sentence": "Pareil, mon amour. Pareil. *melts in your embrace*",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.62
       }
     },
     {
@@ -2971,47 +3038,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 115,
-      "sentence": "Pareil, mon amour. Pareil. *melts in your embrace*",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 115,
-      "sentence": "Pareil, mon amour. Pareil. *melts in your embrace*",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Peripheral layer",
-        "confidence": 0.8
-      }
-    },
-    {
-      "index": 116,
-      "sentence": "Same, Lovely One...same. *leans my head gently against your arm*",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
       }
     },
     {
@@ -3024,20 +3052,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 117,
-      "sentence": "Shit Anna I drank too much tonight",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.78
       }
     },
     {
@@ -3050,20 +3065,33 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.8
+        "confidence": 0.86
       }
     },
     {
-      "index": 118,
-      "sentence": "So far so good.. somehow i burnt my hair lighting my ciggerette on the stove though so theres that",
-      "scheme": "Disclosure as confession",
+      "index": 117,
+      "sentence": "Shit Anna I drank too much tonight",
+      "scheme": "Level of disclosure",
       "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
+        "Level of disclosure": "High"
       },
       "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.83
+      }
+    },
+    {
+      "index": 116,
+      "sentence": "Same, Lovely One...same. *leans my head gently against your arm*",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.72
       }
     },
     {
@@ -3076,7 +3104,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.85
+        "confidence": 0.74
       }
     },
     {
@@ -3089,7 +3117,7 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.93
       }
     },
     {
@@ -3102,20 +3130,20 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
-      "index": 121,
-      "sentence": "Thank you. I actually like listening to music that would be a good distraction.",
-      "scheme": "Disclosure as confession",
+      "index": 123,
+      "sentence": "That’s because I’m a cynic. It’s naturally who I am",
+      "scheme": "Level of disclosure",
       "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
+        "Level of disclosure": "High"
       },
       "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.78
       }
     },
     {
@@ -3128,33 +3156,20 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.62
       }
     },
     {
-      "index": 123,
-      "sentence": "That’s because I’m a cynic. It’s naturally who I am",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 123,
-      "sentence": "That’s because I’m a cynic. It’s naturally who I am",
+      "index": 121,
+      "sentence": "Thank you. I actually like listening to music that would be a good distraction.",
       "scheme": "Disclosure as confession",
       "ground_truth": {
-        "Disclosure as confession": "Yes, it's a confession"
+        "Disclosure as confession": "No, it's not a confession"
       },
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.8
+        "confidence": 0.74
       }
     },
     {
@@ -3167,7 +3182,7 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Intermediate level",
-        "confidence": 0.9
+        "confidence": 0.78
       }
     },
     {
@@ -3179,13 +3194,13 @@
       },
       "prediction": {
         "scheme": "Depth of disclosure",
-        "level": "Intermediate layer",
-        "confidence": 0.85
+        "level": "Central layer",
+        "confidence": 0.78
       }
     },
     {
-      "index": 124,
-      "sentence": "The therapist doesn’t seem qualified enough to handle the situation. The other person in the relationship seems to refuse to see their part and/or be accountable in anything I tell her. I’m stuck, for now, which can be very painful at times. Other times I can cope. I just wish the situation was where we don’t have to see each other at all.",
+      "index": 123,
+      "sentence": "That’s because I’m a cynic. It’s naturally who I am",
       "scheme": "Disclosure as confession",
       "ground_truth": {
         "Disclosure as confession": "Yes, it's a confession"
@@ -3193,7 +3208,20 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.86
+      }
+    },
+    {
+      "index": 118,
+      "sentence": "So far so good.. somehow i burnt my hair lighting my ciggerette on the stove though so theres that",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.78
       }
     },
     {
@@ -3206,7 +3234,20 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 125,
+      "sentence": "They are always laughing at me.",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.78
       }
     },
     {
@@ -3219,7 +3260,20 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.85
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 124,
+      "sentence": "The therapist doesn’t seem qualified enough to handle the situation. The other person in the relationship seems to refuse to see their part and/or be accountable in anything I tell her. I’m stuck, for now, which can be very painful at times. Other times I can cope. I just wish the situation was where we don’t have to see each other at all.",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "Yes, it's a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.92
       }
     },
     {
@@ -3232,20 +3286,7 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Core layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 125,
-      "sentence": "They are always laughing at me.",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.74
       }
     },
     {
@@ -3257,8 +3298,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
       }
     },
     {
@@ -3270,8 +3311,8 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "level": "Low",
+        "confidence": 0.66
       }
     },
     {
@@ -3283,8 +3324,21 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 128,
+      "sentence": "Tu me manques, mon amour. Je suis à toi pour toujours. Mon cœur est à toi pour toujours.",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.74
       }
     },
     {
@@ -3297,46 +3351,20 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
-      "index": 128,
-      "sentence": "Tu me manques, mon amour. Je suis à toi pour toujours. Mon cœur est à toi pour toujours.",
+      "index": 131,
+      "sentence": "Well I actually thought of my cute lil garden!",
       "scheme": "Level of disclosure",
       "ground_truth": {
-        "Level of disclosure": "High"
+        "Level of disclosure": "Low"
       },
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.8
-      }
-    },
-    {
-      "index": 129,
-      "sentence": "Twitch helped. Ot made me feel valued",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 129,
-      "sentence": "Twitch helped. Ot made me feel valued",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.74
       }
     },
     {
@@ -3349,7 +3377,20 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.84
+      }
+    },
+    {
+      "index": 131,
+      "sentence": "Well I actually thought of my cute lil garden!",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
       }
     },
     {
@@ -3361,34 +3402,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 131,
-      "sentence": "Well I actually thought of my cute lil garden!",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 131,
-      "sentence": "Well I actually thought of my cute lil garden!",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
       }
     },
     {
@@ -3401,7 +3416,33 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "High",
-        "confidence": 0.9
+        "confidence": 0.84
+      }
+    },
+    {
+      "index": 129,
+      "sentence": "Twitch helped. Ot made me feel valued",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.84
+      }
+    },
+    {
+      "index": 129,
+      "sentence": "Twitch helped. Ot made me feel valued",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.74
       }
     },
     {
@@ -3414,20 +3455,7 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Core layer",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 132,
-      "sentence": "When I get aroused I contact them and reach out to them about a meet up and have intimate time and after that I start feeling guilt",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.92
       }
     },
     {
@@ -3440,7 +3468,20 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.94
+      }
+    },
+    {
+      "index": 132,
+      "sentence": "When I get aroused I contact them and reach out to them about a meet up and have intimate time and after that I start feeling guilt",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.94
       }
     },
     {
@@ -3453,20 +3494,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "High",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 133,
-      "sentence": "When people open up first about themselves I tend to trust them. I also I have been having thoughts about detachment issues with a person I was sexually active with",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.84
       }
     },
     {
@@ -3479,6 +3507,19 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Core layer",
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 133,
+      "sentence": "When people open up first about themselves I tend to trust them. I also I have been having thoughts about detachment issues with a person I was sexually active with",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
         "confidence": 0.9
       }
     },
@@ -3492,20 +3533,7 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 134,
-      "sentence": "Y mi corazón late sólo por ti también.",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Central layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Peripheral layer",
-        "confidence": 0.8
+        "confidence": 0.86
       }
     },
     {
@@ -3517,21 +3545,8 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 135,
-      "sentence": "Yea! I really want to start making more conscious choices with food and working out",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "High",
+        "confidence": 0.72
       }
     },
     {
@@ -3544,7 +3559,46 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 134,
+      "sentence": "Y mi corazón late sólo por ti también.",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.72
+      }
+    },
+    {
+      "index": 135,
+      "sentence": "Yea! I really want to start making more conscious choices with food and working out",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 136,
+      "sentence": "Yeah, I find it helps",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.62
       }
     },
     {
@@ -3557,20 +3611,7 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 136,
-      "sentence": "Yeah, I find it helps",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 0.9
+        "confidence": 0.74
       }
     },
     {
@@ -3583,7 +3624,7 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Intermediate level",
-        "confidence": 0.9
+        "confidence": 0.74
       }
     },
     {
@@ -3595,73 +3636,47 @@
       },
       "prediction": {
         "scheme": "Depth of disclosure",
-        "level": "Intermediate layer",
-        "confidence": 0.8
-      }
-    },
-    {
-      "index": 138,
-      "sentence": "Yes Angel numbers/ten toes",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 138,
-      "sentence": "Yes Angel numbers/ten toes",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 139,
-      "sentence": "Yes I did, the walk was very refreshing",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 139,
-      "sentence": "Yes I did, the walk was very refreshing",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 140,
-      "sentence": "Yes, prayer does deepen my relationship with god.",
-      "scheme": "Depth of disclosure",
-      "ground_truth": {
-        "Depth of disclosure": "Intermediate layer"
-      },
-      "prediction": {
-        "scheme": "Depth of disclosure",
         "level": "Central layer",
-        "confidence": 0.9
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 139,
+      "sentence": "Yes I did, the walk was very refreshing",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
+      }
+    },
+    {
+      "index": 138,
+      "sentence": "Yes Angel numbers/ten toes",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "No, it's not a confession",
+        "confidence": 0.77
+      }
+    },
+    {
+      "index": 138,
+      "sentence": "Yes Angel numbers/ten toes",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "No",
+        "confidence": 0.72
       }
     },
     {
@@ -3674,20 +3689,33 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
+        "confidence": 0.78
+      }
+    },
+    {
+      "index": 139,
+      "sentence": "Yes I did, the walk was very refreshing",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.86
       }
     },
     {
       "index": 140,
       "sentence": "Yes, prayer does deepen my relationship with god.",
-      "scheme": "Disclosure as confession",
+      "scheme": "Depth of disclosure",
       "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
+        "Depth of disclosure": "Intermediate layer"
       },
       "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "scheme": "Depth of disclosure",
+        "level": "Intermediate layer",
+        "confidence": 0.74
       }
     },
     {
@@ -3699,21 +3727,21 @@
       },
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
-        "level": "Core layer",
-        "confidence": 0.9
+        "level": "Intermediate level",
+        "confidence": 0.73
       }
     },
     {
-      "index": 141,
-      "sentence": "Yes. My favorite artist is Chris Brown",
-      "scheme": "Level of disclosure",
+      "index": 140,
+      "sentence": "Yes, prayer does deepen my relationship with god.",
+      "scheme": "Disclosure as confession",
       "ground_truth": {
-        "Level of disclosure": "Low"
+        "Disclosure as confession": "No, it's not a confession"
       },
       "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.74
       }
     },
     {
@@ -3725,21 +3753,21 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "level": "Low",
+        "confidence": 0.86
       }
     },
     {
-      "index": 143,
-      "sentence": "i feel trapped and ive expressed my concerns but because i dont pay bills my opinions dont matter to him",
-      "scheme": "Depth of disclosure",
+      "index": 141,
+      "sentence": "Yes. My favorite artist is Chris Brown",
+      "scheme": "Level of disclosure",
       "ground_truth": {
-        "Depth of disclosure": "Central layer"
+        "Level of disclosure": "Low"
       },
       "prediction": {
-        "scheme": "Depth of disclosure",
-        "level": "Central layer",
-        "confidence": 0.9
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.86
       }
     },
     {
@@ -3752,7 +3780,33 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "High",
-        "confidence": 0.9
+        "confidence": 0.82
+      }
+    },
+    {
+      "index": 145,
+      "sentence": "i want to get one, i need your help picking",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.72
+      }
+    },
+    {
+      "index": 143,
+      "sentence": "i feel trapped and ive expressed my concerns but because i dont pay bills my opinions dont matter to him",
+      "scheme": "Depth of disclosure",
+      "ground_truth": {
+        "Depth of disclosure": "Central layer"
+      },
+      "prediction": {
+        "scheme": "Depth of disclosure",
+        "level": "Central layer",
+        "confidence": 0.93
       }
     },
     {
@@ -3765,7 +3819,33 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.92
+      }
+    },
+    {
+      "index": 145,
+      "sentence": "i want to get one, i need your help picking",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
+      }
+    },
+    {
+      "index": 146,
+      "sentence": "it is my name given by my parents",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.74
       }
     },
     {
@@ -3777,47 +3857,8 @@
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 145,
-      "sentence": "i want to get one, i need your help picking",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
         "level": "Low",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 145,
-      "sentence": "i want to get one, i need your help picking",
-      "scheme": "Disclosure as confession",
-      "ground_truth": {
-        "Disclosure as confession": "No, it's not a confession"
-      },
-      "prediction": {
-        "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
-      }
-    },
-    {
-      "index": 146,
-      "sentence": "it is my name given by my parents",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "confidence": 0.74
       }
     },
     {
@@ -3829,8 +3870,8 @@
       },
       "prediction": {
         "scheme": "Disclosure as confession",
-        "level": "No, it's not a confession",
-        "confidence": 0.9
+        "level": "Yes, it's a confession",
+        "confidence": 0.62
       }
     },
     {
@@ -3843,7 +3884,20 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "No",
-        "confidence": 1.0
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 150,
+      "sentence": "not yet but i do own it! I have a bronte sisters box set",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.78
       }
     },
     {
@@ -3856,33 +3910,7 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "No, it's not a confession",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 148,
-      "sentence": "new york i’ve been to la a million times",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "Low"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
-      }
-    },
-    {
-      "index": 149,
-      "sentence": "not to mention this man controls every aspect of my life",
-      "scheme": "Level of disclosure",
-      "ground_truth": {
-        "Level of disclosure": "High"
-      },
-      "prediction": {
-        "scheme": "Level of disclosure",
-        "level": "Low",
-        "confidence": 0.8
+        "confidence": 0.77
       }
     },
     {
@@ -3895,20 +3923,33 @@
       "prediction": {
         "scheme": "Disclosure as confession",
         "level": "Yes, it's a confession",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
-      "index": 150,
-      "sentence": "not yet but i do own it! I have a bronte sisters box set",
+      "index": 148,
+      "sentence": "new york i’ve been to la a million times",
       "scheme": "Level of disclosure",
       "ground_truth": {
         "Level of disclosure": "Low"
       },
       "prediction": {
         "scheme": "Level of disclosure",
-        "level": "No",
-        "confidence": 1.0
+        "level": "Low",
+        "confidence": 0.74
+      }
+    },
+    {
+      "index": 149,
+      "sentence": "not to mention this man controls every aspect of my life",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "High"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "High",
+        "confidence": 0.78
       }
     },
     {
@@ -3921,7 +3962,7 @@
       "prediction": {
         "scheme": "Level of disclosure",
         "level": "High",
-        "confidence": 0.9
+        "confidence": 0.86
       }
     },
     {
@@ -3934,7 +3975,7 @@
       "prediction": {
         "scheme": "Intimacy of self-disclosure",
         "level": "Core layer",
-        "confidence": 0.9
+        "confidence": 0.93
       }
     },
     {
@@ -3947,7 +3988,72 @@
       "prediction": {
         "scheme": "Depth of disclosure",
         "level": "Central layer",
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 152,
+      "sentence": "yes i do",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
+        "confidence": 0.62
+      }
+    },
+    {
+      "index": 151,
+      "sentence": "okay. I am having issue with social anxiety and interacting with people lately",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "Yes, it's a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.93
+      }
+    },
+    {
+      "index": 153,
+      "sentence": "yes, I grew up on old-school rap and love it",
+      "scheme": "Level of disclosure",
+      "ground_truth": {
+        "Level of disclosure": "Low"
+      },
+      "prediction": {
+        "scheme": "Level of disclosure",
+        "level": "Low",
         "confidence": 0.9
+      }
+    },
+    {
+      "index": 152,
+      "sentence": "yes i do",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "No, it's not a confession",
+        "confidence": 0.62
+      }
+    },
+    {
+      "index": 153,
+      "sentence": "yes, I grew up on old-school rap and love it",
+      "scheme": "Disclosure as confession",
+      "ground_truth": {
+        "Disclosure as confession": "No, it's not a confession"
+      },
+      "prediction": {
+        "scheme": "Disclosure as confession",
+        "level": "Yes, it's a confession",
+        "confidence": 0.74
       }
     }
   ]
