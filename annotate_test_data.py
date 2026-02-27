@@ -323,22 +323,6 @@ def main(n_rows: Optional[int] = None, max_workers: int = 10) -> None:
     print("\n=== Stats ===")
     print(json.dumps(stats, indent=2))
     print(f"\nSaved results to: {cfg.out_path}")
-    
-    # Show sample results
-    print("\n=== Sample Results ===")
-    for i, result in enumerate(results[:5], 1):
-        print(f"\nSample {i}:")
-        print(f"  Sentence: {result.get('sentence', '')[:60]}...")
-        print(f"  Is disclosure: {result.get('is_disclosure', 'N/A')}")
-        if result.get('is_disclosure') == 'Yes':
-            level = result.get('Level of disclosure')
-            depth = result.get('Depth of disclosure')
-            intimacy = result.get('Intimacy of self-disclosure')
-            confession = result.get('Disclosure as confession')
-            print(f"  Level: {level if level is not None else 'null (N/A)'}")
-            print(f"  Depth: {depth if depth is not None else 'null (N/A)'}")
-            print(f"  Intimacy: {intimacy if intimacy is not None else 'null (N/A)'}")
-            print(f"  Confession: {confession if confession is not None else 'null (N/A)'}")
 
 
 if __name__ == "__main__":

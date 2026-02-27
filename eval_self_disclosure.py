@@ -1,20 +1,14 @@
 """Evaluate self-disclosure annotations using enhanced GEPA-optimized prompt.
 
 Usage:
-    # Evaluate Fiona's dataset (default):
-    python3 eval_self_disclosure_from_json.py
-    
-    # Evaluate Chang's dataset:
-    python3 eval_self_disclosure_from_json.py --dataset chang
-    
     # Evaluate agreed dataset (only sentences where Fiona and Chang agree):
-    python3 eval_self_disclosure_from_json.py --dataset agreed
+    python3 eval_self_disclosure.py --dataset agreed
     
     # Evaluate subset:
-    python3 eval_self_disclosure_from_json.py --dataset fiona --n_rows 100
+    python3 eval_self_disclosure.py --dataset fiona --n_rows 100
     
     # Use specific scheme only:
-    python3 eval_self_disclosure_from_json.py --scheme "Level of disclosure"
+    python3 eval_self_disclosure.py --scheme "Level of disclosure"
 """
 from __future__ import annotations
 

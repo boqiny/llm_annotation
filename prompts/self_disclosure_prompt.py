@@ -13,7 +13,6 @@ OUTPUT
   High
   Low
   No
-  N/A (if the message doesn't fit any of the definitions)
 
 TASK
 Classify the user message by how much it discloses about the user (self-reference, feelings, private experiences).
@@ -91,8 +90,7 @@ Between Low vs High:
 
 ## REMINDERS
 
-- Output only: High, Low, No, or N/A
-- Use N/A if the message doesn't clearly fit any of the definitions
+- Output only: High, Low, No
 - **Short fragments (1-5 words) are usually Low, not No**
 - Look for implicit self-reference in fragmentary responses
 - Be vigilant about detecting self-reference markers, even with typos
