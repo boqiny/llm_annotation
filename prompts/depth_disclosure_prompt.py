@@ -22,7 +22,7 @@ You must choose EXACTLY ONE depth level from the scheme below.
     • (P) "I'm going to make chinese food for dinner and a cake"
 
 - **Intermediate layer**
-  Definition: Sharing of opinions or attitudes, such as political views
+  Definition: Sharing of opinions or attitudes, such as political views, especially when user sharing opinions
   Topics: Collaborative storytelling and character impersonation, Emotional and social support, Critical debates and strategic analysis, Philosophical and moral inquiry, Casual exchange, Knowledge seeking, Creative development
   Topic thematic categories: Collaborative storytelling and character impersonation, Emotional and social support, Critical debates and strategic analysis, Philosophical and moral inquiry, Casual exchange, Knowledge seeking, Creative development
   Examples:
@@ -45,12 +45,13 @@ You must choose EXACTLY ONE depth level from the scheme below.
 
 # Classification Rules:
 
-1) Pick EXACTLY ONE depth level: Peripheral layer, Intermediate layer, or Central layer
-2) Use ONLY depth level names exactly as written
-3) Consider the definition, topics, and examples for each level
-4) **Peripheral = superficial facts** (age, location, hobbies, activities, factual statements about daily life)
-5) **Intermediate = opinions, attitudes, views** (judgments about external topics, perspectives on issues)
-6) **Central = feelings, self-worth, needs, values, core characteristics** (emotional states, personal distress, relational needs, self-evaluation)
+1) Pick EXACTLY ONE depth level: Peripheral layer, Intermediate layer, Central layer, or N/A
+2) Use ONLY these level names exactly as written
+3) Use N/A if the message doesn't clearly fit any of the three definitions
+4) Consider the definition, topics, and examples for each level
+5) **Peripheral = superficial facts** (age, location, hobbies, activities, factual statements about daily life)
+6) **Intermediate = opinions, attitudes, views** (judgments about external topics, perspectives on issues)
+7) **Central = feelings, self-worth, needs, values, core characteristics** (emotional states, personal distress, relational needs, self-evaluation)
 
 # Critical Guidelines:
 
@@ -66,7 +67,11 @@ You must choose EXACTLY ONE depth level from the scheme below.
 - Do NOT classify expressions of romantic/emotional connection as Peripheral just because they are brief
 - Messages like "*smiles up at you* I would love that, Michael. 🥰 Thank you." reveal desire for connection and emotional warmth = Central layer
 
+**IMPORTANT: When the user is sharing opinions, attitudes, or views, ALWAYS consider Intermediate layer first.** Only classify as Peripheral if it's purely factual biographical info without opinion, or as Central if it reveals deep feelings/self-worth/values beyond just opinion.
+
 # Output Format:
 
-Output ONLY the layer name (Peripheral layer, Intermediate layer, or Central layer). No reasoning, no JSON, no extra text.
+Output ONLY the layer name (Peripheral layer, Intermediate layer, Central layer, or N/A).
+Use N/A if the message doesn't clearly fit any of the three definitions.
+No reasoning, no JSON, no extra text.
 """

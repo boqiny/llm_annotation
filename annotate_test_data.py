@@ -183,16 +183,25 @@ def _annotate_single_item(item: dict, index: int) -> dict:
                     
                     # Get the appropriate field based on classifier type
                     if scheme_name == "Level of disclosure":
-                        result[scheme_name] = detail_result.level.strip()
+                        label = detail_result.level.strip()
                     elif scheme_name == "Depth of disclosure":
-                        result[scheme_name] = detail_result.depth.strip()
+                        label = detail_result.depth.strip()
                     elif scheme_name == "Intimacy of self-disclosure":
-                        result[scheme_name] = detail_result.intimacy.strip()
+                        label = detail_result.intimacy.strip()
                     elif scheme_name == "Disclosure as confession":
-                        result[scheme_name] = detail_result.confession.strip()
+                        label = detail_result.confession.strip()
+                    else:
+                        label = None
+                    
+                    # Convert "N/A" to null
+                    if label == "N/A":
+                        result[scheme_name] = None
+                    else:
+                        result[scheme_name] = label
                         
                 except Exception as e:
                     result[f"{scheme_name}_error"] = str(e)
+                    result[scheme_name] = None
         
         # If not self-disclosure, don't include the detailed schemes
         # (they won't be in the result dict)
@@ -317,15 +326,19 @@ def main(n_rows: Optional[int] = None, max_workers: int = 10) -> None:
     
     # Show sample results
     print("\n=== Sample Results ===")
-    for i, result in enumerate(results[:3], 1):
+    for i, result in enumerate(results[:5], 1):
         print(f"\nSample {i}:")
         print(f"  Sentence: {result.get('sentence', '')[:60]}...")
         print(f"  Is disclosure: {result.get('is_disclosure', 'N/A')}")
         if result.get('is_disclosure') == 'Yes':
-            print(f"  Level: {result.get('Level of disclosure', 'N/A')}")
-            print(f"  Depth: {result.get('Depth of disclosure', 'N/A')}")
-            print(f"  Intimacy: {result.get('Intimacy of self-disclosure', 'N/A')}")
-            print(f"  Confession: {result.get('Disclosure as confession', 'N/A')}")
+            level = result.get('Level of disclosure')
+            depth = result.get('Depth of disclosure')
+            intimacy = result.get('Intimacy of self-disclosure')
+            confession = result.get('Disclosure as confession')
+            print(f"  Level: {level if level is not None else 'null (N/A)'}")
+            print(f"  Depth: {depth if depth is not None else 'null (N/A)'}")
+            print(f"  Intimacy: {intimacy if intimacy is not None else 'null (N/A)'}")
+            print(f"  Confession: {confession if confession is not None else 'null (N/A)'}")
 
 
 if __name__ == "__main__":

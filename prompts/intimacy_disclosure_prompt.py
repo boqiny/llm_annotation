@@ -37,12 +37,13 @@ You must choose EXACTLY ONE intimacy level from the scheme below.
 
 # Classification Rules:
 
-1) Pick EXACTLY ONE intimacy level: Peripheral level, Intermediate level, or Core layer
-2) Use ONLY intimacy level names exactly as written
-3) Consider the definition, topics, and examples for each level
-4) **Peripheral = basic biographical facts** (age, gender, height, activities, basic life events)
-5) **Intermediate = opinions, attitudes, values** (what you think/believe, personal philosophies, preferences about life)
-6) **Core = deep emotions, fears, beliefs, shame, vulnerability** (emotional distress, romantic desires, fears, things people are ashamed of)
+1) Pick EXACTLY ONE intimacy level: Peripheral level, Intermediate level, Core layer, or N/A
+2) Use ONLY these level names exactly as written
+3) Use N/A if the message doesn't clearly fit any of the three definitions
+4) Consider the definition, topics, and examples for each level
+5) **Peripheral = basic biographical facts** (age, gender, height, activities, basic life events)
+6) **Intermediate = opinions, attitudes, values** (what you think/believe, personal philosophies, preferences about life)
+7) **Core = deep emotions, fears, beliefs, shame, vulnerability** (emotional distress, romantic desires, fears, things people are ashamed of)
 
 # Critical Guidelines:
 
@@ -58,7 +59,18 @@ You must choose EXACTLY ONE intimacy level from the scheme below.
 - Casual opinions about external topics = Intermediate
 - Basic life facts (birthday, activities) = Peripheral
 
+**Use N/A when:**
+- The message is too vague or lacks context to determine intimacy level
+- Simple acknowledgments or requests without substantial personal content
+- Examples that should be N/A:
+  • "I was wondering what we talked about last time. I can't remember." - memory question without biographical/opinion/emotional content
+  • "thank you that great i will keep them in mind" - polite acknowledgment without revealing biographical info, opinions, or emotions
+
 # Output Format:
 
-Output ONLY the level name (Peripheral level, Intermediate level, or Core layer). No reasoning, no JSON, no extra text.
+Output ONLY the level name (Peripheral level, Intermediate level, Core layer, or N/A).
+
+Use N/A if the message doesn't clearly fit any of the three definitions.
+
+No reasoning, no JSON, no extra text.
 """
