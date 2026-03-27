@@ -267,17 +267,38 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Compare test annotations with ground truth")
     parser.add_argument(
+        "--dataset",
+        type=str,
+        default=None,
+        help="Dataset name (without .json) — sets --pred to ./results/<dataset>_annotations.json and --gt to ./results/<dataset>_gt.json",
+    )
+    parser.add_argument(
         "--gt",
         type=str,
-        default="./results/test_data_gt.json",
-        help="Path to ground truth JSON (default: ./results/test_data_gt.json)",
+        default=None,
+        help="Path to ground truth JSON (overrides --dataset if set)",
     )
     parser.add_argument(
         "--pred",
         type=str,
-        default="./results/test_data_annotations.json",
-        help="Path to predictions JSON (default: ./results/test_data_annotations.json)",
+        default=None,
+        help="Path to predictions JSON (overrides --dataset if set)",
     )
-    
+
     args = parser.parse_args()
-    compare_results(args.gt, args.pred)
+
+    if args.pred:
+        pred_path = args.pred
+    elif args.dataset:
+        pred_path = f"./results/{args.dataset}_annotations.json"
+    else:
+        pred_path = "./results/test_data_annotations.json"
+
+    if args.gt:
+        gt_path = args.gt
+    elif args.dataset:
+        gt_path = f"./results/{args.dataset}_gt.json"
+    else:
+        gt_path = "./results/test_data_gt.json"
+
+    compare_results(gt_path, pred_path)

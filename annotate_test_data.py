@@ -43,6 +43,7 @@ class AnnotateConfig:
     """Configuration for annotating test data with self-disclosure schemes."""
     n_rows: Optional[int] = None  # Set to None to process all items
     max_workers: int = 10  # Parallel processing workers
+    dataset: str = "test_data"  # Filename (without .json) in data/test/cleaned/
     json_path: str = "./data/test/cleaned/test_data.json"
     out_path: str = "./results/test_data_annotations.json"
 
@@ -270,8 +271,14 @@ def _write_partial(out_path: str, results: List[dict]) -> None:
         )
 
 
-def main(n_rows: Optional[int] = None, max_workers: int = 10) -> None:
-    cfg = AnnotateConfig(n_rows=n_rows, max_workers=max_workers)
+def main(n_rows: Optional[int] = None, max_workers: int = 10, dataset: str = "test_data") -> None:
+    cfg = AnnotateConfig(
+        n_rows=n_rows,
+        max_workers=max_workers,
+        dataset=dataset,
+        json_path=f"./data/test/cleaned/{dataset}.json",
+        out_path=f"./results/{dataset}_annotations.json",
+    )
     
     print("="*80)
     print("TWO-STAGE TEST DATA ANNOTATION")
@@ -342,5 +349,12 @@ if __name__ == "__main__":
         help="Number of parallel workers (default: 10)",
     )
     
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="test_data",
+        help="Dataset filename (without .json) in data/test/cleaned/ (default: test_data)",
+    )
+
     args = parser.parse_args()
-    main(n_rows=args.n_rows, max_workers=args.max_workers)
+    main(n_rows=args.n_rows, max_workers=args.max_workers, dataset=args.dataset)

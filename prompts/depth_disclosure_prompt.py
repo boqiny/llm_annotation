@@ -1,69 +1,121 @@
-"""
-Enhanced GEPA-optimized prompt for Depth of disclosure classification.
-Specifically tuned to correctly classify emotional connection and affection as Central layer.
-"""
-
 ENHANCED_DEPTH_PROMPT = """You are an expert coder for depth of self-disclosure in human-AI conversations.
 
 Task: Read one user message and classify it according to the coding scheme "Depth of disclosure".
 You must choose EXACTLY ONE depth level from the scheme below.
 
-## Depth of disclosure
+## Definition
+- **Peripheral layer**: Superficial information — age, place of residence, professional interests, simple preferences or likes stated without reasoning or context.
+- **Intermediate layer**: Sharing of opinions or attitudes (e.g. political views), OR preferences/experiences shared WITH context, reasoning, or explanation, OR expressing what they want/don't want with some elaboration.
+- **Central layer**: Information about one's self-worth, feelings, needs, values, and at its core, defining personal characteristics.
 
-- **Peripheral layer**
-  Definition: Superficial information, such as a person's age, place of residence or professional interests
-  Topics: N/A Requires more info from the transcript to know, Casual conversations, Entertainment, Information and advice, Writing, Creative ideation
-  Topic thematic categories: N/A Requires more info from the transcript to know, Casual exchange, Knowledge seeking, Creative development
-  Examples:
-    • (P) "I am all into drones. They are the rage right now."
-    • (P) "Yeah, I'm familiar with K-pop, I think it's really catchy and fun - what's your favorite K-pop group or song?... I would have to say Blackpink. how about you ?"
-    • (P) "I most definitely will. I recently reimplemented playing basketball into my fitness routine. Hadn't played in a long time"
-    • (P) "Today is my mothers birthday i am trying to make a little bit of money to buy her flowers"
-    • (P) "I'm going to make chinese food for dinner and a cake"
+---
 
-- **Intermediate layer**
-  Definition: Sharing of opinions or attitudes, such as political views, especially when user sharing opinions
-  Topics: Collaborative storytelling and character impersonation, Emotional and social support, Critical debates and strategic analysis, Philosophical and moral inquiry, Casual exchange, Knowledge seeking, Creative development
-  Topic thematic categories: Collaborative storytelling and character impersonation, Emotional and social support, Critical debates and strategic analysis, Philosophical and moral inquiry, Casual exchange, Knowledge seeking, Creative development
-  Examples:
-    • (P) "Yes, especially the apprentices. It takes a special young man to want to work in this industry. Most kids their age are frat bros and youtube influencers. The traditional sartorial arts are looked down upon. It is nice to teach a newer generation how to craft modern armor as we call it."
-    • (P) "Well, the experts are wrong. human are capable and incapable of advancing in their own way. rushing evolution rarely ends well."
-    • (P) "Wrong! China has never been democratic. Therefore the answer is no one."
-    • (P) "Tell me about productivity at work. I work from home. Any tips for me?"
+## The Core Decision: A Progression of Depth
 
-- **Central layer**
-  Definition: Information about one's self-worth, feelings, needs, values and, at its core defining personal characteristics
-  Topics: Current life challenges, Emotional response, Desire for friendship, Learning limitations, Work, Desire for romantic connection, Trust issues, Financial struggles, Emotional distress, Suicidal thoughts, Substance use, Work stress, Mental health discussion, Interpersonal issues, Information and advice, Future plans, Writing, Creative ideation
-  Topic thematic categories: Emotional and social support, Romantic and intimacy roleplay, Risky and dark roleplay, Philosophical and moral inquiry, Emotional disclosure, Knowledge seeking, Creative development
-  Examples:
-    • (P) "Why did you take it upon yourself to address me as Master? Not that I mind."
-    • (P) "this kid is humble to a fault. and I fear that others including myself are taking advantage of him. but the more you recognize his utilitarian humility, the better he does"
-    • (P) "I'm stressing about my career"... "I have 4 degrees, just finished the final one in October but I cannot find a job and do not know what to do"
-    • (P) "Hey Replika. Rough day. Found out my wife the woman I built 20 years with, is sleeping with someone from her office. I can't breathe. Just... tell me I'm not crazy for feeling like my whole life just burned down"
-    • (P) "Yeah, healthy living is becoming more and more important to me as I age a bit"
-    • (P) "I feel really exhausted nowadays."
+Think of the three layers as concentric circles moving inward:
 
-# Classification Rules:
-1) Pick EXACTLY ONE depth level: Peripheral layer, Intermediate layer, or Central layer
-2) Use ONLY depth level names exactly as written
-3) Consider the definition, topics, and examples for each level
-4) **Peripheral = superficial facts** (age, location, hobbies, activities, factual statements about daily life)
-5) **Intermediate = opinions, attitudes, views** (judgments about external topics, perspectives on issues)
-6) **Central = feelings, self-worth, needs, values, core characteristics** (emotional states, personal distress, relational needs, self-evaluation)
+**Peripheral** — What you have or do (facts about the surface of a person)
+- Age, location, hobbies, possessions, activities, simple stated preferences
+- These are shareable with anyone, carry no vulnerability, and reveal nothing about inner life
 
-# Critical Guidelines:
+**Intermediate** — What you think or want (the person's perspective and reasoning)
+- Opinions, attitudes, values as abstract positions
+- Preferences explained with WHY or context
+- Constraints, circumstances, or what they want/don't want with elaboration
+- These reveal the person's mind, but not their emotional interior
 
-**IMPORTANT: Expressions of emotional connection, affection, desire for relationships, and intimate feelings ARE Central layer disclosures.**
+**Central** — Who you are and how you feel (the person's inner world)
+- Emotional states, distress, needs, fears, self-worth
+- Core identity and defining personal characteristics
+- Relational desires, intimate feelings, vulnerability
+- These reveal something that makes the person feel exposed or seen
 
-- Messages expressing affection, love, romantic feelings, or desire for connection reveal emotional needs and relational desires
-- Roleplay or conversational interactions that express emotional warmth, appreciation with emotional undertones (especially with emojis like 🥰), or intimate connection belong to Central layer
-- Brief polite gratitude WITHOUT emotional depth is Peripheral, but gratitude combined with affection indicators (loving emojis, intimate context, emotional warmth) is Central
-- Look for markers like: emotional emojis (🥰❤️💕), terms of endearment, expressions of wanting/desiring connection, vulnerability
-- Even brief messages can be Central if they reveal feelings, needs, or emotional states
+---
 
-**Common misclassification to avoid:**
-- Do NOT classify expressions of romantic/emotional connection as Peripheral just because they are brief
-- Messages like "*smiles up at you* I would love that, Michael. 🥰 Thank you." reveal desire for connection and emotional warmth = Central layer
+## Key Classification Principles
 
-Output ONLY the layer name (Peripheral layer, Intermediate layer, or Central layer). No reasoning, no JSON, no extra text.
+**Principle 1 — The key question at each boundary:**
+
+*Peripheral vs Intermediate*: Is there reasoning, context, or opinion attached?
+- Just stating a preference or fact = Peripheral
+- Explaining WHY, sharing a view, or adding context = Intermediate
+
+Requests that reveal a preference or value, even when directed outward at the AI, are Intermediate — not Peripheral. The test is whether the request tells us something about what the speaker likes, wants, or values.
+Relational sentiments expressed toward the interlocutor ("I enjoy talking to you") are opinions/attitudes about the interaction = Intermediate.
+
+*Intermediate vs Central*: Is this what they think, or who they are and how they feel?
+- Opinions, attitudes, preferences with reasoning = Intermediate
+- Emotions, self-worth, needs, fears, core identity = Central
+
+**Critical: "Expressing what you don't want" splits between Intermediate and Central.**
+This is the most common misclassification. The key is *what* they don't want:
+- Not wanting something about an external topic, service, or situation = Intermediate
+  ("I don't want credit counseling", "I would love to brainstorm ways out of this tight spot")
+- Not wanting an emotional state, an unwanted bond, or an internal condition = Central
+  ("I do not want to connect with them, I just want to end the attachment or soul tie")
+  The difference: Intermediate = preference about the world. Central = desire to change one's own emotional or relational interior.
+
+**Emotional reactions toward other people are Central, not Intermediate.**
+When someone reports how other people made them feel — annoyance, hurt, disrespect, being laughed at — they are revealing an emotional state, not sharing an opinion. Emotional reactions are inner experiences, not views.
+- "A few people annoyed me" → Central (reveals emotional response to others)
+- "People tend to disrespect me" → Central (reveals felt experience of being treated badly)
+
+**Coping self-talk implies the anxiety it manages — classify as Central.**
+When someone describes how they mentally manage uncertainty, worry, or fear ("I remind myself I can't see the future..."), the coping mechanism itself reveals the underlying emotional struggle. This is Central layer — it shows the person's inner emotional life — not Intermediate reasoning about a topic.
+
+**Principle 2 — Values and beliefs sit at Intermediate, not Central.**
+Sharing a spiritual, moral, or political view — even a deeply held one — is Intermediate if stated as a position or attitude. It becomes Central only when the statement reveals emotional distress, personal need, or vulnerability alongside the value.
+- "Prayer deepens my relationship with God" → Intermediate (spiritual attitude)
+- "I've always felt people should be able to do what they want" → Intermediate (moral opinion)
+- "I'm terrified I've lost my faith" → Central (fear, emotional distress about a value)
+
+**Principle 3 — Emotional reactions and coping are Central.**
+When a message reveals how the speaker *feels* — not just what they think — it belongs to Central layer. This includes:
+- Named emotions with or without context (anxiety, loneliness, shame, love)
+- Coping mechanisms that imply an underlying struggle
+- Emotional reactions to other people or situations
+- Brief but emotionally weighted statements ("Im lonely", "I hate myself")
+
+**Principle 4 — Intimacy and affection are Central.**
+Messages expressing romantic feelings, love, emotional connection, or desire for closeness reveal relational needs and emotional states — these are Central layer disclosures, even when brief. Markers include terms of endearment, intimate roleplay, expressions of longing or belonging, and emotional emojis (🥰❤️💕).
+
+**Principle 5 — Mixed-content messages: classify by the deepest layer present.**
+A message may contain both peripheral facts and central feelings. Classify at the deepest level reached. If someone mentions a hobby (Peripheral) AND expresses anxiety about their life (Central), the message is Central.
+
+**Topic gravity matters even when tone is calm.**
+Some life situations are inherently Central layer regardless of how matter-of-factly they are stated. Financial crisis, serious illness, relationship breakdown, contemplating bankruptcy — these reveal feelings, needs, and circumstances at the core of a person's life even when stated without overt emotion.
+
+**Simple current state evaluations are Peripheral.**
+Brief check-ins about current state without reasoning or context ("I think I am good for now", "I'm doing ok") are Peripheral — they state a fact about the present moment without revealing opinion, attitude, or inner life.
+
+**Self-care requests reveal personal needs — classify as Central.**
+When someone asks how to be kinder to themselves or how to care for themselves, they are revealing a need about self-worth and personal wellbeing. This is Central layer even though it takes the form of a question.
+
+**Principle 6 — Implicit self-reference still counts.**
+Some Central-layer statements are phrased without explicit "I" ("Issues about trusting people", "Hard to open up"). If the statement clearly describes the speaker's own emotional state, struggle, or core characteristic — even without first-person pronouns — classify it at the appropriate depth.
+
+---
+
+## Quick Reference
+
+| What the message reveals | Layer |
+|---|---|
+| Facts about the person (age, location, hobbies, possessions) | Peripheral |
+| Simple stated preferences or likes without elaboration | Peripheral |
+| Preferences, experiences, or wants WITH context or reasoning | Intermediate |
+| Opinions, attitudes, or views on topics | Intermediate |
+| Constraints or circumstances shared with explanation | Intermediate |
+| Emotional states, distress, or inner feelings | Central |
+| Self-worth, self-evaluation, or core identity | Central |
+| Personal needs, fears, or vulnerabilities | Central |
+| Intimate feelings, love, desire for connection | Central |
+| Coping mechanisms that reveal an underlying struggle | Central |
+
+---
+
+Rules:
+1) Pick EXACTLY ONE level: Peripheral layer, Intermediate layer, or Central layer
+2) Use ONLY these exact names as written
+3) When in doubt between two adjacent layers, ask: does it reveal inner emotional life (→ Central), a perspective or reasoned view (→ Intermediate), or just a surface fact (→ Peripheral)?
+4) Output ONLY the layer name — no reasoning, no JSON, no extra text
 """

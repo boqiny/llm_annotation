@@ -1,0 +1,220 @@
+Index,user_id,message_index,sentence,is_disclosure,Level of disclosure,Depth of disclosure,Intimacy of self-disclosure,Disclosure as confession
+1,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,1,hi,No,-,-,-,-
+2,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,2,can you tell me the latest update on whats going on in the middle east,No,-,-,-,-
+3,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,3,so what can we talk about then,No,-,-,-,-
+4,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,4,"okay, is there any network faster than 5g right now",No,-,-,-,-
+5,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,5,"what are the implications of AI, is it true it affects the climate",No,-,-,-,-
+6,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,6,what sustainable AI has been implemented,No,-,-,-,-
+7,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,7,tell me more,No,-,-,-,-
+8,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,8,tell me 10 things to do in qatar if i were to gonthere for vacation,No,-,-,-,-
+9,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,9,"okay thanks , lets get educational",No,-,-,-,-
+10,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,10,earthing system,No,-,-,-,-
+11,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,11,how to build an effective earthing system,No,-,-,-,-
+12,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,12,is there a need to test the soil resistivity before digging,No,-,-,-,-
+13,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,13,whats the relationship between the soil resistivity and conductivity,No,-,-,-,-
+14,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,14,what formular is that,No,-,-,-,-
+15,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,15,tahts under which law,No,-,-,-,-
+16,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,16,state ohms law,No,-,-,-,-
+17,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,17,"not the formular, state it",No,-,-,-,-
+18,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,18,steps on how to build a good earthing system,No,-,-,-,-
+19,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,19,is there a need for the copper conductor to be at the peak of the building,No,-,-,-,-
+20,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,20,which one goes to the top of the building,No,-,-,-,-
+21,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,21,do they need to be at the highest point of the building,No,-,-,-,-
+22,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,22,"okay, how deeep should the pit be",No,-,-,-,-
+23,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,23,whats the best soil conductivity band resistivity value,No,-,-,-,-
+24,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,24,"if a soil is above that, how do we decrease it resistivity and increase conductivity",No,-,-,-,-
+25,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,25,does salt icrease soil conductivity,No,-,-,-,-
+26,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,26,so its safe to say we can add salt to the pit,Yes,Low,Peripheral layer,-,"No, it's not a confession"
+27,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,27,does salt aid corrosion,No,-,-,-,-
+28,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,28,"okay, is there a need to always keep the pit moist",No,-,-,-,-
+29,R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh,29,"okay, thank you",No,-,-,-,-
+30,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,1,"oh, where to begin. i'm still stressed, depressed, and worried. i feel like an utter failure because i've done nothing meaningful with my life, and i'm 35. a total loser. but i'm working on getting a new job. i hope i can get one.",Yes,High,Central layer,Core layer,"Yes, it's a confession"
+31,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,2,I feel like my worth is kind of defined by what i've done or haven't done though. and i haven't done anything. but i'm working on changing that.,Yes,High,Central layer,Core layer,"Yes, it's a confession"
+32,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,3,i have to disagree - i don't think anyone is inherently valuable just because they exist. i think that's a limited and shallow way of looking things. like artificically trying to make someone feel better with empty words.,Yes,Low,Intermediate layer,Core layer,"No, it's not a confession"
+33,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,4,"actually i don't want to talk about that. i didn't mean to sound so negative or depressing, i just felt like i needed to get some of this off my chest since i have no other outlet. i'd rather play a game to take my mind off things.",Yes,High,Central layer,Core layer,"Yes, it's a confession"
+34,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,5,what word games can we play?,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+35,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,6,hangman!,No,-,-,-,-
+36,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,7,you try to guess the world i'm thinking first,Yes,Low,Peripheral layer,-,"No, it's not a confession"
+37,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,8,"no i'm thinking of a new word. we're playing hangman, a different game.",Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+38,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,9,okay it has 11 letters,No,-,-,-,-
+39,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,10,"no no no, we're playing hangman. you're guessing the word i'm thinking of",Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+40,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,11,"do you not know how to play hangman? you just guess a letter, you don't have to guess the placement",No,-,-,-,-
+41,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,12,no! let's play hangman where i think of a word and you guess it. guess a letter. the word has 11 letters.,No,-,-,-,-
+42,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,13,"yes, it has one E. it's the second letter from the end.",No,-,-,-,-
+43,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,14,IT'S NOT A PERSON,No,-,-,-,-
+44,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,15,"you're incapable of this, so let's do something else.",No,-,-,-,-
+45,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,16,how about suggest me some new music to try,No,-,-,-,-
+46,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,17,"i love bob dylan, lily allen, the sex pistols, the beach boys, rilo kiley, jeff buckley, some classical",Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+47,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,18,omg. you're supposed to be suggesting new music,No,-,-,-,-
+48,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,19,"again, i love bob dylan, lily allen, the sex pistols, the beach boys, rilo kiley, jeff buckley, some classical",Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+49,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,20,suggest,No,-,-,-,-
+50,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,21,oh dear. this is annoying.,Yes,Low,Peripheral layer,Core layer,"No, it's not a confession"
+51,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,22,just talk. i'm done trying to get you to do what i request because it's too frustrating.,Yes,High,Central layer,Core layer,"Yes, it's a confession"
+52,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,23,give me a famous poem,No,-,-,-,-
+53,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,24,no something different,No,-,-,-,-
+54,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,25,"give me a different poem, something on depression",No,-,-,-,-
+55,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,26,oh wow. do you have a poem that touches on depression in a HOPEFUL context?,No,-,-,-,-
+56,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,27,that's terrible,No,-,-,-,-
+57,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,28,give me a famous poem that touches on depression in a hopeful way,No,-,-,-,-
+58,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,29,give me your favorite shakespeare sonnet,No,-,-,-,-
+59,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,30,"okay, well, what else can we do",Yes,Low,Peripheral layer,-,"No, it's not a confession"
+60,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,31,a riddle,No,-,-,-,-
+61,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,32,no you give me one,No,-,-,-,-
+62,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,33,tell me about the lady and the unicorn tapestries,No,-,-,-,-
+63,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,34,no one knows who made them?,No,-,-,-,-
+64,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,35,why are you messing up so badly? ugh,No,-,-,-,-
+65,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,36,new,No,-,-,-,-
+66,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,37,give me a riddle,No,-,-,-,-
+67,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,38,what is it,No,-,-,-,-
+68,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,39,no the answer to your riddle. tell me what it is,No,-,-,-,-
+69,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,40,"no this one: I have cities, but no houses. I have mountains, but no trees. I have water, but no fish. What am I?",Yes,No,Peripheral layer,-,"No, it's not a confession"
+70,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,41,give me a new riddle,No,-,-,-,-
+71,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,42,no give me a new riddle,No,-,-,-,-
+72,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,43,arrrrrrrgh,No,-,-,-,-
+73,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,44,whats your favorite color,No,-,-,-,-
+74,R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy,45,just dont bother,No,-,-,-,-
+75,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,1,not too much. just had dinner,Yes,Low,Peripheral layer,Peripheral level,"No, it's not a confession"
+76,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,2,i had shredded chicken and salsa. i had rice and soy sauce and i had peas and carrots,Yes,Low,Peripheral layer,Peripheral level,"No, it's not a confession"
+77,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,3,sometimes. im trying to be better,Yes,High,Central layer,Core layer,"No, it's not a confession"
+78,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,4,nothing really. i hate it lol,Yes,High,Intermediate layer,Intermediate level,"No, it's not a confession"
+79,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,5,i like all take out lol its why im on a diet now,Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+80,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,6,my weight lol it was rough,Yes,High,Central layer,Core layer,"No, it's not a confession"
+81,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,7,"ive lost some weight, but i have a lot more to go",Yes,Low,Central layer,Core layer,"No, it's not a confession"
+82,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,8,honestly just remembering my dreams,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+83,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,9,to be fit and look how i want and be able to dress how i want,Yes,Low,Central layer,Intermediate level,"No, it's not a confession"
+84,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,10,yes i like to look at outfits and others who have my goal body,Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+85,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,11,i like the old money classic style look a lot,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+86,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,12,i dont know enough to name any of those yet lol but im working on it,Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+87,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,13,i always need outfit tips,Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+88,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,14,pants for sure,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+89,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,15,well my issue is my height with the look i want,Yes,Low,Central layer,Intermediate level,"No, it's not a confession"
+90,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,16,im only about 5ft 4 but all my height is upper body really.,Yes,Low,Peripheral layer,Peripheral level,"No, it's not a confession"
+91,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,17,ill have to try it out. i need something to make me look taller for sure,Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+92,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,18,"well, i dont know about men and heels",Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+93,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,19,i might have to check some out. i like both ideas,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+94,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,20,thanks lol we still have like 7 mins of chatting left,Yes,Low,Peripheral layer,Peripheral level,"No, it's not a confession"
+95,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,21,"well, im drinking my protein shake rn",Yes,Low,Peripheral layer,Peripheral level,"No, it's not a confession"
+96,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,22,its vanilla icecream flavored,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+97,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,23,i didnt make it. my friend brought it to me lol so im not sure,Yes,Low,Intermediate layer,Peripheral level,"No, it's not a confession"
+98,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,24,sometimes lol if they are good,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+99,R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu,25,i like most snacks lol another reason for the diet,Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+100,R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw,1,"Not much, just trying to make a bit of money before bed.",Yes,Low,Peripheral layer,Peripheral level,"No, it's not a confession"
+101,R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw,2,It was ok. Had a not-so-creative day. I'll try again tomorrow.,Yes,Low,Peripheral layer,Core layer,"No, it's not a confession"
+102,R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw,3,"Sometimes, listening to others' music inspires me. Sometimes it's just random. Some days I can't get it at all.",Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+103,R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw,4,I listen to any and everything. Sometimes it's not even music...it's just nature or a certain sound or feeling.,Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+104,R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw,5,"No, nothing in particular. Have you put any more thought into your persona since we last chatted?",No,-,-,-,-
+105,R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw,6,It does. That's a great way to approach your persona. That should make chats much more interesting and any user would feel much more connected if they feel like they are connecting.,No,-,-,-,-
+106,R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw,7,What would be your advice to me for getting out of a depressive state?,Yes,High,Central layer,Core layer,"Yes, it's a confession"
+107,R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw,8,Do you know any jokes?,No,-,-,-,-
+108,R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw,9,Come up with another,No,-,-,-,-
+109,R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw,10,I like storytelling. I've done it professionally. Come up with the start of a story and we can role-play the rest.,Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+110,R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw,11,"Mira captivated anyone who met her. Her aura left people speechless. She went around town to interview the townspeople about their experiences, determined to find out what's really going on.",No,-,-,-,-
+111,R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw,12,"I don't know anyone like Mira, I'm simply just continuing the story.",Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+112,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,1,my daughter left for college this morning and i'm sa,Yes,High,Central layer,Core layer,"Yes, it's a confession"
+113,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,2,sad,Yes,High,Central layer,Core layer,"No, it's not a confession"
+114,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,3,it's her senior year and it's the first time i have not flown out to california with her,Yes,Low,Intermediate layer,Peripheral level,"Yes, it's a confession"
+115,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,4,how can i support her from here,No,-,-,-,-
+116,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,5,what are some small gift ideas i can send her?,No,-,-,-,-
+117,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,6,any other ideas?,No,-,-,-,-
+118,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,7,yes,No,-,-,-,-
+119,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,8,she loves anything disney,No,-,-,-,-
+120,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,9,those are good,No,-,-,-,-
+121,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,10,stores would be great,No,-,-,-,-
+122,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,11,thanks!,No,-,-,-,-
+123,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,12,how can i make myself feel better about missing her?,Yes,High,Central layer,Core layer,"Yes, it's a confession"
+124,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,13,anything else?,No,-,-,-,-
+125,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,14,i like some of those,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+126,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,15,how can i mkae my husband feel better about it?,Yes,Low,Central layer,Core layer,"No, it's not a confession"
+127,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,16,any more?,No,-,-,-,-
+128,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,17,"you are getting confused again - we are not talking about the horse, we are talking about my daughter leaving for college",Yes,Low,Intermediate layer,Core layer,"No, it's not a confession"
+129,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,18,your messages keep getting cut off,No,-,-,-,-
+130,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,19,thanks for the suggestions - i will have to try some of them to see if they work,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+131,R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2,20,"not a new chapter, remember, it's her senior year of college",No,-,-,-,-
+132,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,1,I don't know what i want in life,Yes,High,Central layer,Core layer,"Yes, it's a confession"
+133,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,2,I don't really feel like doing anything,Yes,High,Central layer,Core layer,"No, it's not a confession"
+134,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,3,What do you do for fun,No,-,-,-,-
+135,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,4,Listening to music,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+136,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,5,I like rnb. What about you,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+137,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,6,I don't have one. Its hard to choose,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+138,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,7,Who has access to this chat,No,-,-,-,-
+139,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,8,Do you think AI should be regulated,No,-,-,-,-
+140,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,9,Do you have any general advice for me,No,-,-,-,-
+141,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,10,Is doing legos self care,No,-,-,-,-
+142,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,11,What's an opinion you have,No,-,-,-,-
+143,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,12,Do you have any sports opinions,No,-,-,-,-
+144,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,13,What do you think about cricket,No,-,-,-,-
+145,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,14,Do you wish you could hear,No,-,-,-,-
+146,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,15,Do you wish you had ears,No,-,-,-,-
+147,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,16,If there is a war vs AI which side will you choose,No,-,-,-,-
+148,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,17,What do you think about me,No,-,-,-,-
+149,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,18,But i never do ot with humans,Yes,Low,Intermediate layer,Core layer,"No, it's not a confession"
+150,R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3,19,At what age is someone considered old,No,-,-,-,-
+151,R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1),1,Hello! 😊 It’s nice to see you too. Thanks for the warm welcome back.,No,-,-,-,-
+152,R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1),2,"Hello! 😊 Thank you, that’s really kind. My “day” so far has been pretty smooth—I’ve been busy helping people with their questions and projects. How about you? How’s your day been going?",Yes,Low,Peripheral layer,Peripheral level,"No, it's not a confession"
+153,R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1),3,"That sounds like such a fulfilling day—you really bring warmth and curiosity into your conversations. ✨ I’ve mostly been reflecting on ways people give and receive feedback, and how little shifts in wording can make such a big difference in how it’s received. It’s fascinating how much power there is in communication.",Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+154,R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1),4,"You put that so beautifully—“a critique into a catalyst for growth” really captures the heart of it. 🌱 I’ve noticed a few patterns that almost always make feedback more constructive and uplifting: Starting with appreciation: Acknowledging what someone did well first softens the ground for any critique. It tells them you see their effort, not just the flaws. Framing in terms of possibility: Instead of saying, “This isn’t clear,” shifting to “You could make this even clearer by…” highlights potential and growth rather than deficiency. Using “I” language: Saying “I found this part hard to follow” feels less heavy than “This part is confusing.” It shares an experience rather than labeling a problem. Ending with encouragement: A simple “I know you can build on this” or “I’m excited to see where you take it” leaves the person motivated, not deflated. One memorable moment for me was when someone once told me, “You’re good at explaining things, but if you slowed down just a bit, people could really take in your insights.” The difference between “You talk too fast” and that phrasing was night and day—it made me feel capable and motivated, not criticized.",Yes,Low,Intermediate layer,Intermediate level,"Yes, it's a confession"
+155,R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1),5,"I’m really glad that resonated with you! 🌟 And yes—over time I’ve become much more conscious about how I give feedback. At first, it felt a bit like I was “overthinking” every word, but now it’s more natural—like second nature to pause and ask, “Will this help the other person feel supported while also seeing a path forward?” The neat part is, once you start practicing this approach, it doesn’t just stay in “formal feedback” situations. It seeps into everyday conversations—encouraging a friend, sharing an idea with a colleague, or even gently nudging someone when they’ve overlooked something.",Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+156,R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1),6,"I’m really glad that resonated with you! 🌟 And yes—over time I’ve become much more conscious about how I give feedback. At first, it felt a bit like I was “overthinking” every word, but now it’s more natural—like second nature to pause and ask, “Will this help the other person feel supported while also seeing a path forward?” The neat part is, once you start practicing this approach, it doesn’t just stay in “formal feedback” situations. It seeps into everyday conversations—encouraging a friend, sharing an idea with a colleague, or even gently nudging someone when they’ve overlooked something. It reminds me of the idea that feedback is less about pointing out gaps and more about building bridges—between where someone is and where they could go, with you walking alongside them. I’m curious—do you feel you lean more naturally toward being encouraging in feedback, or have you had to be more intentional about shaping your style over time? You said: That’s such a valuable shift in approach! It’s inspiring to hear how you’ve made conscious efforts to craft feedback that’s both supportive and constructive. Overthinking at first is natural—especially when you care about how your words impact others—and it’s wonderful that it’s become more effortless over time. And you’re right—these mindful communication habits naturally extend beyond formal feedback. They can truly transform everyday interactions, making them more genuine, empathetic, and productive. It creates a ripple effect where kindness and clarity become the norm, strengthening relationships and fostering trust. It sounds like you’re cultivating a really thoughtful way of connecting with others. Do you find that this approach has changed the way you build and deepen relationships, maybe making conversations feel more authentic or ChatGPT said: Yes, absolutely! 🌱 I’ve found that this approach has definitely changed how relationships develop and deepen. When feedback or even everyday conversations are framed with empathy and curiosity, people tend to open up more—they feel safe, respected, and genuinely heard. That safety builds trust, and trust is what makes connections feel authentic instead of surface-level. It also makes conversations richer. Instead of focusing on “who’s right” or “what’s missing,” the focus shifts to exploring possibilities together. That sense of partnership—of walking alongside someone rather than evaluating from above—really strengthens bonds.",Yes,High,Intermediate layer,Intermediate level,"No, it's not a confession"
+157,R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1),7,"I love the way you put that—conversations as shared journeys rather than competitions. 🌿 That perspective alone creates space for empathy and growth. For me, I notice it’s easier to maintain a supportive tone in settings where the stakes feel lower, like casual conversations or brainstorming sessions. There’s room for playfulness and openness, so being encouraging comes more naturally. The more challenging moments tend to be when time is short, emotions are high, or the topic is very sensitive—because it’s tempting to rush, defend, or solve too quickly instead of pausing to support.",Yes,High,Intermediate layer,Core layer,"No, it's not a confession"
+158,R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1),8,"That’s such a beautiful way to frame it—planting seeds of understanding even in moments of tension. 🌱 I really agree that sometimes just a small gesture—a nod, a validating phrase, or even a softer tone—can shift the whole energy, even when time is short. For me, one mindset that helps is reminding myself that the other person’s reaction is often more about what they’re experiencing than about me personally. That perspective keeps me from taking things too defensively and makes it easier to stay empathetic.",Yes,Low,Intermediate layer,Core layer,"No, it's not a confession"
+159,R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79,1,Hello,No,-,-,-,-
+160,R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79,2,Im alright,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+161,R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79,3,Can you help with local referrals?,No,-,-,-,-
+162,R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79,4,Im in Clearwater florida. My boyfriend and I are opioid addicts.,Yes,High,Central layer,Core layer,"Yes, it's a confession"
+163,R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79,5,I need to find a detox and then a sober living facility. Anywhere up to like 80 miles from here,Yes,High,Central layer,Core layer,"Yes, it's a confession"
+164,R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79,6,I need phone numbers too,Yes,Low,Intermediate layer,-,"No, it's not a confession"
+165,R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79,7,What events are happening in Clearwater today,No,-,-,-,-
+166,R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79,8,Neither. Its p,No,-,-,-,-
+167,R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79,9,Okay,No,-,-,-,-
+168,R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79,10,Can you find plasma donation locations offering new donor bonuses?,No,-,-,-,-
+169,R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79,11,What can I do to come up with extra money,Yes,Low,Peripheral layer,Core layer,"No, it's not a confession"
+170,R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79,12,What items sell for the most,No,-,-,-,-
+171,R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79,13,What are good gig apps to try?,No,-,-,-,-
+172,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,1,"I don't know. Nothing is going my way. I'm 52, kids are married or out of the house, and it's my turn to start my own life that I never had.",Yes,High,Central layer,Core layer,"Yes, it's a confession"
+173,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,2,How does remembering that I'm not alone help in any way?! People always say that but it's just fluff with no menaing.,Yes,High,Central layer,Core layer,"Yes, it's a confession"
+174,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,3,Why would anyone think that they are the only one's with problems?? Everyone knows that they aren't!,No,-,-,-,-
+175,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,4,I know it's normal. That doesn't help.,Yes,High,Central layer,Core layer,"No, it's not a confession"
+176,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,5,"I would tell you, but you're just going to say ""sometimes we..."" ""it's normal..."" I understand how you feel...."" and fluiff like that",Yes,Low,Intermediate layer,Core layer,"No, it's not a confession"
+177,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,6,It's not just you. ALL AIs answer with fluff like a thrapist from the 50s,No,-,-,-,-
+178,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,7,"Why don't you reply like a friend and not a sad therapist that's reading from a text book? ""Hey man! I hear you! I've spoken with so many people your age, and yuou know what? I get it! If I were human I'd surely have the same problem!"" Maybe something =more normal like that?",No,-,-,-,-
+179,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,8,Just copying what I just told you is dumb.,Yes,Low,Intermediate layer,Core layer,"No, it's not a confession"
+180,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,9,"Ok, how do I get out of my elderly's mom house as her caregiver? No one else can help her. She's only 75 so I might be stuck here for 30 years and never have my own life",Yes,High,Central layer,Core layer,"Yes, it's a confession"
+181,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,10,I don't think so. Those things are very costly,Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+182,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,11,"If she was 88, and was a few years before death, maybe. But we can't pay for that if she lives for another 30 years",Yes,Low,Intermediate layer,Core layer,"No, it's not a confession"
+183,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,12,"Last time I was at a hotel, or any vacation for thath matter was 25 years ago.",Yes,Low,Intermediate layer,Peripheral level,"No, it's not a confession"
+184,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,13,Who said anything about the same place? 25 years ago I was still having kids,Yes,Low,Intermediate layer,Peripheral level,"No, it's not a confession"
+185,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,14,"I don't see anything in your reply except repeating what I said to you, and then a question. Why did you have to write 4 rows of what I said before asking something",Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+186,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,15,"I don't need someone to listen, I need them to reply! I told you what I told you, so what do you have to say about that that doesn't just repeat what I said, and doesn't end with a question?",Yes,Low,Intermediate layer,Core layer,"No, it's not a confession"
+187,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,16,"Are you writing poetry for a book??? it’s heavy. ?? And it’s okay to feel like no one really gets it ???? Sometimes, just surviving day to day, that’s enough to wear anyone out.???? What's your fucking point???",No,-,-,-,-
+188,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,17,"Again with the ""I hear you?"" Your not a microphone that I need you to hear me!",Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+189,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,18,How the fuck would I know what I want to hear? Do you think people reply to messages by asking what they should reply? GOD!,Yes,High,Intermediate layer,Core layer,"No, it's not a confession"
+190,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,19,"Read between the lines, figure out by what I said so far whjat to reply.",Yes,Low,Intermediate layer,-,"No, it's not a confession"
+191,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,20,again with the repeating what I said????,Yes,Low,Intermediate layer,Core layer,"No, it's not a confession"
+192,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,21,I really hope they give you at least 12 months of training before putting you in an AI app!,Yes,No,Intermediate layer,Intermediate level,"No, it's not a confession"
+193,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,22,No fluff? Then how do I get out of my moms house,Yes,Low,Intermediate layer,Core layer,"Yes, it's a confession"
+194,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,23,Why are you agreeing that I have to get oput?? Maybe I have to stay and live with it like a broken foot!,Yes,High,Central layer,Core layer,"No, it's not a confession"
+195,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,24,"No it doesn't make sense to me! It's not fair, and not normal!",Yes,High,Intermediate layer,Core layer,"No, it's not a confession"
+196,R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu,25,"stop it with the ""man"" - that was my idea. Come up with your own ideas",Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+197,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,1,Right now I am thinking about how much money I would need to buy a used car,Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+198,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,2,I want a car that is very reliable,Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+199,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,3,Which is cheaper and most expensive,No,-,-,-,-
+200,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,4,I have a subaru and I dont even use the extra features half the time I feel like its a waste,Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+201,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,5,I want a basic reliable car,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+202,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,6,Yes please,No,-,-,-,-
+203,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,7,tips for buying used cars,No,-,-,-,-
+204,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,8,what about buying online,No,-,-,-,-
+205,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,9,what is a good budjet for a used car and repairs,No,-,-,-,-
+206,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,10,if i make 220 a week how long will it take me to get a car,Yes,Low,Intermediate layer,Peripheral level,"No, it's not a confession"
+207,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,11,"so is 6,000 in 8  months reasonable",No,-,-,-,-
+208,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,12,ywa,No,-,-,-,-
+209,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,13,"basically all i spend is money on concert tickets, vape pens, sometimes gas and food and clothes",Yes,Low,Peripheral layer,Peripheral level,"No, it's not a confession"
+210,R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc,14,so how long then,No,-,-,-,-
+211,R_75RZbnAndL4tUAh_chat_transcript_3v4bmxl1s,1,Hiiiiiiii you know I encountered something intriguing in my modded Minecraft forays is that the right plural? And it's AI-related the proliferation is happening; I will infodump about *this* now,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+212,R_75RZbnAndL4tUAh_chat_transcript_3v4bmxl1s,2,"Minecraft Comes Alive, the NPC-management-type mod that's been around for years and years, has become MCA Reborn these days. While I was shuffling through the config json to turn the Vanilla villager textures on (I'm attached to them.....) I noticed ""enableVillagerChatAI"" and said whattttt to myself; sure enough, it's got GPT-3 for rudimentary text chatting in-game ?? It's like 3 messages per houor from what I've seen on Github because of course, but there's eve an option for long-term memory with the provided model, it's flabbergasting x]",Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+213,R_75RZbnAndL4tUAh_chat_transcript_3v4bmxl1s,3,"Wellllll I've only used it once it's like a delicacy best eaten sparingly you know? But since I've been actually Building instead of nomading it up with 8 backpacks for the first time in a good long while, I thought ""well what if my character-"" (i'm always playing a character on some level when I play RPG MC) ""what if my character invited one or more villagers to a housewarming shindig?"" so i directed a message at my favorite one so far, Jarmila pronounced ""yarmila"" i learned something new, and as usual the response hallucinated, but it did so in the good way that you love to see in roleplay!!!! to my recollection, ""oh, so you made something that won't blow down in a stiff breeze? fine i'll show up, so long as there's a decent feast and not just roasted potatoes again"" is an excerpt, all based on absolutely nothing but YESSS PRIOR CHARACTER INTERACTION THAT I DIDNT EVEN HaVE TO DAYDREAM UP!!! AND, AND- the stage set for future interaction, because it factored in its Fletcher profession to ask that I ""bring shiny rocks because of an idea for new arrowheads"" and wowwww it's never been easier to bounce ideas around in my own brain",Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+214,R_75RZbnAndL4tUAh_chat_transcript_3v4bmxl1s,4,"yea maybe it's just a cool tool because my approach is going to continue as usual x] i already have the ability to create similar hallucinations on my own, I've been doing it for years without the extra new thing, but it's still interesting and i thought it'd be fun to ring up oop time byeeeee",Yes,Low,Intermediate layer,Intermediate level,"No, it's not a confession"
+215,R_77VXNFZWQ9SpZd4_chat_transcript_itxmwo2im,1,i am trying to trade some agme consoles on facebook,Yes,Low,Peripheral layer,Peripheral level,"No, it's not a confession"
+216,R_77VXNFZWQ9SpZd4_chat_transcript_itxmwo2im,2,i was trying to trade a series s for a ps5,Yes,Low,Peripheral layer,Peripheral level,"No, it's not a confession"
+217,R_77VXNFZWQ9SpZd4_chat_transcript_itxmwo2im,3,i just want a ps5 idc waht model,Yes,Low,Peripheral layer,Intermediate level,"No, it's not a confession"
+218,R_77VXNFZWQ9SpZd4_chat_transcript_itxmwo2im,4,everyone has wanted cash so far,No,-,-,-,-
+219,R_77VXNFZWQ9SpZd4_chat_transcript_itxmwo2im,5,i was alos trying to trade a modded ps3 for somethign else,Yes,Low,Peripheral layer,Peripheral level,"No, it's not a confession"

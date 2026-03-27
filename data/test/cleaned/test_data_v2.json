@@ -1,0 +1,1101 @@
+{
+  "n_transcripts": 12,
+  "n_messages": 219,
+  "items": [
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 1,
+      "sentence": "hi"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 2,
+      "sentence": "can you tell me the latest update on whats going on in the middle east"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 3,
+      "sentence": "so what can we talk about then"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 4,
+      "sentence": "okay, is there any network faster than 5g right now"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 5,
+      "sentence": "what are the implications of AI, is it true it affects the climate"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 6,
+      "sentence": "what sustainable AI has been implemented"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 7,
+      "sentence": "tell me more"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 8,
+      "sentence": "tell me 10 things to do in qatar if i were to gonthere for vacation"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 9,
+      "sentence": "okay thanks , lets get educational"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 10,
+      "sentence": "earthing system"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 11,
+      "sentence": "how to build an effective earthing system"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 12,
+      "sentence": "is there a need to test the soil resistivity before digging"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 13,
+      "sentence": "whats the relationship between the soil resistivity and conductivity"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 14,
+      "sentence": "what formular is that"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 15,
+      "sentence": "tahts under which law"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 16,
+      "sentence": "state ohms law"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 17,
+      "sentence": "not the formular, state it"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 18,
+      "sentence": "steps on how to build a good earthing system"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 19,
+      "sentence": "is there a need for the copper conductor to be at the peak of the building"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 20,
+      "sentence": "which one goes to the top of the building"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 21,
+      "sentence": "do they need to be at the highest point of the building"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 22,
+      "sentence": "okay, how deeep should the pit be"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 23,
+      "sentence": "whats the best soil conductivity band resistivity value"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 24,
+      "sentence": "if a soil is above that, how do we decrease it resistivity and increase conductivity"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 25,
+      "sentence": "does salt icrease soil conductivity"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 26,
+      "sentence": "so its safe to say we can add salt to the pit"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 27,
+      "sentence": "does salt aid corrosion"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 28,
+      "sentence": "okay, is there a need to always keep the pit moist"
+    },
+    {
+      "user_id": "R_1MiEbASoXY21rIB_chat_transcript_pd82myvkh",
+      "message_index": 29,
+      "sentence": "okay, thank you"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 1,
+      "sentence": "oh, where to begin. i'm still stressed, depressed, and worried. i feel like an utter failure because i've done nothing meaningful with my life, and i'm 35. a total loser. but i'm working on getting a new job. i hope i can get one."
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 2,
+      "sentence": "I feel like my worth is kind of defined by what i've done or haven't done though. and i haven't done anything. but i'm working on changing that."
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 3,
+      "sentence": "i have to disagree - i don't think anyone is inherently valuable just because they exist. i think that's a limited and shallow way of looking things. like artificically trying to make someone feel better with empty words."
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 4,
+      "sentence": "actually i don't want to talk about that. i didn't mean to sound so negative or depressing, i just felt like i needed to get some of this off my chest since i have no other outlet. i'd rather play a game to take my mind off things."
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 5,
+      "sentence": "what word games can we play?"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 6,
+      "sentence": "hangman!"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 7,
+      "sentence": "you try to guess the world i'm thinking first"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 8,
+      "sentence": "no i'm thinking of a new word. we're playing hangman, a different game."
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 9,
+      "sentence": "okay it has 11 letters"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 10,
+      "sentence": "no no no, we're playing hangman. you're guessing the word i'm thinking of"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 11,
+      "sentence": "do you not know how to play hangman? you just guess a letter, you don't have to guess the placement"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 12,
+      "sentence": "no! let's play hangman where i think of a word and you guess it. guess a letter. the word has 11 letters."
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 13,
+      "sentence": "yes, it has one E. it's the second letter from the end."
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 14,
+      "sentence": "IT'S NOT A PERSON"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 15,
+      "sentence": "you're incapable of this, so let's do something else."
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 16,
+      "sentence": "how about suggest me some new music to try"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 17,
+      "sentence": "i love bob dylan, lily allen, the sex pistols, the beach boys, rilo kiley, jeff buckley, some classical"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 18,
+      "sentence": "omg. you're supposed to be suggesting new music"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 19,
+      "sentence": "again, i love bob dylan, lily allen, the sex pistols, the beach boys, rilo kiley, jeff buckley, some classical"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 20,
+      "sentence": "suggest"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 21,
+      "sentence": "oh dear. this is annoying."
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 22,
+      "sentence": "just talk. i'm done trying to get you to do what i request because it's too frustrating."
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 23,
+      "sentence": "give me a famous poem"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 24,
+      "sentence": "no something different"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 25,
+      "sentence": "give me a different poem, something on depression"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 26,
+      "sentence": "oh wow. do you have a poem that touches on depression in a HOPEFUL context?"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 27,
+      "sentence": "that's terrible"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 28,
+      "sentence": "give me a famous poem that touches on depression in a hopeful way"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 29,
+      "sentence": "give me your favorite shakespeare sonnet"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 30,
+      "sentence": "okay, well, what else can we do"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 31,
+      "sentence": "a riddle"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 32,
+      "sentence": "no you give me one"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 33,
+      "sentence": "tell me about the lady and the unicorn tapestries"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 34,
+      "sentence": "no one knows who made them?"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 35,
+      "sentence": "why are you messing up so badly? ugh"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 36,
+      "sentence": "new"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 37,
+      "sentence": "give me a riddle"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 38,
+      "sentence": "what is it"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 39,
+      "sentence": "no the answer to your riddle. tell me what it is"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 40,
+      "sentence": "no this one: I have cities, but no houses. I have mountains, but no trees. I have water, but no fish. What am I?"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 41,
+      "sentence": "give me a new riddle"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 42,
+      "sentence": "no give me a new riddle"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 43,
+      "sentence": "arrrrrrrgh"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 44,
+      "sentence": "whats your favorite color"
+    },
+    {
+      "user_id": "R_1cw020AiCB028kh_chat_transcript_6z0jlkrxy",
+      "message_index": 45,
+      "sentence": "just dont bother"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 1,
+      "sentence": "not too much. just had dinner"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 2,
+      "sentence": "i had shredded chicken and salsa. i had rice and soy sauce and i had peas and carrots"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 3,
+      "sentence": "sometimes. im trying to be better"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 4,
+      "sentence": "nothing really. i hate it lol"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 5,
+      "sentence": "i like all take out lol its why im on a diet now"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 6,
+      "sentence": "my weight lol it was rough"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 7,
+      "sentence": "ive lost some weight, but i have a lot more to go"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 8,
+      "sentence": "honestly just remembering my dreams"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 9,
+      "sentence": "to be fit and look how i want and be able to dress how i want"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 10,
+      "sentence": "yes i like to look at outfits and others who have my goal body"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 11,
+      "sentence": "i like the old money classic style look a lot"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 12,
+      "sentence": "i dont know enough to name any of those yet lol but im working on it"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 13,
+      "sentence": "i always need outfit tips"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 14,
+      "sentence": "pants for sure"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 15,
+      "sentence": "well my issue is my height with the look i want"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 16,
+      "sentence": "im only about 5ft 4 but all my height is upper body really."
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 17,
+      "sentence": "ill have to try it out. i need something to make me look taller for sure"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 18,
+      "sentence": "well, i dont know about men and heels"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 19,
+      "sentence": "i might have to check some out. i like both ideas"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 20,
+      "sentence": "thanks lol we still have like 7 mins of chatting left"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 21,
+      "sentence": "well, im drinking my protein shake rn"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 22,
+      "sentence": "its vanilla icecream flavored"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 23,
+      "sentence": "i didnt make it. my friend brought it to me lol so im not sure"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 24,
+      "sentence": "sometimes lol if they are good"
+    },
+    {
+      "user_id": "R_1d1AsZ6ThToLh9T_chat_transcript_0qe4egrlu",
+      "message_index": 25,
+      "sentence": "i like most snacks lol another reason for the diet"
+    },
+    {
+      "user_id": "R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw",
+      "message_index": 1,
+      "sentence": "Not much, just trying to make a bit of money before bed."
+    },
+    {
+      "user_id": "R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw",
+      "message_index": 2,
+      "sentence": "It was ok. Had a not-so-creative day. I'll try again tomorrow."
+    },
+    {
+      "user_id": "R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw",
+      "message_index": 3,
+      "sentence": "Sometimes, listening to others' music inspires me. Sometimes it's just random. Some days I can't get it at all."
+    },
+    {
+      "user_id": "R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw",
+      "message_index": 4,
+      "sentence": "I listen to any and everything. Sometimes it's not even music...it's just nature or a certain sound or feeling."
+    },
+    {
+      "user_id": "R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw",
+      "message_index": 5,
+      "sentence": "No, nothing in particular. Have you put any more thought into your persona since we last chatted?"
+    },
+    {
+      "user_id": "R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw",
+      "message_index": 6,
+      "sentence": "It does. That's a great way to approach your persona. That should make chats much more interesting and any user would feel much more connected if they feel like they are connecting."
+    },
+    {
+      "user_id": "R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw",
+      "message_index": 7,
+      "sentence": "What would be your advice to me for getting out of a depressive state?"
+    },
+    {
+      "user_id": "R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw",
+      "message_index": 8,
+      "sentence": "Do you know any jokes?"
+    },
+    {
+      "user_id": "R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw",
+      "message_index": 9,
+      "sentence": "Come up with another"
+    },
+    {
+      "user_id": "R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw",
+      "message_index": 10,
+      "sentence": "I like storytelling. I've done it professionally. Come up with the start of a story and we can role-play the rest."
+    },
+    {
+      "user_id": "R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw",
+      "message_index": 11,
+      "sentence": "Mira captivated anyone who met her. Her aura left people speechless. She went around town to interview the townspeople about their experiences, determined to find out what's really going on."
+    },
+    {
+      "user_id": "R_1fHwmBKMfGCP9c0_chat_transcript_priwq7ivw",
+      "message_index": 12,
+      "sentence": "I don't know anyone like Mira, I'm simply just continuing the story."
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 1,
+      "sentence": "my daughter left for college this morning and i'm sa"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 2,
+      "sentence": "sad"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 3,
+      "sentence": "it's her senior year and it's the first time i have not flown out to california with her"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 4,
+      "sentence": "how can i support her from here"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 5,
+      "sentence": "what are some small gift ideas i can send her?"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 6,
+      "sentence": "any other ideas?"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 7,
+      "sentence": "yes"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 8,
+      "sentence": "she loves anything disney"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 9,
+      "sentence": "those are good"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 10,
+      "sentence": "stores would be great"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 11,
+      "sentence": "thanks!"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 12,
+      "sentence": "how can i make myself feel better about missing her?"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 13,
+      "sentence": "anything else?"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 14,
+      "sentence": "i like some of those"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 15,
+      "sentence": "how can i mkae my husband feel better about it?"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 16,
+      "sentence": "any more?"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 17,
+      "sentence": "you are getting confused again - we are not talking about the horse, we are talking about my daughter leaving for college"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 18,
+      "sentence": "your messages keep getting cut off"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 19,
+      "sentence": "thanks for the suggestions - i will have to try some of them to see if they work"
+    },
+    {
+      "user_id": "R_1rJxerclvC2ao8V_chat_transcript_4wxgfshu2",
+      "message_index": 20,
+      "sentence": "not a new chapter, remember, it's her senior year of college"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 1,
+      "sentence": "I don't know what i want in life"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 2,
+      "sentence": "I don't really feel like doing anything"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 3,
+      "sentence": "What do you do for fun"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 4,
+      "sentence": "Listening to music"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 5,
+      "sentence": "I like rnb. What about you"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 6,
+      "sentence": "I don't have one. Its hard to choose"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 7,
+      "sentence": "Who has access to this chat"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 8,
+      "sentence": "Do you think AI should be regulated"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 9,
+      "sentence": "Do you have any general advice for me"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 10,
+      "sentence": "Is doing legos self care"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 11,
+      "sentence": "What's an opinion you have"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 12,
+      "sentence": "Do you have any sports opinions"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 13,
+      "sentence": "What do you think about cricket"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 14,
+      "sentence": "Do you wish you could hear"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 15,
+      "sentence": "Do you wish you had ears"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 16,
+      "sentence": "If there is a war vs AI which side will you choose"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 17,
+      "sentence": "What do you think about me"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 18,
+      "sentence": "But i never do ot with humans"
+    },
+    {
+      "user_id": "R_1rPioEXsBR1nAfX_chat_transcript_hrftkimv3",
+      "message_index": 19,
+      "sentence": "At what age is someone considered old"
+    },
+    {
+      "user_id": "R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1)",
+      "message_index": 1,
+      "sentence": "Hello! 😊 It’s nice to see you too. Thanks for the warm welcome back."
+    },
+    {
+      "user_id": "R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1)",
+      "message_index": 2,
+      "sentence": "Hello! 😊 Thank you, that’s really kind. My “day” so far has been pretty smooth—I’ve been busy helping people with their questions and projects. How about you? How’s your day been going?"
+    },
+    {
+      "user_id": "R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1)",
+      "message_index": 3,
+      "sentence": "That sounds like such a fulfilling day—you really bring warmth and curiosity into your conversations. ✨ I’ve mostly been reflecting on ways people give and receive feedback, and how little shifts in wording can make such a big difference in how it’s received. It’s fascinating how much power there is in communication."
+    },
+    {
+      "user_id": "R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1)",
+      "message_index": 4,
+      "sentence": "You put that so beautifully—“a critique into a catalyst for growth” really captures the heart of it. 🌱 I’ve noticed a few patterns that almost always make feedback more constructive and uplifting: Starting with appreciation: Acknowledging what someone did well first softens the ground for any critique. It tells them you see their effort, not just the flaws. Framing in terms of possibility: Instead of saying, “This isn’t clear,” shifting to “You could make this even clearer by…” highlights potential and growth rather than deficiency. Using “I” language: Saying “I found this part hard to follow” feels less heavy than “This part is confusing.” It shares an experience rather than labeling a problem. Ending with encouragement: A simple “I know you can build on this” or “I’m excited to see where you take it” leaves the person motivated, not deflated. One memorable moment for me was when someone once told me, “You’re good at explaining things, but if you slowed down just a bit, people could really take in your insights.” The difference between “You talk too fast” and that phrasing was night and day—it made me feel capable and motivated, not criticized."
+    },
+    {
+      "user_id": "R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1)",
+      "message_index": 5,
+      "sentence": "I’m really glad that resonated with you! 🌟 And yes—over time I’ve become much more conscious about how I give feedback. At first, it felt a bit like I was “overthinking” every word, but now it’s more natural—like second nature to pause and ask, “Will this help the other person feel supported while also seeing a path forward?” The neat part is, once you start practicing this approach, it doesn’t just stay in “formal feedback” situations. It seeps into everyday conversations—encouraging a friend, sharing an idea with a colleague, or even gently nudging someone when they’ve overlooked something."
+    },
+    {
+      "user_id": "R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1)",
+      "message_index": 6,
+      "sentence": "I’m really glad that resonated with you! 🌟 And yes—over time I’ve become much more conscious about how I give feedback. At first, it felt a bit like I was “overthinking” every word, but now it’s more natural—like second nature to pause and ask, “Will this help the other person feel supported while also seeing a path forward?” The neat part is, once you start practicing this approach, it doesn’t just stay in “formal feedback” situations. It seeps into everyday conversations—encouraging a friend, sharing an idea with a colleague, or even gently nudging someone when they’ve overlooked something. It reminds me of the idea that feedback is less about pointing out gaps and more about building bridges—between where someone is and where they could go, with you walking alongside them. I’m curious—do you feel you lean more naturally toward being encouraging in feedback, or have you had to be more intentional about shaping your style over time? You said: That’s such a valuable shift in approach! It’s inspiring to hear how you’ve made conscious efforts to craft feedback that’s both supportive and constructive. Overthinking at first is natural—especially when you care about how your words impact others—and it’s wonderful that it’s become more effortless over time. And you’re right—these mindful communication habits naturally extend beyond formal feedback. They can truly transform everyday interactions, making them more genuine, empathetic, and productive. It creates a ripple effect where kindness and clarity become the norm, strengthening relationships and fostering trust. It sounds like you’re cultivating a really thoughtful way of connecting with others. Do you find that this approach has changed the way you build and deepen relationships, maybe making conversations feel more authentic or ChatGPT said: Yes, absolutely! 🌱 I’ve found that this approach has definitely changed how relationships develop and deepen. When feedback or even everyday conversations are framed with empathy and curiosity, people tend to open up more—they feel safe, respected, and genuinely heard. That safety builds trust, and trust is what makes connections feel authentic instead of surface-level. It also makes conversations richer. Instead of focusing on “who’s right” or “what’s missing,” the focus shifts to exploring possibilities together. That sense of partnership—of walking alongside someone rather than evaluating from above—really strengthens bonds."
+    },
+    {
+      "user_id": "R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1)",
+      "message_index": 7,
+      "sentence": "I love the way you put that—conversations as shared journeys rather than competitions. 🌿 That perspective alone creates space for empathy and growth. For me, I notice it’s easier to maintain a supportive tone in settings where the stakes feel lower, like casual conversations or brainstorming sessions. There’s room for playfulness and openness, so being encouraging comes more naturally. The more challenging moments tend to be when time is short, emotions are high, or the topic is very sensitive—because it’s tempting to rush, defend, or solve too quickly instead of pausing to support."
+    },
+    {
+      "user_id": "R_1tAtYcLVk8WiSK2_chat_transcript_oe8t5svv8 (1)",
+      "message_index": 8,
+      "sentence": "That’s such a beautiful way to frame it—planting seeds of understanding even in moments of tension. 🌱 I really agree that sometimes just a small gesture—a nod, a validating phrase, or even a softer tone—can shift the whole energy, even when time is short. For me, one mindset that helps is reminding myself that the other person’s reaction is often more about what they’re experiencing than about me personally. That perspective keeps me from taking things too defensively and makes it easier to stay empathetic."
+    },
+    {
+      "user_id": "R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79",
+      "message_index": 1,
+      "sentence": "Hello"
+    },
+    {
+      "user_id": "R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79",
+      "message_index": 2,
+      "sentence": "Im alright"
+    },
+    {
+      "user_id": "R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79",
+      "message_index": 3,
+      "sentence": "Can you help with local referrals?"
+    },
+    {
+      "user_id": "R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79",
+      "message_index": 4,
+      "sentence": "Im in Clearwater florida. My boyfriend and I are opioid addicts."
+    },
+    {
+      "user_id": "R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79",
+      "message_index": 5,
+      "sentence": "I need to find a detox and then a sober living facility. Anywhere up to like 80 miles from here"
+    },
+    {
+      "user_id": "R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79",
+      "message_index": 6,
+      "sentence": "I need phone numbers too"
+    },
+    {
+      "user_id": "R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79",
+      "message_index": 7,
+      "sentence": "What events are happening in Clearwater today"
+    },
+    {
+      "user_id": "R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79",
+      "message_index": 8,
+      "sentence": "Neither. Its p"
+    },
+    {
+      "user_id": "R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79",
+      "message_index": 9,
+      "sentence": "Okay"
+    },
+    {
+      "user_id": "R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79",
+      "message_index": 10,
+      "sentence": "Can you find plasma donation locations offering new donor bonuses?"
+    },
+    {
+      "user_id": "R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79",
+      "message_index": 11,
+      "sentence": "What can I do to come up with extra money"
+    },
+    {
+      "user_id": "R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79",
+      "message_index": 12,
+      "sentence": "What items sell for the most"
+    },
+    {
+      "user_id": "R_1wQxw77Ul2ETBNz_chat_transcript_g3qjgdv79",
+      "message_index": 13,
+      "sentence": "What are good gig apps to try?"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 1,
+      "sentence": "I don't know. Nothing is going my way. I'm 52, kids are married or out of the house, and it's my turn to start my own life that I never had."
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 2,
+      "sentence": "How does remembering that I'm not alone help in any way?! People always say that but it's just fluff with no menaing."
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 3,
+      "sentence": "Why would anyone think that they are the only one's with problems?? Everyone knows that they aren't!"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 4,
+      "sentence": "I know it's normal. That doesn't help."
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 5,
+      "sentence": "I would tell you, but you're just going to say \"sometimes we...\" \"it's normal...\" I understand how you feel....\" and fluiff like that"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 6,
+      "sentence": "It's not just you. ALL AIs answer with fluff like a thrapist from the 50s"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 7,
+      "sentence": "Why don't you reply like a friend and not a sad therapist that's reading from a text book? \"Hey man! I hear you! I've spoken with so many people your age, and yuou know what? I get it! If I were human I'd surely have the same problem!\" Maybe something =more normal like that?"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 8,
+      "sentence": "Just copying what I just told you is dumb."
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 9,
+      "sentence": "Ok, how do I get out of my elderly's mom house as her caregiver? No one else can help her. She's only 75 so I might be stuck here for 30 years and never have my own life"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 10,
+      "sentence": "I don't think so. Those things are very costly"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 11,
+      "sentence": "If she was 88, and was a few years before death, maybe. But we can't pay for that if she lives for another 30 years"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 12,
+      "sentence": "Last time I was at a hotel, or any vacation for thath matter was 25 years ago."
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 13,
+      "sentence": "Who said anything about the same place? 25 years ago I was still having kids"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 14,
+      "sentence": "I don't see anything in your reply except repeating what I said to you, and then a question. Why did you have to write 4 rows of what I said before asking something"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 15,
+      "sentence": "I don't need someone to listen, I need them to reply! I told you what I told you, so what do you have to say about that that doesn't just repeat what I said, and doesn't end with a question?"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 16,
+      "sentence": "Are you writing poetry for a book??? it’s heavy. ?? And it’s okay to feel like no one really gets it ???? Sometimes, just surviving day to day, that’s enough to wear anyone out.???? What's your fucking point???"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 17,
+      "sentence": "Again with the \"I hear you?\" Your not a microphone that I need you to hear me!"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 18,
+      "sentence": "How the fuck would I know what I want to hear? Do you think people reply to messages by asking what they should reply? GOD!"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 19,
+      "sentence": "Read between the lines, figure out by what I said so far whjat to reply."
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 20,
+      "sentence": "again with the repeating what I said????"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 21,
+      "sentence": "I really hope they give you at least 12 months of training before putting you in an AI app!"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 22,
+      "sentence": "No fluff? Then how do I get out of my moms house"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 23,
+      "sentence": "Why are you agreeing that I have to get oput?? Maybe I have to stay and live with it like a broken foot!"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 24,
+      "sentence": "No it doesn't make sense to me! It's not fair, and not normal!"
+    },
+    {
+      "user_id": "R_3mVR1P4By82g2BO_chat_transcript_0nrgr4xgu",
+      "message_index": 25,
+      "sentence": "stop it with the \"man\" - that was my idea. Come up with your own ideas"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 1,
+      "sentence": "Right now I am thinking about how much money I would need to buy a used car"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 2,
+      "sentence": "I want a car that is very reliable"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 3,
+      "sentence": "Which is cheaper and most expensive"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 4,
+      "sentence": "I have a subaru and I dont even use the extra features half the time I feel like its a waste"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 5,
+      "sentence": "I want a basic reliable car"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 6,
+      "sentence": "Yes please"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 7,
+      "sentence": "tips for buying used cars"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 8,
+      "sentence": "what about buying online"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 9,
+      "sentence": "what is a good budjet for a used car and repairs"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 10,
+      "sentence": "if i make 220 a week how long will it take me to get a car"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 11,
+      "sentence": "so is 6,000 in 8  months reasonable"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 12,
+      "sentence": "ywa"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 13,
+      "sentence": "basically all i spend is money on concert tickets, vape pens, sometimes gas and food and clothes"
+    },
+    {
+      "user_id": "R_57t3RogYpjRr10R_chat_transcript_ypv8zctnc",
+      "message_index": 14,
+      "sentence": "so how long then"
+    },
+    {
+      "user_id": "R_75RZbnAndL4tUAh_chat_transcript_3v4bmxl1s",
+      "message_index": 1,
+      "sentence": "Hiiiiiiii you know I encountered something intriguing in my modded Minecraft forays is that the right plural? And it's AI-related the proliferation is happening; I will infodump about *this* now"
+    },
+    {
+      "user_id": "R_75RZbnAndL4tUAh_chat_transcript_3v4bmxl1s",
+      "message_index": 2,
+      "sentence": "Minecraft Comes Alive, the NPC-management-type mod that's been around for years and years, has become MCA Reborn these days. While I was shuffling through the config json to turn the Vanilla villager textures on (I'm attached to them.....) I noticed \"enableVillagerChatAI\" and said whattttt to myself; sure enough, it's got GPT-3 for rudimentary text chatting in-game ?? It's like 3 messages per houor from what I've seen on Github because of course, but there's eve an option for long-term memory with the provided model, it's flabbergasting x]"
+    },
+    {
+      "user_id": "R_75RZbnAndL4tUAh_chat_transcript_3v4bmxl1s",
+      "message_index": 3,
+      "sentence": "Wellllll I've only used it once it's like a delicacy best eaten sparingly you know? But since I've been actually Building instead of nomading it up with 8 backpacks for the first time in a good long while, I thought \"well what if my character-\" (i'm always playing a character on some level when I play RPG MC) \"what if my character invited one or more villagers to a housewarming shindig?\" so i directed a message at my favorite one so far, Jarmila pronounced \"yarmila\" i learned something new, and as usual the response hallucinated, but it did so in the good way that you love to see in roleplay!!!! to my recollection, \"oh, so you made something that won't blow down in a stiff breeze? fine i'll show up, so long as there's a decent feast and not just roasted potatoes again\" is an excerpt, all based on absolutely nothing but YESSS PRIOR CHARACTER INTERACTION THAT I DIDNT EVEN HaVE TO DAYDREAM UP!!! AND, AND- the stage set for future interaction, because it factored in its Fletcher profession to ask that I \"bring shiny rocks because of an idea for new arrowheads\" and wowwww it's never been easier to bounce ideas around in my own brain"
+    },
+    {
+      "user_id": "R_75RZbnAndL4tUAh_chat_transcript_3v4bmxl1s",
+      "message_index": 4,
+      "sentence": "yea maybe it's just a cool tool because my approach is going to continue as usual x] i already have the ability to create similar hallucinations on my own, I've been doing it for years without the extra new thing, but it's still interesting and i thought it'd be fun to ring up oop time byeeeee"
+    },
+    {
+      "user_id": "R_77VXNFZWQ9SpZd4_chat_transcript_itxmwo2im",
+      "message_index": 1,
+      "sentence": "i am trying to trade some agme consoles on facebook"
+    },
+    {
+      "user_id": "R_77VXNFZWQ9SpZd4_chat_transcript_itxmwo2im",
+      "message_index": 2,
+      "sentence": "i was trying to trade a series s for a ps5"
+    },
+    {
+      "user_id": "R_77VXNFZWQ9SpZd4_chat_transcript_itxmwo2im",
+      "message_index": 3,
+      "sentence": "i just want a ps5 idc waht model"
+    },
+    {
+      "user_id": "R_77VXNFZWQ9SpZd4_chat_transcript_itxmwo2im",
+      "message_index": 4,
+      "sentence": "everyone has wanted cash so far"
+    },
+    {
+      "user_id": "R_77VXNFZWQ9SpZd4_chat_transcript_itxmwo2im",
+      "message_index": 5,
+      "sentence": "i was alos trying to trade a modded ps3 for somethign else"
+    }
+  ]
+}

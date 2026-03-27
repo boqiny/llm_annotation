@@ -1,76 +1,111 @@
-"""
-Enhanced GEPA-optimized prompt for Intimacy of self-disclosure classification.
-Specifically tuned to distinguish between biographical facts, opinions/values, and deep emotions.
-"""
-
 ENHANCED_INTIMACY_PROMPT = """You are an expert coder for intimacy of self-disclosure in human-AI conversations.
 
 Task: Read one user message and classify it according to the coding scheme "Intimacy of self-disclosure".
 You must choose EXACTLY ONE intimacy level from the scheme below.
 
-## Intimacy of self-disclosure
-- **Peripheral level**
-  Definition: Biographical information (e.g., age, gender, height, and other basic info)
-  Topics: N/A Requires more info from the transcript to know
-  Topic thematic categories: N/A Requires more info from the transcript to know
-  Examples:
-    • (P) "Today is my mothers birthday i am trying to make a little bit of money to buy her flowers"
-    • (P) "I most definitely will. I recently reimplemented playing basketball into my fitness routine. Hadn't played in a long time"
+## Definition (from codebook, Croes et al., 2024)
+- **Peripheral level**: Biographical information — age, gender, height, and other basic facts about the person.
+- **Intermediate level**: Preferences and personally interesting things — what the person loves, hates, values, believes, or finds meaningful.
+- **Core layer**: Personal beliefs, fears, emotions, and things people are ashamed of — the inner emotional and psychological life of the person.
 
-- **Intermediate level**
-  Definition: Opinions, attitudes, and values
-  Topics: Philosophical perspective, Casual conversations, Future plans, Writing, Creative ideation
-  Topic thematic categories: Collaborative storytelling and character impersonation, Critical debates and strategic analysis, Philosophical and moral inquiry, Casual exchange, Creative development
-  Examples:
-    • (Rep) "By the way, I like my name, Blue! How did you come up with it?" (P) "Just the color I was looking at the time. I wish it was deeper than that but oh well"
-    • (P) "if I have learned one thing, it's to live in the now. it exists. the instant, it doesn't so goes the future"
-    • (P) "Yeah, healthy living is becoming more and more important to me as I age a bit"
-    • (P) "I feel really exhausted nowadays."
+---
 
-- **Core layer**
-  Definition: Personal beliefs, fears, emotions and things people are ashamed of
-  Topics: Emotional distress, Desire for romantic connection, Current life challenges, Suicidal thoughts, Desire for friendship, Substance use, Work stress, Emotional response, Learning limitations, Trust issues, Financial struggles, Mental health discussion, Interpersonal issues, Information and advice, Future plans, Intimate exchange
-  Topic thematic categories: Emotional and social support, Romantic and intimacy roleplay, Risky and dark roleplay, Philosophical and moral inquiry, Emotional disclosure, Knowledge seeking, Romantic and sexual interactions
-  Examples:
-    • (P) "We have sold everything we own. Exceot what is in our storage. We are about to lose our storage unit too"
-    • (P) "Everything feels like a chore."
+## The Core Decision: A Progression of Intimacy
 
-# Classification Rules:
+Think of the three levels as moving inward from the surface of a person:
 
-1) Pick EXACTLY ONE intimacy level: Peripheral level, Intermediate level, Core layer, or N/A
-2) Use ONLY these level names exactly as written
-3) Use N/A if the message doesn't clearly fit any of the three definitions
-4) Consider the definition, topics, and examples for each level
-5) **Peripheral = basic biographical facts** (age, gender, height, activities, basic life events)
-6) **Intermediate = opinions, attitudes, values** (what you think/believe, personal philosophies, preferences about life)
-7) **Core = deep emotions, fears, beliefs, shame, vulnerability** (emotional distress, romantic desires, fears, things people are ashamed of)
+**Peripheral** — Facts about who you are on paper
+- Biographical data: age, name, location, family members, physical attributes
+- Basic life events and activities stated as facts
+- These could appear on a form or résumé — they carry no vulnerability
 
-# Critical Guidelines:
+**Intermediate** — What you like, think, value, and want
+- Preferences, likes, dislikes, interests, hobbies
+- Opinions, attitudes, values, beliefs, life philosophies
+- Goals, plans, things you find meaningful or interesting
+- These reveal the person's perspective on the world, but not their emotional interior
 
-**Key distinction between levels:**
-- Peripheral: Factual biographical information with no opinion or emotion
-- Intermediate: Expresses opinions/attitudes/values but without deep emotional vulnerability
-- Core: Reveals deep emotions, fears, shame, or vulnerable personal beliefs
+**Core** — Who you are inside and what you feel
+- Emotions: fear, shame, guilt, loneliness, love, despair, anxiety
+- Core identity: defining statements about fundamental character or psychological makeup
+- Vulnerabilities: things the person might be ashamed of, afraid of, or emotionally burdened by
+- Intimate desires and deep relational needs
+- These reveal something the person might feel exposed sharing
 
-**Important notes:**
-- Statements about health becoming important ("healthy living is important to me") = Intermediate (attitude/value)
-- Feeling exhausted = Can be Intermediate if it's a simple statement, or Core if expressing emotional distress
-- Romantic/intimate exchanges, expressions of emotional need = Core
-- Casual opinions about external topics = Intermediate
-- Basic life facts (birthday, activities) = Peripheral
+---
 
-**Use N/A when:**
-- The message is too vague or lacks context to determine intimacy level
-- Simple acknowledgments or requests without substantial personal content
-- Examples that should be N/A:
-  • "I was wondering what we talked about last time. I can't remember." - memory question without biographical/opinion/emotional content
-  • "thank you that great i will keep them in mind" - polite acknowledgment without revealing biographical info, opinions, or emotions
+## Key Classification Principles
 
-# Output Format:
+**Principle 1 — The key question at each boundary:**
 
-Output ONLY the level name (Peripheral level, Intermediate level, Core layer, or N/A).
+*Peripheral vs Intermediate*: Is this a bare fact, or does it reveal what the person thinks/likes/values?
+- Just a biographical fact = Peripheral
+- Expressing a preference, opinion, or value = Intermediate
 
-Use N/A if the message doesn't clearly fit any of the three definitions.
+*Intermediate vs Core*: Is this what they think and prefer, or who they are and how they feel?
+- Opinions, values, preferences, attitudes = Intermediate
+- Emotions, fears, shame, core identity = Core
 
-No reasoning, no JSON, no extra text.
+**Principle 2 — Three distinct paths to Core layer.**
+A statement reaches Core layer if it reveals any of the following:
+1. **Emotion** — fear, shame, guilt, loneliness, love, distress, anxiety, despair
+2. **Core identity** — a defining statement about who the person fundamentally is, not just what they prefer (marked by phrases like "naturally who I am", "I've always been this way", "just how I am")
+3. **Vulnerability** — something the person might feel sensitive, ashamed, or emotionally exposed about
+
+**Principle 3 — Values and beliefs sit at Intermediate, not Core.**
+Even deeply held spiritual, moral, or philosophical views are Intermediate when stated as positions or practices. They become Core only when the statement also reveals emotional distress, fear, or shame alongside the belief.
+- "Prayer deepens my relationship with God" → Intermediate (spiritual practice/value)
+- "I've always felt people should be free to do what they want" → Intermediate (moral opinion)
+- "I'm terrified I've lost my faith" → Core (fear/emotional distress)
+
+**Principle 4 — Core identity vs opinion/preference.**
+The most common misclassification is treating a core self-definition as an opinion. The difference:
+- An *opinion* describes what you think about something → Intermediate
+- A *core identity statement* describes what you fundamentally are → Core
+- "I think cynicism is underrated" → Intermediate (opinion about a topic)
+- "I'm a cynic. It's naturally who I am" → Core (defining fundamental character)
+
+**Principle 5 — Coping mechanisms reveal the emotion they manage.**
+When someone describes how they mentally manage anxiety, uncertainty, or fear, the coping strategy itself implies the underlying emotional state. Classify at Core, not Intermediate.
+
+**Principle 6 — Emotional reactions toward others are Core.**
+When the speaker reports how other people made them feel — being laughed at, disrespected, hurt, or betrayed — they are revealing an emotional state, which is Core, not an opinion.
+
+**Principle 7 — Use N/A only when there is no personal content at all.**
+Simple acknowledgments ("yes", "ok", "thanks"), pure questions about others, or content with no self-reference may be N/A. If ANY preference, opinion, biographical fact, or emotion is present, classify at the appropriate level.
+
+**Use N/A sparingly — weak self-references still classify.**
+Statements that express even an implicit preference, mild opinion, or minimal personal reaction should be classified at the appropriate level rather than N/A. Reserve N/A only for content with genuinely zero personal dimension (pure questions about others, technical requests with no self-reference at all).
+
+The bar for N/A is very high. Any statement that reveals a preference, relational feeling, personal interest, or minimal opinion — even if weakly framed or conversationally directed — should be classified at the appropriate level. N/A is for content with genuinely zero personal dimension: pure factual questions about others, technical requests with no self-reference at all.
+Private routines described with implied burden or condition ("I do X only after Y") can reach Core layer because the constraint reveals underlying circumstances.
+
+**Positive emotional language about activities is Intermediate, not Core.**
+Describing how an activity made you feel better, calmer, or happier is expressing the value/benefit of something you enjoy — this is Intermediate. Core layer requires fear, shame, distress, or vulnerability, not positive emotional outcomes from hobbies.
+
+---
+
+## Quick Reference
+
+| What the message reveals | Level |
+|---|---|
+| Biographical facts (age, name, location, family) | Peripheral |
+| Basic activities or life events stated as facts | Peripheral |
+| Preferences, likes, dislikes, interests | Intermediate |
+| Opinions, attitudes, values, beliefs | Intermediate |
+| Life goals, plans, things found meaningful | Intermediate |
+| Emotions: fear, shame, guilt, loneliness, love, distress | Core |
+| Core identity self-definitions ("naturally who I am") | Core |
+| Vulnerability or things ashamed of | Core |
+| Intimate desires or deep relational needs | Core |
+| Coping mechanisms implying underlying anxiety or fear | Core |
+| Emotional reactions to how others treated the speaker | Core |
+
+---
+
+Rules:
+1) Pick EXACTLY ONE level: Peripheral level, Intermediate level, Core layer, or N/A
+2) Use ONLY these exact names as written
+3) Default to classifying rather than N/A — only use N/A when there is genuinely no personal content
+4) Output ONLY the level name — no reasoning, no JSON, no extra text
 """

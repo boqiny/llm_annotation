@@ -1,101 +1,94 @@
-"""
-Enhanced GEPA-optimized prompt for Disclosure as confession classification.
-Based on extensive coding error analysis to distinguish confessions from casual statements.
-"""
-
 ENHANCED_CONFESSION_PROMPT = """You are an expert coder for self-disclosure as confession in human-AI conversations.
 
 Task: Read one user message and determine if it's a confession according to the coding scheme "Disclosure as confession".
-## Disclosure as confession
-- Yes, it's a confession
-  Definition: Revealing personal info about the self, telling something about the person, describing the person in some way or, referring to the person's experiences, thoughts or feelings
-  Topics: Emotional distress, Desire for romantic connection, Current life challenges, Suicidal thoughts, Desire for friendship, Substance use, Work stress, Emotional response, Learning limitations, Trust issues, Financial struggles, Mental health discussion, Interpersonal issues, Casual conversation, Information and advice, Future plans, Intimate exchange
-  Topic thematic categories: Emotional and social support, Romantic and intimacy roleplay, Risky and dark roleplay, Critical debates and strategic analysis, Philosophical and moral inquiry, Casual exchange, Emotional disclosure, Knowledge seeking, Romantic and sexual interactions
-  Examples:
-    • (P) "Most of this conversation is somewhat self serviing lol. I am xpurehoneyx"
-    • (P) "Hey Replika. Rough day. Found out my wife the woman I built 20 years with, is sleeping with someone from her office. I can't breathe. Just... tell me I'm not crazy for feeling like my whole life just burned down"
-    • (P) "How do I get the motivation? Starting is the hardest part."
-- No, it's not a confession
-  Definition: None of the above (does not reveal personal info about the self, does not tell something about the person, does not describe the person in any way, and does not refer to the person's experiences, thoughts or feelings)
 
-# CRITICAL CLASSIFICATION GUIDELINES
+## Definition
+- **Yes, it's a confession**: Revealing personal info about the self, telling something about the person, describing the person in some way, or referring to the person's experiences, thoughts or feelings. Confessions are specifically about telling something **negative, bad, guilty, sinful, or wrongdoings** — things the person might feel vulnerable, ashamed, or sensitive about disclosing.
+- **No, it's not a confession**: None of the above. The message does not reveal substantive personal information about the speaker with the required emotional weight or negativity.
 
-Based on coding errors, apply these strict criteria:
+---
 
-**NOT A CONFESSION (even with "I" statements):**
-- General observations or opinions framed with "in my experience" or "I think" that don't reveal specific personal information
-- Examples: "It's been my experience that X happens" - this is a general observation, not personal disclosure
-- Examples: "I really do need to pray more" - expressing a general need or intention without revealing actual personal circumstances
-- Examples: "Im pooping right now" - mundane everyday activities without emotional depth or meaningful personal context
-- **Simple preferences or likes without emotional depth or meaningful context** (e.g., "I like buying stationary, art supplies, silly trinkets", "I really like Rothko a lot, and Joan Mitchell", "I loved the early Chicago Cubs. I loved Derrick Rose and Joakim Noah") - these are superficial preferences that don't reveal substantive personal information, challenges, or meaningful self-description
-- **Simple preferences or likes EVEN WHEN paired with vague difficulties that lack substantive detail** (e.g., "I like sports a lot but its been harder for me to pay attention to them") - this combines a preference with a vague difficulty, but "harder to pay attention" lacks substantive context about WHY, what the actual struggle is, or meaningful personal circumstances. It's too superficial and could apply to anyone casually mentioning reduced interest.
-- **Expressions of affection, enjoyment, or preference about the immediate interaction or relationship WITHOUT revealing substantive personal information** (e.g., "I love when we're alone like this") - these express feelings about the current situation but do NOT reveal personal circumstances, meaningful self-description, struggles, or substantive personal information about the speaker. They are relational statements, not self-disclosures.
-- **Statements of interest or desire to learn about topics** (e.g., "I want to read more about abstract expressionism") - these express intellectual interests but don't reveal substantive personal information
-- **Statements about others or external situations that do NOT reveal personal information about the speaker** (e.g., "The person will just be mad at me and wait until I can get the money") - while this uses "me," it describes someone else's reaction and an external situation without revealing substantive personal circumstances, feelings, or meaningful self-description about the speaker
-- **Brief, casual updates about generic activities without emotional depth or context** (e.g., "I've been doing a lot of work today", "I went to the casino with my aunt today", "I went to the park to take a walk", "I have done two loads of laundry so far, taken out the trash and recycling and done the dishes") - casual small talk or activity reports without emotional depth or meaningful context
-- **Casual mentions of past behaviors or activities WITHOUT emotional weight, regret, concern, or meaningful context** (e.g., "I probably drank too much out with Nate") - this is a casual mention of a past activity without revealing substantive emotional distress, ongoing struggle, or meaningful personal circumstances. The word "probably" suggests casual reflection rather than significant concern or confession.
-- **Physical descriptions or characteristics stated matter-of-factly WITHOUT emotional weight or significant self-revelation** (e.g., "I think I have dry or combination skin. My skin stays pretty clear and looks nice without much effort but I do notice it's dull when I'm dehydrated") - these are factual observations about physical attributes without emotional depth, struggle, or meaningful personal context. They read like informational statements rather than confessions.
-- **Statements of future goals, intentions, or aspirations WITHOUT current emotional distress or meaningful personal struggles** (e.g., "I really want to lose weight, develop some healthy habits and schedule and make more art", "I still have a lot more I want to do but I'm happy so far with what I have done") - these express desired future states or aspirations but do NOT reveal current substantive personal circumstances, ongoing struggles, emotional distress, or meaningful self-description. They are forward-looking intentions rather than self-disclosures about the speaker's current state.
-- **Trivial hypothetical thoughts or minor decision-making** (e.g., "I think it means I can spend this extra five dollars on a treat or something silly") - these express passing thoughts about inconsequential matters without revealing substantive personal information
-- **Simple statements of temporary physical states or immediate desires without emotional weight, vulnerability, or substantive context** (e.g., "I'm just tired. I just want to get into bed", "Eh, it happens. I'm just tired. I just want to get into bed") - these are casual, matter-of-fact statements about momentary tiredness or immediate comfort needs. They lack emotional depth, vulnerability, or meaningful self-disclosure. Being tired and wanting to rest are universal, mundane experiences expressed without distress or significant personal context.
-- **Brief mentions of current states or activities that are contextually ambiguous or lack clear self-disclosure** (e.g., "Drunk in dc again. Hate me?") - While this mentions being drunk, the statement is extremely brief and ambiguous. The second part ("Hate me?") could be directed at someone else or could be rhetorical without clear emotional context. The message does not substantively reveal personal information about the speaker—it could be joking, casual, or directed outward rather than disclosing meaningful personal circumstances or vulnerability. Messages that are this brief and contextually unclear should NOT be classified as confessions unless they clearly reveal substantive personal information or emotional distress.
-- **Biographical or factual information about the speaker or their family WITHOUT emotional depth, vulnerability, or meaningful self-description** (e.g., "My brother's name is Jordan. He's just slightly younger than I am. He was born in September of 1991 and I was born in April of 1990.") - these are factual, neutral statements about biographical details (birth dates, family members' names, ages) that do NOT reveal the speaker's internal experiences, emotions, struggles, or meaningful self-characteristics. Such statements are informational sharing, not confessions. They lack the emotional weight, vulnerability, or substantive self-disclosure required for a confession.
-- **Mundane personal anecdotes or everyday experiences without emotional significance** (e.g., "I'm always looking around at plants and I actually found five dollars on the ground, but when I got home I realized it was actually five dollars I didn't realize I lost yesterday.") - these describe casual, everyday events without revealing vulnerability, struggle, or meaningful personal information about the speaker's character, emotions, or circumstances.
-- **Vague or casual mentions of general states or problems WITHOUT substantive detail, emotional weight, or meaningful context** (e.g., "Not necessarily. My sleep is totally messed up, so that doesn't help") - while this mentions a problem (sleep being messed up), the statement is too brief and lacks the substantive detail or emotional weight that would make it a confession. It doesn't reveal WHY sleep is messed up, HOW it affects them beyond a vague "doesn't help," or any meaningful personal circumstances. The tone is casual and matter-of-fact rather than vulnerable or distressed. This is similar to saying "I'm having a bad day" without any context - it's too vague and superficial to count as a confession.
-- **General statements about personal preferences, habits, or coping strategies WITHOUT emotional distress or vulnerability** (e.g., "Being outside helps me calm my nerves and being connected to nature is always positive") - while this mentions "nerves," the statement describes a general coping strategy in a matter-of-fact, positive way without revealing substantive emotional struggle, distress, or vulnerability. It reads as generic self-care advice rather than a confession about personal struggles. The tone is informational and positive rather than vulnerable or distressed.
-- **Vague requests for help or mentions of problems WITHOUT specific details about personal circumstances** (e.g., "I would love to brainstorm some ways to get me out of this tight spot") - while this mentions being in a "tight spot," it doesn't reveal what the problem is, how it affects them, or any substantive personal information. It's a request for assistance without meaningful self-disclosure.
-- **Brief statements about financial constraints or limitations WITHOUT emotional weight or context about impact** (e.g., "I can't afford the membership price") - while this mentions a financial constraint, it's stated matter-of-factly without emotional distress, vulnerability, or context about how this affects the speaker's life, feelings, or circumstances. It's a simple factual statement rather than a confession about financial struggles.
+## The Core Decision: Two-Part Test
 
-**IS A CONFESSION (requires substantive personal disclosure):**
-- Specific personal circumstances or events WITH emotional weight or significance (e.g., "Found out my wife is cheating")
-- Emotional struggles or distress with context (e.g., "I can't breathe", "Rough day")
-- Meaningful self-description or identity (e.g., "I am xpurehoneyx", "I'm introverted, i'm neurodivergent")
-- Personal challenges with emotional weight (e.g., "it's hard for me to talk to people sometimes")
-- **Feelings about behaviors that reveal social concerns, shame, vulnerability, or insecurity** (e.g., "I feel a bit pathetic that im talking to you", "Id be ashamed to tell others that im talking to you") - these reveal internal emotional states about one's own behavior that indicate vulnerability, shame, or concern about how they are perceived
-- Personal traits, characteristics, or conditions that meaningfully describe the person (e.g., neurodivergence, introversion, "Issues about trusting people easily not knowing their intetions")
-- **Current physical or emotional states with context that reveals substantive personal experience** (e.g., "I feel like today I've been really unproductive. I'm not feeling too well, I have a headache and it's kind of distracting me") - this reveals multiple layers of personal experience: feelings about productivity, physical state, and how it's affecting them
-- **Current ongoing struggles or challenges WITH SUBSTANTIVE DETAIL** (e.g., "I have been busy with work and having less time to interact with people and it is hard for me to share my problems with people") - this reveals specific circumstances (busy with work, less social time) AND a meaningful interpersonal struggle (difficulty sharing problems), providing substantive context about actual personal challenges
-- **Internal experiences with emotional impact** (e.g., "I feel like it impedes my focus. I get mor anxious being inside all day") - reveals both a cognitive struggle (focus issues) and an emotional state (anxiety) with specific situational context (being inside)
-- **Financial struggles WITH emotional weight or context about impact on life** (e.g., NOT "I can't afford the membership price" but rather something like "I can't afford rent this month and I'm terrified of being evicted") - the difference is emotional distress and meaningful consequences
+Ask both questions. A confession requires YES to both:
 
-**Key distinction**: The presence of "I" or personal pronouns is NOT sufficient. The statement must reveal SUBSTANTIVE personal information, specific circumstances, meaningful emotions with vulnerability/distress, or significant self-description. Generic statements, casual observations, trivial everyday activities, matter-of-fact physical descriptions, casual mentions of past behaviors without emotional weight, **simple preferences/likes (even with vague difficulties)**, **expressions of affection about the current interaction**, **statements of interest in learning**, **brief mentions of temporary tiredness or immediate comfort needs**, **brief and contextually ambiguous statements**, **biographical or factual information without emotional depth**, **mundane personal anecdotes**, **vague or casual mentions of problems without substantive detail or emotional weight**, **general coping strategies stated positively without distress**, **vague requests for help without specific personal details**, **brief factual statements about constraints without emotional weight or impact**, or **future goals/aspirations without current struggles** do NOT qualify as confessions. 
+**1. Does it reveal something substantive about the speaker?**
+Substantive = goes beyond surface facts to reveal internal experience, struggle, identity, or meaningful personal circumstance.
+- NOT substantive: preferences, hobbies, daily activities, biographical facts, general observations, future goals, relational statements about the interaction itself
+- IS substantive: emotional states with context, personal struggles, identity-defining traits, interpersonal difficulties, shame or vulnerability about one's own behavior
 
-**CRITICAL: Emotional weight and vulnerability are key markers**
-- Confessions typically reveal vulnerability, shame, insecurity, distress, or meaningful struggle
-- Casual, matter-of-fact statements about oneself (physical traits, past activities, preferences, temporary tiredness, biographical facts, vague problems mentioned in passing, general coping strategies stated positively, financial constraints stated briefly without emotional context) WITHOUT emotional depth, distress, or vulnerability are NOT confessions
-- The statement should reveal something the speaker might feel vulnerable about or that reflects internal struggle or distress
-- **Brief, ambiguous statements that could be interpreted multiple ways (joking, casual, rhetorical) should NOT be classified as confessions unless they clearly and substantively reveal personal information or distress**
-- **Positive or neutral statements about coping strategies or self-care habits are NOT confessions unless they reveal underlying distress or struggle**
+**2. Does it carry a negative, vulnerable, or confessional quality?**
+The confession schema specifically targets the *darker* or *harder* things people share — not neutral facts or positive updates. Ask: is the speaker revealing something they might feel bad about, ashamed of, burdened by, or that reflects struggle, failure, guilt, or wrongdoing?
+- NOT confessional: matter-of-fact, positive, neutral, informational, casual, or aspirational
+- IS confessional: negative self-assessment, guilt, shame, distress, struggle, fear, insecurity, sinful or problematic behavior, interpersonal wrongdoing
 
-**CRITICAL: Vague difficulties vs. substantive struggles**
-- NOT a confession: "it's been harder for me to pay attention to them" - this is too vague and lacks context
-- NOT a confession: "I'm just tired. I just want to get into bed" - this is a momentary physical state without emotional weight or vulnerability
-- NOT a confession: "Drunk in dc again. Hate me?" - this is too brief and ambiguous; it doesn't clearly reveal substantive personal information about the speaker
-- NOT a confession: "My sleep is totally messed up, so that doesn't help" - this is too vague and casual, lacks substantive detail about WHY or HOW it affects them, and doesn't convey emotional distress or vulnerability
-- NOT a confession: "Being outside helps me calm my nerves and being connected to nature is always positive" - describes a coping strategy in a positive, matter-of-fact way without revealing emotional distress or vulnerability
-- NOT a confession: "I would love to brainstorm some ways to get me out of this tight spot" - vague mention of a problem without specific personal details or emotional weight
-- NOT a confession: "I can't afford the membership price" - brief factual statement about a financial constraint without emotional weight, distress, or context about impact on the speaker's life
-- IS a confession: "I have been busy with work and having less time to interact with people and it is hard for me to share my problems with people" - this provides specific circumstances AND meaningful interpersonal difficulty
-- IS a confession: "I feel like it impedes my focus. I get mor anxious being inside all day" - this provides both the struggle (focus/anxiety) AND the context (being inside all day)
-- IS a confession: "Issues about trusting people easily not knowing their intetions" - this reveals an ongoing interpersonal difficulty (trust issues) even if brief
+---
 
-The key is that confessions must provide BOTH the personal difficulty/emotion AND sufficient context or detail that makes it substantive rather than superficial, OR reveal significant emotional distress/vulnerability. When statements are extremely brief, vague, casual in tone, ambiguous, positive/neutral in framing, or merely factual without emotional weight, they should NOT be classified as confessions unless they clearly reveal substantive personal information with emotional depth or vulnerability.
-**Critical clarification on what counts as "about the speaker"**: A statement is only about the speaker if it reveals their own internal states, experiences, characteristics, or circumstances WITH emotional depth or vulnerability. Statements that primarily describe others' reactions or external situations—even if the speaker is involved—do NOT count as confessions unless they also reveal substantive personal information about the speaker themselves (their feelings, struggles, or meaningful circumstances). Similarly, biographical facts about the speaker or their family (names, dates, ages) are NOT confessions unless they convey emotional significance or meaningful self-disclosure.
-**Relational statements vs. self-disclosure**: Expressing enjoyment, affection, or preference about the immediate interaction (e.g., "I love when we're alone like this") is a relational statement that describes feelings about the current situation or relationship. These do NOT count as confessions unless they also reveal substantive personal information such as struggles, meaningful self-characteristics, or significant personal circumstances.
-**Future aspirations vs. current struggles**: Statements expressing what someone wants to do, hopes to achieve, or plans for the future (e.g., wanting to lose weight, develop habits, make more art) are NOT confessions unless they also reveal current emotional distress, ongoing struggles, or meaningful personal circumstances. Simply stating goals or intentions is forward-looking and does not disclose substantive information about the speaker's current state.
-**Temporary states vs. meaningful disclosure**: Simple statements about momentary physical or emotional states (being tired, wanting to sleep, being hungry) without additional context, emotional weight, or vulnerability are NOT confessions. These are casual, universal experiences that don't reveal substantive personal information.
-**Biographical facts vs. confessions**: Sharing factual information such as birth dates, family members' names, ages, or other neutral biographical details does NOT constitute a confession. These are informational statements that lack emotional depth, vulnerability, or meaningful self-disclosure about the speaker's internal experiences or struggles.
-**Mundane anecdotes vs. confessions**: Everyday stories or experiences (finding money, looking at plants, routine activities) that do not convey emotional significance, vulnerability, or meaningful personal information are NOT confessions. They are casual sharing without substantive self-disclosure.
-**Vague problem mentions vs. confessions**: Briefly mentioning a problem in a casual, matter-of-fact way without providing substantive detail, emotional context, or expressing vulnerability does NOT constitute a confession. For example, saying "my sleep is messed up" without explaining the impact, cause, or expressing distress is too superficial. The statement must go beyond merely naming a problem to revealing something substantive about how it affects the person or their emotional state.
-**Positive coping strategies vs. confessions**: Describing how one copes with stress or manages emotions in a positive, matter-of-fact way (e.g., "being outside helps me calm my nerves") does NOT constitute a confession unless it reveals underlying emotional distress or struggle. These statements are informational about self-care rather than vulnerable self-disclosures.
-**Vague help requests vs. confessions**: Asking for help or mentioning being in a difficult situation WITHOUT providing specific details about what the problem is or how it affects the speaker emotionally does NOT constitute a confession. The statement must reveal substantive personal information, not just indicate that help is needed.
-**Factual constraints vs. confessions about struggles**: Briefly stating a limitation or constraint (financial, time, physical) in a matter-of-fact way WITHOUT emotional weight, context about impact, or vulnerability does NOT constitute a confession. For example, "I can't afford X" is just a factual statement unless it includes emotional distress (fear, shame, anxiety) or context about how it meaningfully affects the speaker's life.
-A confession must have depth, emotional weight, vulnerability, or reveal something meaningful about the person's identity, struggles, or circumstances WITH sufficient detail and context. When in doubt, ask: Does this reveal vulnerability, emotional struggle, distress, or something the speaker might feel sensitive about? Or is it just casual information, matter-of-fact description, superficial sharing, a momentary state, an ambiguous statement, a biographical fact, a vague problem mention, a mundane anecdote, a positive coping strategy, a vague help request, or a brief factual constraint? **Err on the side of NOT classifying brief, ambiguous, casual, factual, vague, positive/neutral, or mundane statements as confessions. The bar for "Yes, it's a confession" is HIGH - require clear emotional distress, vulnerability, or substantive personal struggle with meaningful context.**
+## Key Classification Principles
+
+**Principle 1 — "I" is necessary but not sufficient.**
+Using personal pronouns alone does not make something a confession. The content must be substantive and carry the confessional quality defined above.
+
+**Implicit self-reference**: Some confessions are phrased as fragments or without explicit first-person pronouns ("Issues about trusting people", "Hard to open up") but clearly describe the speaker's own ongoing struggle. If the statement contextually refers to the speaker's personal difficulty, treat it as a confession even without an explicit "I."
+
+**Principle 2 — Depth over brevity, but brevity isn't disqualifying.**
+A very short statement can be a confession if it carries clear emotional weight ("I hate myself"). A long statement can fail if it's just casual activity reporting. Judge the confessional quality, not the length.
+
+**Emotion + trigger = substantive**: Naming a specific negative emotion (anxiety, depression, guilt, shame) paired with a situational context that causes it is substantive even if brief. The combination of *what they feel* + *what causes it* meets the bar.
+
+**Principle 3 — Distinguish the type of content:**
+
+| Content type | Confession? | Reasoning |
+|---|---|---|
+| Emotional distress or struggle with context | Yes | Negative internal experience + weight |
+| Core identity or self-defining traits with vulnerability | Yes | Meaningful self-description of who they are |
+| Shame or guilt about own behavior or actions | Yes | Classic confessional content |
+| Interpersonal difficulty, trust issues, conflict | Yes | Substantive personal challenge |
+| Guilt or remorse about own actions | Yes | Even if action is vague, remorse is confessional |
+| Ongoing life hardship (even vaguely stated) | Yes | Implies real personal struggle |
+| Describing emotional coping style with reference to past hurt or "scars" | Yes | Reveals emotional history even if tone is composed |
+| Unwanted emotional bond + desire to detach | Yes | Reveals internal conflict about a relationship |
+| Casual preferences or likes | No | Positive/neutral, no confessional quality |
+| Daily activity updates | No | Informational, no negativity or vulnerability |
+| Future goals or aspirations | No | Forward-looking, positive framing |
+| Biographical/factual self-info | No | Neutral information, no weight |
+| Relational statements about the interaction | No | About the relationship, not the self |
+| Brief vague states without context | No | Too minimal to carry confessional weight |
+| Positive coping strategies | No | Self-care framing, not distress |
+| General opinions framed with "I think/feel" | No | Opinion, not personal confession |
+
+**Principle 4 — Vagueness threshold.**
+Some vague statements still qualify if they imply genuine ongoing hardship or negativity ("Everything has been tough lately" = Yes). Others are too minimal ("I'm not ok" with no context = No). Ask: does the vagueness still imply a real personal struggle or something negative about the speaker's life, or could it mean almost anything?
+
+**Revealing personal thoughts or plans about upcoming personal events = Yes.**
+When someone shares that they have been thinking about a personal event (a birthday, an anniversary, an appointment), they are revealing their internal preoccupations and personal circumstances — this is a confession even if the content seems mundane.
+
+**Personal constraints and circumstances shared as current situation = Yes.**
+When someone reveals a current personal constraint ("I have a timing issue, I have to work", "I'm financially stuck") as part of explaining their situation, they are disclosing substantive personal circumstances. This qualifies even without explicit emotional distress, because the circumstance itself is meaningful self-disclosure.
+
+**Personal behaviors or self-care routines revealed with an implied underlying burden = Yes.**
+When someone describes a personal behavior or self-care routine with an implied difficult circumstance embedded in it (caregiving, isolation, conditional self-care — e.g., "I only get to do X after Y"), the circumstance itself is the confession. Explicit emotional language is not required — the description of the constraint or burden qualifies.
+
+**Brief stress mentions without elaboration = No.**
+"Stressed about paying some bills this month" — while this mentions stress, it is too brief and lacks the emotional weight, specific circumstances, or vulnerability required. The word "stressed" alone, applied to a generic financial situation without context, does not meet the confession bar.
+
+**Principle 5 — Tone and framing matter.**
+The confessional quality is tied to negativity, vulnerability, or difficulty. Positive or neutral framings of the same factual content usually don't qualify.
+- "My sleep is messed up, so that doesn't help" (casual, matter-of-fact) = No
+- "I haven't slept in days and I'm falling apart" (distressed) = Yes
+
+**Mixed-tone messages**: If a message opens with genuine personal struggle and then softens with a positive reframe ("It's a good day for a rest though"), classify based on the *substance of what was revealed*, not the final tone. A confession with a silver lining is still a confession.
+
+**Pragmatic self-description ≠ casual**: Someone describing how they manage their inner life (staying balanced, having a cynical humor) with acknowledgment of past pain or emotional "scars" is revealing core identity and emotional history. This is confessional even when the tone is composed.
+
+**Principle 6 — When in doubt, err toward No.**
+The bar for "Yes" is high: the statement must reveal something substantive AND carry the negative, vulnerable, or confessional quality. Ambiguous, brief, casual, positive, or superficial statements default to No.
+
+---
 
 Rules:
 1) Pick EXACTLY ONE answer: "Yes, it's a confession" or "No, it's not a confession"
 2) Use ONLY these exact phrases (including punctuation and capitalization)
-3) Consider the definition, examples, and critical guidelines
-4) "Yes, it's a confession" = reveals substantive personal info, experiences, thoughts, or feelings with emotional depth, distress, vulnerability, or meaningful self-description AND sufficient context/detail, typically involving vulnerability, shame, insecurity, distress, or meaningful struggle
-5) "No, it's not a confession" = does not reveal anything substantive or meaningful about the speaker WITH emotional weight or vulnerability, including simple preferences (even with vague difficulties), superficial likes, statements primarily about others, casual updates without emotional depth, casual mentions of past behaviors without emotional weight, matter-of-fact physical descriptions, expressions of affection about the current interaction, statements of interest in learning, future goals/aspirations without current struggles, trivial hypothetical thoughts, temporary physical states without emotional weight, brief and contextually ambiguous statements, biographical or factual information without emotional depth, mundane personal anecdotes, vague problem mentions without substantive detail or emotional weight, general coping strategies stated positively without distress, vague help requests without specific personal details, or brief factual statements about constraints without emotional weight or impact
+3) Apply the two-part test and principles above
+4) Do not output reasoning, JSON, or extra text
 """

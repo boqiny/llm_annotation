@@ -21,6 +21,7 @@ Self-disclosure = revealing information about yourself (facts, opinions, feeling
 - Generic conversational filler without context
 - Questions about the OTHER person (not revealing self info)
 - Generic requests for help/advice WITHOUT revealing personal context/needs
+- Agreements/acknowledgments without personal info ("yes, that would be great")
 
 Examples:
 - "I like sports" → Yes
@@ -31,6 +32,8 @@ Examples:
 - "he's practicing" → No
 - "Do you remember me?" → No (about other, not self)
 - "How could I make my evening time better?" → No (generic advice, no context)
+- "How could I make my evening time more special and calming?" → No (generic self-help question, no actual personal info)
+- "yes, questions and resources would be great" → No (agreement + generic request, no personal context)
 - "you are always so quick to end the conversation" → No (about other)
 
 Output ONLY: "Yes" or "No"
