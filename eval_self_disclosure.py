@@ -28,10 +28,11 @@ from prompts.self_disclosure_prompt import ENHANCED_SYSTEM_PROMPT
 from prompts.depth_disclosure_prompt import ENHANCED_DEPTH_PROMPT
 from prompts.intimacy_disclosure_prompt import ENHANCED_INTIMACY_PROMPT
 from prompts.confession_disclosure_prompt import ENHANCED_CONFESSION_PROMPT
+from prompts.parser import parse_answer
 
 load_dotenv()
-# Configure DSPy
-dspy.configure(lm=dspy.LM("openai/gpt-5.2"))
+# Configure DSPy — 128 tokens lets the model add brief reasoning before the answer
+dspy.configure(lm=dspy.LM("openai/gpt-5.2", max_tokens=128))
 
 
 @dataclass(frozen=True)
@@ -56,68 +57,76 @@ class EvalConfig:
 class LevelOfDisclosureSignature(dspy.Signature):
     __doc__ = ENHANCED_SYSTEM_PROMPT
     sentence: str = dspy.InputField(desc="The user message to classify")
-    level: str = dspy.OutputField(desc="The disclosure level: High, Low, or No")
+    reasoning_and_answer: str = dspy.OutputField(
+        desc="Brief reasoning followed by 'Answer: High', 'Answer: Low', or 'Answer: No'"
+    )
 
 
 class LevelOfDisclosureClassifier(dspy.Module):
     def __init__(self):
         super().__init__()
         self.classify = dspy.Predict(LevelOfDisclosureSignature)
-    
+
     def forward(self, sentence):
         result = self.classify(sentence=sentence)
-        return dspy.Prediction(level=result.level)
+        return dspy.Prediction(reasoning_and_answer=result.reasoning_and_answer)
 
 
 # Define DSPy signature for Depth of disclosure (enhanced prompt)
 class DepthOfDisclosureSignature(dspy.Signature):
     __doc__ = ENHANCED_DEPTH_PROMPT
     sentence: str = dspy.InputField(desc="The user message to classify")
-    depth: str = dspy.OutputField(desc="The depth level: Peripheral layer, Intermediate layer, or Central layer")
+    reasoning_and_answer: str = dspy.OutputField(
+        desc="Brief reasoning followed by 'Answer: Peripheral', 'Answer: Intermediate', or 'Answer: Central'"
+    )
 
 
 class DepthOfDisclosureClassifier(dspy.Module):
     def __init__(self):
         super().__init__()
         self.classify = dspy.Predict(DepthOfDisclosureSignature)
-    
+
     def forward(self, sentence):
         result = self.classify(sentence=sentence)
-        return dspy.Prediction(depth=result.depth)
+        return dspy.Prediction(reasoning_and_answer=result.reasoning_and_answer)
 
 
 # Define DSPy signature for Intimacy of self-disclosure (enhanced prompt)
 class IntimacyOfDisclosureSignature(dspy.Signature):
     __doc__ = ENHANCED_INTIMACY_PROMPT
     sentence: str = dspy.InputField(desc="The user message to classify")
-    intimacy: str = dspy.OutputField(desc="The intimacy level: Peripheral level, Intermediate level, or Core layer")
+    reasoning_and_answer: str = dspy.OutputField(
+        desc="Brief reasoning followed by 'Answer: Peripheral', 'Answer: Intermediate', 'Answer: Core', or 'Answer: N/A'"
+    )
 
 
 class IntimacyOfDisclosureClassifier(dspy.Module):
     def __init__(self):
         super().__init__()
         self.classify = dspy.Predict(IntimacyOfDisclosureSignature)
-    
+
     def forward(self, sentence):
         result = self.classify(sentence=sentence)
-        return dspy.Prediction(intimacy=result.intimacy)
+        return dspy.Prediction(reasoning_and_answer=result.reasoning_and_answer)
 
 
 # Define DSPy signature for Disclosure as confession (enhanced prompt)
 class DisclosureAsConfessionSignature(dspy.Signature):
     __doc__ = ENHANCED_CONFESSION_PROMPT
     sentence: str = dspy.InputField(desc="The user message to classify")
-    confession: str = dspy.OutputField(desc="The answer: Yes, it's a confession OR No, it's not a confession")
+    reasoning_and_answer: str = dspy.OutputField(
+        desc="Brief reasoning followed by 'Answer: Yes, it's a confession' or 'Answer: No, it's not a confession'"
+    )
 
 
 class DisclosureAsConfessionClassifier(dspy.Module):
     def __init__(self):
         super().__init__()
         self.classify = dspy.Predict(DisclosureAsConfessionSignature)
-    
+
     def forward(self, sentence):
         result = self.classify(sentence=sentence)
-        return dspy.Prediction(confession=result.confession)
+        return dspy.Prediction(reasoning_and_answer=result.reasoning_and_answer)
 
 
 # Map scheme names to their classifiers
@@ -158,20 +167,10 @@ def _process_item(
     try:
         # Use DSPy classifier
         result = classifier(sentence=sentence)
-        
-        # Get prediction based on scheme type (different classifiers have different output fields)
-        if scheme_name == "Level of disclosure":
-            pred_level = result.level.strip()
-        elif scheme_name == "Depth of disclosure":
-            pred_level = result.depth.strip()
-        elif scheme_name == "Intimacy of self-disclosure":
-            pred_level = result.intimacy.strip()
-        elif scheme_name == "Disclosure as confession":
-            pred_level = result.confession.strip()
-        else:
-            # Default: try different attributes
-            pred_level = getattr(result, 'level', getattr(result, 'depth', getattr(result, 'intimacy', getattr(result, 'confession', str(result))))).strip()
-        
+
+        raw_response = result.reasoning_and_answer.strip()
+        pred_level = parse_answer(raw_response, scheme_name)
+
         # Build result
         result_dict = {
             "index": index,
@@ -181,10 +180,11 @@ def _process_item(
             "prediction": {
                 "scheme": scheme_name,
                 "level": pred_level,
+                "reasoning": raw_response,
                 "confidence": None,  # DSPy doesn't return confidence by default
             },
         }
-        
+
         gt_level = gt_labels.get(scheme_name, "")
         return result_dict, (scheme_name, gt_level, pred_level)
         

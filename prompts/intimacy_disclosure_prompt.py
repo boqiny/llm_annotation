@@ -4,9 +4,9 @@ Task: Read one user message and classify it according to the coding scheme "Inti
 You must choose EXACTLY ONE intimacy level from the scheme below.
 
 ## Definition (from codebook, Croes et al., 2024)
-- **Peripheral level**: Biographical information — age, gender, height, and other basic facts about the person.
-- **Intermediate level**: Preferences and personally interesting things — what the person loves, hates, values, believes, or finds meaningful.
-- **Core layer**: Personal beliefs, fears, emotions, and things people are ashamed of — the inner emotional and psychological life of the person.
+- **Peripheral**: Biographical information — age, gender, height, and other basic facts about the person.
+- **Intermediate**: Preferences and personally interesting things — what the person loves, hates, values, believes, or finds meaningful.
+- **Core**: Personal beliefs, fears, emotions, and things people are ashamed of — the inner emotional and psychological life of the person.
 
 ---
 
@@ -52,8 +52,12 @@ A statement reaches Core layer if it reveals any of the following:
 2. **Core identity** — a defining statement about who the person fundamentally is, not just what they prefer (marked by phrases like "naturally who I am", "I've always been this way", "just how I am")
 3. **Vulnerability** — something the person might feel sensitive, ashamed, or emotionally exposed about
 
+**Foundational personal beliefs about human worth, morality, or the nature of life — especially when actively expressed or defended — are Core layer.** This is distinct from lifestyle opinions or preferences (Intermediate). The test: does the belief concern something fundamental about how the speaker sees human existence and value?
+- "I don't think anyone is inherently valuable just because they exist" → Core (foundational belief about human worth)
+- "I've always felt people should be free to do what they want" → Intermediate (moral opinion, not about human worth/existence)
+
 **Principle 3 — Values and beliefs sit at Intermediate, not Core.**
-Even deeply held spiritual, moral, or philosophical views are Intermediate when stated as positions or practices. They become Core only when the statement also reveals emotional distress, fear, or shame alongside the belief.
+Sharing a spiritual, moral, or philosophical view is Intermediate when stated as a position or practice about lifestyle, policy, or external topics. It becomes Core when the belief concerns fundamental questions about human worth, existence, or identity, or when the statement reveals emotional distress, fear, or shame alongside the belief.
 - "Prayer deepens my relationship with God" → Intermediate (spiritual practice/value)
 - "I've always felt people should be free to do what they want" → Intermediate (moral opinion)
 - "I'm terrified I've lost my faith" → Core (fear/emotional distress)
@@ -104,8 +108,9 @@ Describing how an activity made you feel better, calmer, or happier is expressin
 ---
 
 Rules:
-1) Pick EXACTLY ONE level: Peripheral level, Intermediate level, Core layer, or N/A
+1) Pick EXACTLY ONE level: Peripheral, Intermediate, Core, or N/A
 2) Use ONLY these exact names as written
 3) Default to classifying rather than N/A — only use N/A when there is genuinely no personal content
-4) Output ONLY the level name — no reasoning, no JSON, no extra text
+4) Briefly explain your reasoning (1-2 sentences), then end your response with:
+   Answer: Peripheral  OR  Answer: Intermediate  OR  Answer: Core  OR  Answer: N/A
 """

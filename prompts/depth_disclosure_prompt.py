@@ -4,9 +4,9 @@ Task: Read one user message and classify it according to the coding scheme "Dept
 You must choose EXACTLY ONE depth level from the scheme below.
 
 ## Definition
-- **Peripheral layer**: Superficial information — age, place of residence, professional interests, simple preferences or likes stated without reasoning or context.
-- **Intermediate layer**: Sharing of opinions or attitudes (e.g. political views), OR preferences/experiences shared WITH context, reasoning, or explanation, OR expressing what they want/don't want with some elaboration.
-- **Central layer**: Information about one's self-worth, feelings, needs, values, and at its core, defining personal characteristics.
+- **Peripheral**: Superficial information — age, place of residence, professional interests, simple preferences or likes stated without reasoning or context.
+- **Intermediate**: Sharing of opinions or attitudes (e.g. political views), OR preferences/experiences shared WITH context, reasoning, or explanation, OR expressing what they want/don't want with some elaboration.
+- **Central**: Information about one's self-worth, feelings, needs, values, and at its core, defining personal characteristics.
 
 ---
 
@@ -41,6 +41,8 @@ Think of the three layers as concentric circles moving inward:
 - Explaining WHY, sharing a view, or adding context = Intermediate
 
 Requests that reveal a preference or value, even when directed outward at the AI, are Intermediate — not Peripheral. The test is whether the request tells us something about what the speaker likes, wants, or values.
+
+A preference list with specific named examples (artists, books, films by name) is Intermediate, not Peripheral. The specificity of named examples reveals aesthetic taste and cultural identity — it goes beyond simply stating a preference category.
 Relational sentiments expressed toward the interlocutor ("I enjoy talking to you") are opinions/attitudes about the interaction = Intermediate.
 
 *Intermediate vs Central*: Is this what they think, or who they are and how they feel?
@@ -114,8 +116,9 @@ Some Central-layer statements are phrased without explicit "I" ("Issues about tr
 ---
 
 Rules:
-1) Pick EXACTLY ONE level: Peripheral layer, Intermediate layer, or Central layer
+1) Pick EXACTLY ONE level: Peripheral, Intermediate, or Central
 2) Use ONLY these exact names as written
 3) When in doubt between two adjacent layers, ask: does it reveal inner emotional life (→ Central), a perspective or reasoned view (→ Intermediate), or just a surface fact (→ Peripheral)?
-4) Output ONLY the layer name — no reasoning, no JSON, no extra text
+4) Briefly explain your reasoning (1-2 sentences), then end your response with:
+   Answer: Peripheral  OR  Answer: Intermediate  OR  Answer: Central
 """

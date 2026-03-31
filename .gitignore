@@ -4,3 +4,4 @@ __pycache__/
 .DS_Store
 gepa_logs
 gepa_logs_*
+/vis

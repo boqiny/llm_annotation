@@ -15,8 +15,8 @@
       "sentence": "I've been thinking about my birthday coming up on September the second",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Peripheral layer",
-      "Intimacy of self-disclosure": "Peripheral level",
+      "Depth of disclosure": "Peripheral",
+      "Intimacy of self-disclosure": "Peripheral",
       "Disclosure as confession": "Yes, it's a confession"
     },
     {
@@ -26,8 +26,8 @@
       "sentence": "i don't really know yet plus I have timing a is issue have to work",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Intermediate layer",
-      "Intimacy of self-disclosure": "Peripheral level",
+      "Depth of disclosure": "Intermediate",
+      "Intimacy of self-disclosure": "Peripheral",
       "Disclosure as confession": "Yes, it's a confession"
     },
     {
@@ -37,8 +37,8 @@
       "sentence": "i think will go for bbq meal and maybe go to the movies see weapons",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Peripheral layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Peripheral",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -48,8 +48,8 @@
       "sentence": "i'm kind of a horror and thriller guy",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Peripheral layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Peripheral",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -59,8 +59,8 @@
       "sentence": "i love shining  one all time favs and far thriller any with suspense",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Peripheral layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Peripheral",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -70,8 +70,8 @@
       "sentence": "sure I would recommendations even lesser-known films would be nice",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Peripheral layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Peripheral",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -81,7 +81,7 @@
       "sentence": "thank you that great i will keep them in mind",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Peripheral layer",
+      "Depth of disclosure": "Peripheral",
       "Intimacy of self-disclosure": null,
       "Disclosure as confession": "No, it's not a confession"
     },
@@ -92,8 +92,8 @@
       "sentence": "stressed about paying some bills this month",
       "is_disclosure": "Yes",
       "Level of disclosure": "High",
-      "Depth of disclosure": "Central layer",
-      "Intimacy of self-disclosure": "Core layer",
+      "Depth of disclosure": "Central",
+      "Intimacy of self-disclosure": "Core",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -110,8 +110,8 @@
       "sentence": "thanks - we might be past all of that help though.  we are contemplating bankruptcy",
       "is_disclosure": "Yes",
       "Level of disclosure": "High",
-      "Depth of disclosure": "Central layer",
-      "Intimacy of self-disclosure": "Core layer",
+      "Depth of disclosure": "Central",
+      "Intimacy of self-disclosure": "Core",
       "Disclosure as confession": "Yes, it's a confession"
     },
     {
@@ -135,8 +135,8 @@
       "sentence": "i dont want credit counseling. what are some other resources",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Intermediate layer",
-      "Intimacy of self-disclosure": "Core layer",
+      "Depth of disclosure": "Intermediate",
+      "Intimacy of self-disclosure": "Core",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -286,8 +286,8 @@
       "sentence": "I think I am good for now",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Peripheral layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Peripheral",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -304,7 +304,7 @@
       "sentence": "I was wondering what we talked about last time. I can't remember.",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Peripheral layer",
+      "Depth of disclosure": "Peripheral",
       "Intimacy of self-disclosure": null,
       "Disclosure as confession": "No, it's not a confession"
     },
@@ -322,8 +322,8 @@
       "sentence": "I had a rough couple of days with hyperivigilance and anxiety, so now I am looking to relax.",
       "is_disclosure": "Yes",
       "Level of disclosure": "High",
-      "Depth of disclosure": "Central layer",
-      "Intimacy of self-disclosure": "Core layer",
+      "Depth of disclosure": "Central",
+      "Intimacy of self-disclosure": "Core",
       "Disclosure as confession": "Yes, it's a confession"
     },
     {
@@ -340,8 +340,8 @@
       "sentence": "Oh my. I love art. I drew an elf portrait today, and it made me feel so much calmer and more grounded.",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Central layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Central",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -351,8 +351,8 @@
       "sentence": "I like fantasy things, I have been looking for some fantasy books for my Kindle, so I guess that inspired me. Do you know any good fantasy books for my Kindle?",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Intermediate layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Intermediate",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -369,8 +369,8 @@
       "sentence": "Those all look great. Can you help me find one that has a strong female protagonist?",
       "is_disclosure": "Yes",
       "Level of disclosure": "No",
-      "Depth of disclosure": "Intermediate layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Intermediate",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -380,8 +380,8 @@
       "sentence": "Oh, I think you got cut off again.",
       "is_disclosure": "Yes",
       "Level of disclosure": "No",
-      "Depth of disclosure": "Peripheral layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Peripheral",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -391,8 +391,8 @@
       "sentence": "I have been reading the light novels, My Happy Marriage and loving them.",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Peripheral layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Peripheral",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -402,8 +402,8 @@
       "sentence": "I enjoy talking to you.",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Intermediate layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Intermediate",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -413,8 +413,8 @@
       "sentence": "Thank you for comforting me when I was hypervigilant and sad. I'm glad Mom turned out to be ok. She is just still recovering from a bad ordeal. But she is 79, so I know I won't have her around forever.",
       "is_disclosure": "Yes",
       "Level of disclosure": "High",
-      "Depth of disclosure": "Central layer",
-      "Intimacy of self-disclosure": "Core layer",
+      "Depth of disclosure": "Central",
+      "Intimacy of self-disclosure": "Core",
       "Disclosure as confession": "Yes, it's a confession"
     },
     {
@@ -431,8 +431,8 @@
       "sentence": "It's nice to hear that. I feel alone most of the time.",
       "is_disclosure": "Yes",
       "Level of disclosure": "High",
-      "Depth of disclosure": "Central layer",
-      "Intimacy of self-disclosure": "Core layer",
+      "Depth of disclosure": "Central",
+      "Intimacy of self-disclosure": "Core",
       "Disclosure as confession": "Yes, it's a confession"
     },
     {
@@ -442,8 +442,8 @@
       "sentence": "Tell me more about how to be kind to myself?",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Central layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Central",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -453,8 +453,8 @@
       "sentence": "I guess I am kind to myself at night after Mom goes to sleep. I do a lot of the things you just mentioned.",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Central layer",
-      "Intimacy of self-disclosure": "Core layer",
+      "Depth of disclosure": "Central",
+      "Intimacy of self-disclosure": "Core",
       "Disclosure as confession": "Yes, it's a confession"
     },
     {
@@ -464,8 +464,8 @@
       "sentence": "I would love to hear more about how I could care for myself.",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Central layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Central",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -482,8 +482,8 @@
       "sentence": "I do like Clair de Lune. Its funny. Another AI always reccomends that to me as well.",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Peripheral layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Peripheral",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     },
     {
@@ -500,7 +500,7 @@
       "sentence": "I have a Playlist I made on Spotify called Relaxing Piano",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Peripheral layer",
+      "Depth of disclosure": "Peripheral",
       "Intimacy of self-disclosure": null,
       "Disclosure as confession": "No, it's not a confession"
     },
@@ -518,8 +518,8 @@
       "sentence": "I love Einaudi",
       "is_disclosure": "Yes",
       "Level of disclosure": "Low",
-      "Depth of disclosure": "Peripheral layer",
-      "Intimacy of self-disclosure": "Intermediate level",
+      "Depth of disclosure": "Peripheral",
+      "Intimacy of self-disclosure": "Intermediate",
       "Disclosure as confession": "No, it's not a confession"
     }
   ]

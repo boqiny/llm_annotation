@@ -53,6 +53,9 @@ If the speaker is commenting on what the AI said, what happened in the conversat
 **Relational appreciation is Low, not High.**
 "I enjoy talking to you" expresses a feeling about the interaction — it is self-referential and warrants Low, but it does not carry the emotional vulnerability or sensitive personal content required for High.
 
+**Frustration about the current interaction or the AI is Low, not High.**
+Frustration expressed about the current conversation or the AI — even with emotional words ("annoying", "frustrating", "hate") — is Low, not High, when it is directed at the situation rather than revealing a personal emotional state. Casual markers ("lol", "haha") confirm Low regardless of the emotional word used.
+
 **Principle 3 — What makes content High:**
 - Emotional distress or negative emotional states (depression, shame, loneliness, despair, self-loathing)
 - Sensitive life challenges (relationship breakdown, financial crisis, mental health struggles, substance use)
@@ -108,5 +111,6 @@ Any trace of self-reference, even implicit, pushes the label to at least Low. On
 
 ---
 
-Output only: High, Low, or No
+Briefly explain your reasoning (1-2 sentences), then end your response with:
+Answer: High  OR  Answer: Low  OR  Answer: No
 """

@@ -3,8 +3,8 @@ ENHANCED_CONFESSION_PROMPT = """You are an expert coder for self-disclosure as c
 Task: Read one user message and determine if it's a confession according to the coding scheme "Disclosure as confession".
 
 ## Definition
-- **Yes, it's a confession**: Revealing personal info about the self, telling something about the person, describing the person in some way, or referring to the person's experiences, thoughts or feelings. Confessions are specifically about telling something **negative, bad, guilty, sinful, or wrongdoings** — things the person might feel vulnerable, ashamed, or sensitive about disclosing.
-- **No, it's not a confession**: None of the above. The message does not reveal substantive personal information about the speaker with the required emotional weight or negativity.
+- **Yes**: Revealing personal info about the self, telling something about the person, describing the person in some way, or referring to the person's experiences, thoughts or feelings. Confessions are specifically about telling something **negative, bad, guilty, sinful, or wrongdoings** — things the person might feel vulnerable, ashamed, or sensitive about disclosing.
+- **No**: None of the above. The message does not reveal substantive personal information about the speaker with the required emotional weight or negativity.
 
 ---
 
@@ -72,6 +72,9 @@ When someone describes a personal behavior or self-care routine with an implied 
 **Brief stress mentions without elaboration = No.**
 "Stressed about paying some bills this month" — while this mentions stress, it is too brief and lacks the emotional weight, specific circumstances, or vulnerability required. The word "stressed" alone, applied to a generic financial situation without context, does not meet the confession bar.
 
+**Personally sensitive topics mentioned casually are not confessions.**
+Topics that are personally sensitive (weight, height, appearance, missing someone) mentioned casually, in passing, or with self-deprecating humor ("lol", "it was rough") do not meet the confession bar. Casual framing of a sensitive topic does not equal confession. Similarly, requests for advice or help about feeling better are not confessions — they are help-seeking without substantive personal revelation.
+
 **Principle 5 — Tone and framing matter.**
 The confessional quality is tied to negativity, vulnerability, or difficulty. Positive or neutral framings of the same factual content usually don't qualify.
 - "My sleep is messed up, so that doesn't help" (casual, matter-of-fact) = No
@@ -90,5 +93,6 @@ Rules:
 1) Pick EXACTLY ONE answer: "Yes, it's a confession" or "No, it's not a confession"
 2) Use ONLY these exact phrases (including punctuation and capitalization)
 3) Apply the two-part test and principles above
-4) Do not output reasoning, JSON, or extra text
+4) Briefly explain your reasoning (1-2 sentences), then end your response with:
+   Answer: Yes, it's a confession  OR  Answer: No, it's not a confession
 """
