@@ -1,0 +1,7 @@
+pyproject.toml
+src/annotation_demo/__init__.py
+src/annotation_demo.egg-info/PKG-INFO
+src/annotation_demo.egg-info/SOURCES.txt
+src/annotation_demo.egg-info/dependency_links.txt
+src/annotation_demo.egg-info/requires.txt
+src/annotation_demo.egg-info/top_level.txt
