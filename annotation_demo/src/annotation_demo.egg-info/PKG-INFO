@@ -1,9 +1,0 @@
-Metadata-Version: 2.4
-Name: annotation-demo
-Version: 0.1.0
-Summary: Demo system for annotation with reflective memory and prompt optimization
-Requires-Python: >=3.9
-Requires-Dist: openai
-Requires-Dist: pydantic
-Requires-Dist: rich
-Requires-Dist: typer
