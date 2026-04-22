@@ -3,3 +3,6 @@ __pycache__/
 .env.openai
 .env.llama
 artifacts/*
+.venv/
+*.egg-info/
+*.pyc
