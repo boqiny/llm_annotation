@@ -28,11 +28,14 @@ from prompts.self_disclosure_prompt import ENHANCED_SYSTEM_PROMPT
 from prompts.depth_disclosure_prompt import ENHANCED_DEPTH_PROMPT
 from prompts.intimacy_disclosure_prompt import ENHANCED_INTIMACY_PROMPT
 from prompts.confession_disclosure_prompt import ENHANCED_CONFESSION_PROMPT
+from prompts.temporality_prompt import ENHANCED_TEMPORALITY_PROMPT
+from prompts.topic_classification_prompt import TOPIC_CLASSIFICATION_PROMPT
+from prompts.theme_classification_prompt import THEME_CLASSIFICATION_PROMPT
 from prompts.parser import parse_answer
 
 load_dotenv()
-# Configure DSPy — 128 tokens lets the model add brief reasoning before the answer
-dspy.configure(lm=dspy.LM("openai/gpt-5.2", max_tokens=128))
+# Configure DSPy — 256 tokens to accommodate Topic/Theme reasoning + label
+dspy.configure(lm=dspy.LM("openai/gpt-5.2", max_tokens=256))
 
 
 @dataclass(frozen=True)
@@ -129,13 +132,101 @@ class DisclosureAsConfessionClassifier(dspy.Module):
         return dspy.Prediction(reasoning_and_answer=result.reasoning_and_answer)
 
 
+# Define DSPy signature for Temporality (Past / Now / Future)
+class TemporalitySignature(dspy.Signature):
+    __doc__ = ENHANCED_TEMPORALITY_PROMPT
+    sentence: str = dspy.InputField(desc="The user message to classify")
+    reasoning_and_answer: str = dspy.OutputField(
+        desc="Brief reasoning followed by 'Answer: Past', 'Answer: Now', or 'Answer: Future'"
+    )
+
+
+class TemporalityClassifier(dspy.Module):
+    def __init__(self):
+        super().__init__()
+        self.classify = dspy.Predict(TemporalitySignature)
+
+    def forward(self, sentence):
+        result = self.classify(sentence=sentence)
+        return dspy.Prediction(reasoning_and_answer=result.reasoning_and_answer)
+
+
+# Define DSPy signature for Topic (12-way communicative function)
+class TopicSignature(dspy.Signature):
+    __doc__ = TOPIC_CLASSIFICATION_PROMPT
+    sentence: str = dspy.InputField(desc="The user message to classify")
+    reasoning_and_answer: str = dspy.OutputField(
+        desc="Brief reasoning followed by 'Answer: <topic>' where <topic> is one of the canonical topics"
+    )
+
+
+class TopicClassifier(dspy.Module):
+    def __init__(self):
+        super().__init__()
+        self.classify = dspy.Predict(TopicSignature)
+
+    def forward(self, sentence):
+        result = self.classify(sentence=sentence)
+        return dspy.Prediction(reasoning_and_answer=result.reasoning_and_answer)
+
+
+# Define DSPy signature for Theme (holistic 5-dimension annotation used as a
+# cross-check classifier — here we expose it as a single-label scheme that
+# returns the Level-of-disclosure answer, since the theme prompt covers all 5
+# dimensions with Level first.)
+class ThemeSignature(dspy.Signature):
+    __doc__ = THEME_CLASSIFICATION_PROMPT
+    sentence: str = dspy.InputField(desc="The user message to classify")
+    reasoning_and_answer: str = dspy.OutputField(
+        desc="Brief reasoning followed by 'Answer: High', 'Answer: Low', or 'Answer: No'"
+    )
+
+
+class ThemeClassifier(dspy.Module):
+    def __init__(self):
+        super().__init__()
+        self.classify = dspy.Predict(ThemeSignature)
+
+    def forward(self, sentence):
+        result = self.classify(sentence=sentence)
+        return dspy.Prediction(reasoning_and_answer=result.reasoning_and_answer)
+
+
 # Map scheme names to their classifiers
 SCHEME_CLASSIFIERS = {
     "Level of disclosure": LevelOfDisclosureClassifier,
     "Depth of disclosure": DepthOfDisclosureClassifier,
     "Intimacy of self-disclosure": IntimacyOfDisclosureClassifier,
     "Disclosure as confession": DisclosureAsConfessionClassifier,
+    "Temporality": TemporalityClassifier,
+    "Topic": TopicClassifier,
+    "Theme": ThemeClassifier,
 }
+
+# Some schemes are evaluated against a different GT field than their own name.
+# Theme is a holistic 5-dimension prompt whose primary output is Level of
+# disclosure, so its predictions are compared against Level GT.
+SCHEME_GT_KEY = {
+    "Theme": "Level of disclosure",
+}
+
+
+def _extract_gt_labels(item: dict) -> Dict[str, str]:
+    """Return a merged ground-truth label dict for a single item.
+
+    The agreed/fiona/chang JSON files store `topic` and `topic_category` at the
+    top level of each item (not inside `labels`). We lift them into the label
+    dict under the canonical scheme names so the evaluator can pick them up
+    uniformly.
+    """
+    gt = dict(item.get("labels", {}))
+    topic = (item.get("topic") or "").strip()
+    if topic:
+        gt["Topic"] = topic
+    topic_cat = (item.get("topic_category") or "").strip()
+    if topic_cat:
+        gt["Topic thematic category"] = topic_cat
+    return gt
 
 
 def load_ground_truth(cfg: EvalConfig) -> List[dict]:
@@ -153,8 +244,8 @@ def _process_item(
 ) -> Tuple[dict, Tuple[str, str, str] | None]:
     """Process a single item for a specific scheme."""
     sentence = item.get("sentence", "")
-    gt_labels: Dict[str, str] = item.get("labels", {})
-    
+    gt_labels: Dict[str, str] = _extract_gt_labels(item)
+
     if not sentence or not gt_labels:
         return {
             "index": index,
@@ -169,14 +260,20 @@ def _process_item(
         result = classifier(sentence=sentence)
 
         raw_response = result.reasoning_and_answer.strip()
-        pred_level = parse_answer(raw_response, scheme_name)
+        # Theme prompt outputs Level-of-disclosure labels (High/Low/No), so
+        # parse against that label set.
+        parse_scheme = SCHEME_GT_KEY.get(scheme_name, scheme_name)
+        pred_level = parse_answer(raw_response, parse_scheme)
+
+        gt_key = SCHEME_GT_KEY.get(scheme_name, scheme_name)
+        gt_level = gt_labels.get(gt_key, "")
 
         # Build result
         result_dict = {
             "index": index,
             "sentence": sentence,
             "scheme": scheme_name,
-            "ground_truth": {scheme_name: gt_labels.get(scheme_name, "")},
+            "ground_truth": {gt_key: gt_level},
             "prediction": {
                 "scheme": scheme_name,
                 "level": pred_level,
@@ -185,7 +282,6 @@ def _process_item(
             },
         }
 
-        gt_level = gt_labels.get(scheme_name, "")
         return result_dict, (scheme_name, gt_level, pred_level)
         
     except Exception as exc:
@@ -224,11 +320,13 @@ def evaluate_samples(samples: List[dict], cfg: EvalConfig) -> Tuple[Dict[str, di
         futures = {}
         
         for idx, item in enumerate(samples, start=1):
-            gt_labels: Dict[str, str] = item.get("labels", {})
-            
+            gt_labels: Dict[str, str] = _extract_gt_labels(item)
+
             for scheme_name in schemes_to_eval:
                 # Only evaluate if ground truth exists for this scheme
-                if scheme_name not in gt_labels:
+                # (schemes may map to a different GT key via SCHEME_GT_KEY)
+                gt_key = SCHEME_GT_KEY.get(scheme_name, scheme_name)
+                if gt_key not in gt_labels:
                     continue
                 
                 classifier = classifiers[scheme_name]
@@ -420,9 +518,13 @@ def compute_absolute_metrics(y_true: List[str], y_pred: List[str]) -> Dict[str, 
 
 def print_metrics_table(metrics: Dict[str, dict]) -> None:
     """Print metrics in a nice table format."""
-    
+
     # Overall metrics table
     print("\n--- OVERALL METRICS (Macro-averaged - best for imbalanced data) ---")
+    if not metrics:
+        print("(no metrics — no ground-truth labels matched the selected schemes)")
+        return
+
     headers = ["scheme", "accuracy", "macro_p", "macro_r", "macro_f1", "n_classes", "n"]
     rows = []
     for scheme, m in sorted(metrics.items()):
@@ -438,7 +540,7 @@ def print_metrics_table(metrics: Dict[str, dict]) -> None:
             ]
         )
 
-    col_widths = [max(len(h), *(len(r[i]) for r in rows)) for i, h in enumerate(headers)]
+    col_widths = [max([len(h)] + [len(r[i]) for r in rows]) for i, h in enumerate(headers)]
     header_line = " | ".join(h.ljust(col_widths[i]) for i, h in enumerate(headers))
     sep_line = "-+-".join("-" * col_widths[i] for i in range(len(headers)))
     print(header_line)
@@ -471,14 +573,14 @@ def print_metrics_table(metrics: Dict[str, dict]) -> None:
                 str(cls_metrics['fn']),
             ])
         
-        col_widths = [max(len(h), *(len(r[i]) for r in rows)) for i, h in enumerate(headers)]
+        col_widths = [max([len(h)] + [len(r[i]) for r in rows]) for i, h in enumerate(headers)]
         header_line = " | ".join(h.ljust(col_widths[i]) for i, h in enumerate(headers))
         sep_line = "-+-".join("-" * col_widths[i] for i in range(len(headers)))
         print(header_line)
         print(sep_line)
         for row in rows:
             print(" | ".join(row[i].ljust(col_widths[i]) for i in range(len(headers))))
-        
+
         # Print weighted and micro averages
         print(f"\nWeighted avg: P={m['weighted_precision']:.3f}, R={m['weighted_recall']:.3f}, F1={m['weighted_f1']:.3f}")
         print(f"Micro avg:    P={m['micro_precision']:.3f}, R={m['micro_recall']:.3f}, F1={m['micro_f1']:.3f}")

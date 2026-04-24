@@ -16,6 +16,21 @@ VALID_LABELS: dict[str, list[str]] = {
     "Depth of disclosure": ["Peripheral", "Intermediate", "Central"],
     "Intimacy of self-disclosure": ["Peripheral", "Intermediate", "Core", "N/A"],
     "Disclosure as confession": ["Yes, it's a confession", "No, it's not a confession"],
+    "Temporality": ["Past", "Now", "Future"],
+    "Topic": [
+        "Causal conversation",
+        "Current life challenges",
+        "Desire for friendship",
+        "Emotional distress",
+        "Emotional response",
+        "Financial struggles",
+        "Future plans",
+        "Information and advice",
+        "Interpersonal issue",
+        "Intimate exchange",
+        "Philosophical perspective",
+        "Work stress",
+    ],
 }
 
 

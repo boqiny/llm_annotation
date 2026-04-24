@@ -1,0 +1,94 @@
+{
+  "name": "GoEmotions (multi-label subset)",
+  "description": "Reproducibility codebook — 8 emotion labels drawn from the public GoEmotions dataset (Demszky et al., Apache 2.0). Short Reddit-style comments may carry multiple emotions; classification is multi-label. Used as AnnotAgent's open-data reproducibility eval alongside the private self-disclosure flagship.",
+  "mode": "multi_label",
+  "dimensions": [
+    {
+      "name": "Emotion",
+      "type": "multi_label",
+      "instructions": "Assign all emotions that are directly expressed by the speaker in the comment. A short comment often expresses 1-2 emotions; longer ones may combine up to 4. Do not infer emotions the speaker does not themselves express. Neutral items with no clear emotion get the 'neutral' label on its own.",
+      "labels": [
+        {
+          "name": "gratitude",
+          "definition": "The speaker expresses thanks, appreciation, or feels grateful toward someone or something.",
+          "examples": [
+            "Thanks a lot, this really helped!",
+            "I appreciate you taking the time to explain."
+          ]
+        },
+        {
+          "name": "admiration",
+          "definition": "The speaker expresses respect, approval, or that something is impressive or well done.",
+          "examples": [
+            "This is such a well-written piece, kudos to the author.",
+            "Wow, that's incredible work."
+          ]
+        },
+        {
+          "name": "joy",
+          "definition": "The speaker expresses happiness, delight, or pleasure about something.",
+          "examples": [
+            "I just got the job! So happy right now.",
+            "Best day ever!"
+          ]
+        },
+        {
+          "name": "anger",
+          "definition": "The speaker expresses strong displeasure, rage, or hostility.",
+          "examples": [
+            "I'm absolutely furious about how this was handled.",
+            "This is infuriating."
+          ]
+        },
+        {
+          "name": "sadness",
+          "definition": "The speaker expresses grief, sorrow, or unhappiness about something.",
+          "examples": [
+            "It really hurts to lose someone this way.",
+            "I feel so down today."
+          ]
+        },
+        {
+          "name": "fear",
+          "definition": "The speaker expresses fear, anxiety, worry, or apprehension about something.",
+          "examples": [
+            "I'm really scared about what this means for us.",
+            "The whole situation is making me anxious."
+          ]
+        },
+        {
+          "name": "curiosity",
+          "definition": "The speaker expresses interest or a desire to know or learn more. Often phrased as a question.",
+          "examples": [
+            "How did you figure that out?",
+            "I'm really curious what their reasoning was."
+          ]
+        },
+        {
+          "name": "disapproval",
+          "definition": "The speaker expresses disagreement, rejection, or negative judgment of something.",
+          "examples": [
+            "That's not how this should be done.",
+            "I don't think this decision was correct."
+          ]
+        },
+        {
+          "name": "neutral",
+          "definition": "No clear emotion is expressed. Use ONLY when no other label applies; do not combine 'neutral' with any other label.",
+          "examples": [
+            "The meeting is scheduled for 3pm.",
+            "It comes with a one-year warranty."
+          ]
+        }
+      ]
+    }
+  ],
+  "decomposition_hints": {
+    "groups": [["Emotion"]],
+    "order": ["Emotion"]
+  },
+  "_provenance": {
+    "source": "GoEmotions (Demszky et al., 2020) label scheme, subset curated for reproducibility. Full dataset: https://github.com/google-research/google-research/tree/master/goemotions",
+    "license": "Apache 2.0"
+  }
+}

@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-feature-settings: 'ss01', 'cv11';
+  }
+  body {
+    @apply bg-cream text-ink antialiased;
+    font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+  }
+  ::selection {
+    background-color: #0b0b0a;
+    color: #f7f5f2;
+  }
+}
+
+@layer utilities {
+  .font-mono-editorial {
+    font-family: 'Geist Mono', ui-monospace, monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-size: 11px;
+  }
+  .hairline {
+    border-color: #E4E4E0;
+  }
+  .surface-card {
+    @apply bg-white border border-seam;
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "Sentiment Analysis",
+  "description": "Basic 3-class sentiment classification for text.",
+  "dimensions": [
+    {
+      "name": "Sentiment",
+      "type": "single_label",
+      "labels": [
+        {"name": "Positive", "definition": "The text expresses a positive sentiment, approval, satisfaction, happiness, or optimism.", "examples": ["I love this product!", "Great experience overall."]},
+        {"name": "Neutral", "definition": "The text is factual, objective, or does not express clear positive or negative sentiment.", "examples": ["The meeting is at 3pm.", "It comes in three colors."]},
+        {"name": "Negative", "definition": "The text expresses a negative sentiment, disapproval, dissatisfaction, frustration, or pessimism.", "examples": ["This is terrible.", "I'm very disappointed with the service."]}
+      ],
+      "instructions": "Focus on the overall sentiment of the text. If mixed, choose the dominant sentiment."
+    }
+  ]
+}

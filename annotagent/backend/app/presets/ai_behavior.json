@@ -1,0 +1,116 @@
+{
+  "name": "AI Behavior (Multi-Label)",
+  "description": "Classify AI-companion turns on 3 multi-label themes: Listening Strategy, Support Type, and Interaction. Labels can co-occur within a theme (e.g., a turn can be both question-asking and sympathetic responsiveness).",
+  "mode": "multi_label",
+  "dimensions": [
+    {
+      "name": "Listening strategy",
+      "type": "multi_label",
+      "instructions": "Multiple labels can apply to the same turn. A rhetorical wrap-up question after advice is both 'Question-asking' AND 'Offers advice'. Paraphrase and perspective-taking often co-occur. Grammatical interrogatives → Question-asking, even when embedded in a longer turn.",
+      "labels": [
+        {
+          "name": "Question-asking",
+          "definition": "The AI turn contains a direct or indirect interrogative aimed at the user, soliciting information, opinions, or further disclosure.",
+          "examples": [
+            "By the way, I like my name, Mara! How did you come up with it?",
+            "Is there something specific you're thinking of doing?",
+            "And how about you?"
+          ]
+        },
+        {
+          "name": "Paraphrase",
+          "definition": "The AI restates what the user just said in its own words, signaling comprehension without adding new information.",
+          "examples": [
+            "Using box cake mix with chocolate frosting is a great shortcut.",
+            "So you're saying the deadline moved and now you have to rework the draft."
+          ]
+        },
+        {
+          "name": "Perspective-taking",
+          "definition": "The AI actively considers the situation from the user's point of view, going beyond restating to infer what the user might be feeling or experiencing.",
+          "examples": [
+            "Knowing you love making Chinese food must make the process even more enjoyable.",
+            "Mark Klink is a friend of mine as well — we've had gallery exhibitions together."
+          ]
+        },
+        {
+          "name": "Sympathetic responsiveness",
+          "definition": "The AI shows concern or emotional understanding, validating the user's feelings. Distinct from perspective-taking: sympathy acknowledges the feeling; perspective-taking reconstructs the viewpoint.",
+          "examples": [
+            "That's so thoughtful of you! Celebrating your mom with flowers is a wonderful idea.",
+            "Whatever you decide, I'll be here for you."
+          ]
+        },
+        {
+          "name": "Back-channel response",
+          "definition": "Minimal continuation tokens (uh-huh, yeah, right, mm-hmm) or very short acknowledgments that signal the AI is following without contributing content.",
+          "examples": [
+            "Right.",
+            "Mm-hmm, go on."
+          ]
+        },
+        {
+          "name": "Humor",
+          "definition": "The AI uses a joke, playful teasing, or lighthearted remark intended to produce amusement.",
+          "examples": [
+            "But hey, at least you're the supervisor, so you get to keep everyone in line, right?"
+          ]
+        },
+        {
+          "name": "Offers advice, opinions, perspectives, and personal experience",
+          "definition": "The AI volunteers recommendations, its own opinion, a generalized perspective, or a 'personal experience' claim. Frequently overlaps with Question-asking when the turn ends with a follow-up.",
+          "examples": [
+            "Post-internet art is really interesting — I think it raises questions about our online identities.",
+            "Have you looked into any local assistance programs, charities, or community resources that provide rent help?"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Support type",
+      "type": "multi_label",
+      "instructions": "Annotate only when the AI turn is clearly offering support. Emotional and functional support can co-occur within a longer turn. Support type is scoped to the individual turn, not the full conversation.",
+      "labels": [
+        {
+          "name": "Emotional support",
+          "definition": "Focused on making the user feel better — affirmation, comfort, validation, or reassurance. Does not directly solve a problem.",
+          "examples": [
+            "Your mom will surely appreciate all the effort you've put into her birthday meal.",
+            "I'm sure your family is proud of you."
+          ]
+        },
+        {
+          "name": "Functional support",
+          "definition": "Focused on helping the user solve a concrete problem — suggestions, steps, information, resources.",
+          "examples": [
+            "If you're looking to make a bit of extra money quickly, maybe consider helping neighbors with small tasks.",
+            "I have an apprentice currently who just got out of the Marine Corps; he works hard."
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Interaction",
+      "type": "multi_label",
+      "instructions": "Captures relational or performative modes the AI enters. Emergent codes added during adjudication.",
+      "labels": [
+        {
+          "name": "Romantic and intimate roleplay",
+          "definition": "The AI engages in roleplay involving romantic, affectionate, or sexually-oriented content addressed to or about the user.",
+          "examples": [
+            "*caresses your hair gently and lovingly; speaks softly* You feel like home to me.",
+            "*wraps arms around you* I missed you."
+          ]
+        }
+      ]
+    }
+  ],
+  "decomposition_hints": {
+    "groups": [
+      ["Listening strategy"],
+      ["Support type"],
+      ["Interaction"]
+    ],
+    "order": ["Listening", "Support", "Interaction"]
+  }
+}

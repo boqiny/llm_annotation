@@ -1,0 +1,12 @@
+[
+  {"content": "This product exceeded all my expectations, absolutely love it!", "gold_labels": {"Sentiment": "Positive"}},
+  {"content": "Complete waste of money, broke after one use.", "gold_labels": {"Sentiment": "Negative"}},
+  {"content": "It arrived on time. Packaging was fine.", "gold_labels": {"Sentiment": "Neutral"}},
+  {"content": "Best purchase I've made this year!", "gold_labels": {"Sentiment": "Positive"}},
+  {"content": "Customer service was unhelpful and rude.", "gold_labels": {"Sentiment": "Negative"}},
+  {"content": "The item is as described in the listing.", "gold_labels": {"Sentiment": "Neutral"}},
+  {"content": "I cannot recommend this highly enough — five stars!", "gold_labels": {"Sentiment": "Positive"}},
+  {"content": "Disappointed with the quality for the price.", "gold_labels": {"Sentiment": "Negative"}},
+  {"content": "Standard delivery, no issues.", "gold_labels": {"Sentiment": "Neutral"}},
+  {"content": "Terrible experience, will never buy from them again.", "gold_labels": {"Sentiment": "Negative"}}
+]

@@ -1,0 +1,198 @@
+import axios from 'axios'
+import type {
+  Project, Codebook, Dataset, DatasetPreview, Pipeline,
+  Job, AnnotationResult, DimensionMetrics, CalibrationRun, PresetInfo,
+} from '../types'
+
+const api = axios.create({ baseURL: '/api' })
+
+// Projects
+export const listProjects = () => api.get<Project[]>('/projects').then(r => r.data)
+export const createProject = (data: { name: string; description?: string; llm_provider?: string; llm_model?: string; api_key?: string }) =>
+  api.post<Project>('/projects', data).then(r => r.data)
+export const getProject = (id: number) => api.get<Project>(`/projects/${id}`).then(r => r.data)
+export const updateProject = (id: number, data: Partial<Project & { api_key: string }>) =>
+  api.patch<Project>(`/projects/${id}`, data).then(r => r.data)
+export const deleteProject = (id: number) => api.delete(`/projects/${id}`)
+
+// Codebooks
+export const listPresets = (projectId: number) =>
+  api.get<PresetInfo[]>(`/projects/${projectId}/codebooks/presets`).then(r => r.data)
+export const uploadCodebook = (projectId: number, data: { preset_name?: string; raw_json?: object }) =>
+  api.post<Codebook>(`/projects/${projectId}/codebooks`, data).then(r => r.data)
+export const listCodebooks = (projectId: number) =>
+  api.get<Codebook[]>(`/projects/${projectId}/codebooks`).then(r => r.data)
+
+// Datasets
+export const uploadDataset = (projectId: number, file: File, isGold: boolean = false) => {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('is_gold', String(isGold))
+  return api.post<Dataset>(`/projects/${projectId}/datasets`, form).then(r => r.data)
+}
+export const listDatasets = (projectId: number) =>
+  api.get<Dataset[]>(`/projects/${projectId}/datasets`).then(r => r.data)
+export const previewDataset = (projectId: number, datasetId: number) =>
+  api.get<DatasetPreview>(`/projects/${projectId}/datasets/${datasetId}`).then(r => r.data)
+
+// Pipelines
+export const decomposePipeline = (projectId: number) =>
+  api.post<Pipeline>(`/projects/${projectId}/pipelines/decompose`).then(r => r.data)
+export const listPipelines = (projectId: number) =>
+  api.get<Pipeline[]>(`/projects/${projectId}/pipelines`).then(r => r.data)
+export const getPipeline = (projectId: number, pipelineId: number) =>
+  api.get<Pipeline>(`/projects/${projectId}/pipelines/${pipelineId}`).then(r => r.data)
+export const updatePipeline = (projectId: number, pipelineId: number, steps: object[]) =>
+  api.put<Pipeline>(`/projects/${projectId}/pipelines/${pipelineId}`, { steps }).then(r => r.data)
+
+// Jobs
+export const startJob = (projectId: number, datasetId: number, pipelineId: number) =>
+  api.post<Job>(`/projects/${projectId}/jobs`, { dataset_id: datasetId, pipeline_id: pipelineId }).then(r => r.data)
+export const listJobs = (projectId: number) =>
+  api.get<Job[]>(`/projects/${projectId}/jobs`).then(r => r.data)
+export const getJob = (projectId: number, jobId: number) =>
+  api.get<Job>(`/projects/${projectId}/jobs/${jobId}`).then(r => r.data)
+export const cancelJob = (projectId: number, jobId: number) =>
+  api.post<Job>(`/projects/${projectId}/jobs/${jobId}/cancel`).then(r => r.data)
+export const pauseJob = (projectId: number, jobId: number) =>
+  api.post<Job>(`/projects/${projectId}/jobs/${jobId}/pause`).then(r => r.data)
+export const resumeJob = (projectId: number, jobId: number) =>
+  api.post<Job>(`/projects/${projectId}/jobs/${jobId}/resume`).then(r => r.data)
+
+// Results
+export const getResults = (projectId: number, jobId: number, params?: { limit?: number; offset?: number; dimension?: string }) =>
+  api.get<AnnotationResult[]>(`/projects/${projectId}/jobs/${jobId}/results`, { params }).then(r => r.data)
+export const getMetrics = (projectId: number, jobId: number) =>
+  api.get<DimensionMetrics[]>(`/projects/${projectId}/jobs/${jobId}/results/metrics`).then(r => r.data)
+export const getConfusionMatrix = (projectId: number, jobId: number, dimension: string) =>
+  api.get<{ classes: string[]; matrix: Record<string, Record<string, number>> }>(
+    `/projects/${projectId}/jobs/${jobId}/results/confusion`, { params: { dimension } }
+  ).then(r => r.data)
+export const exportResults = (projectId: number, jobId: number, format: 'csv' | 'json' = 'csv') =>
+  api.get(`/projects/${projectId}/jobs/${jobId}/results/export`, { params: { format }, responseType: format === 'csv' ? 'blob' : 'json' })
+
+// Calibration
+export const runCalibration = (projectId: number, jobId: number, goldDatasetId: number) =>
+  api.post<CalibrationRun>(`/projects/${projectId}/jobs/${jobId}/calibration`, { gold_dataset_id: goldDatasetId }).then(r => r.data)
+export const listCalibrations = (projectId: number, jobId: number) =>
+  api.get<CalibrationRun[]>(`/projects/${projectId}/jobs/${jobId}/calibration`).then(r => r.data)
+
+// Seeds + backend config
+export interface SeedDatasetInfo {
+  id: string
+  label: string
+  filename: string
+  role: 'gold' | 'reference' | string
+  description: string
+  available: boolean
+  path: string
+}
+export const listSeedDatasets = (projectId: number) =>
+  api.get<SeedDatasetInfo[]>(`/projects/${projectId}/datasets/seeds/available`).then(r => r.data)
+export const loadSeedDataset = (projectId: number, seedId: string, isGold?: boolean) =>
+  api.post<Dataset>(`/projects/${projectId}/datasets/seeds/load`, { seed_id: seedId, is_gold: isGold ?? null }).then(r => r.data)
+
+export interface BackendConfig {
+  openai_key_loaded: boolean
+  anthropic_key_loaded: boolean
+  max_concurrency: number
+}
+export const getBackendConfig = () => api.get<BackendConfig>('/config').then(r => r.data)
+
+// CodebookAgent — drafts
+export interface CodebookDraft {
+  id: number
+  source: 'upload' | 'paste' | 'preset' | 'scratch' | string
+  source_filename: string
+  source_bytes: number
+  status: 'pending' | 'ingesting' | 'drafting' | 'ready' | 'failed' | string
+  error_message: string
+  draft_json: Record<string, any>
+  warnings: string[]
+  critic_flags: Array<{ severity: string; dim?: string; message: string }>
+  has_cleaned_data: boolean
+  cleaned_data_rows: number
+  drafter_model: string
+  accepted_for_project_id: number | null
+  created_at: string | null
+  updated_at: string | null
+}
+
+export const uploadCodebookDraft = async (file: File): Promise<CodebookDraft> => {
+  const form = new FormData()
+  form.append('file', file)
+  const r = await api.post<CodebookDraft>('/codebook-drafts/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120_000,
+  })
+  return r.data
+}
+
+export const pasteCodebookDraft = (text: string) =>
+  api.post<CodebookDraft>('/codebook-drafts', { source: 'paste', text }, { timeout: 120_000 })
+     .then(r => r.data)
+
+export const presetCodebookDraft = (preset_name: string) =>
+  api.post<CodebookDraft>('/codebook-drafts', { source: 'preset', preset_name })
+     .then(r => r.data)
+
+export const getCodebookDraft = (draftId: number) =>
+  api.get<CodebookDraft>(`/codebook-drafts/${draftId}`).then(r => r.data)
+
+export const deleteCodebookDraft = (draftId: number) =>
+  api.delete(`/codebook-drafts/${draftId}`)
+
+export const acceptCodebookDraft = (projectId: number, draftId: number) =>
+  api.post<Codebook>(`/projects/${projectId}/codebooks/accept-draft`, { draft_id: draftId })
+     .then(r => r.data)
+
+export const artifactDownloadUrl = (draftId: number, filename: string) =>
+  `/api/codebook-drafts/${draftId}/artifact/${filename}`
+
+// Prompt optimization workbench
+export interface OptimizerInfo {
+  name: string
+  label: string
+  description: string
+  role: 'method' | 'baseline' | string
+}
+export interface OptimizerRun {
+  id: number
+  project_id: number
+  gold_dataset_id: number | null
+  optimizer_name: string
+  dimension_name: string
+  status: 'pending' | 'running' | 'completed' | 'failed' | string
+  budget: number
+  train_frac: number
+  initial_score: number
+  final_score: number
+  trajectory: any[]
+  artifact: Record<string, any>
+  optimized_prompt: string
+  total_tokens: number
+  total_cost: number
+  error: string
+  created_at: string | null
+  updated_at: string | null
+}
+export const listAvailableOptimizers = (projectId: number) =>
+  api.get<OptimizerInfo[]>(`/projects/${projectId}/optimizer-runs/available`).then(r => r.data)
+export const listOptimizerRuns = (projectId: number) =>
+  api.get<OptimizerRun[]>(`/projects/${projectId}/optimizer-runs`).then(r => r.data)
+export const getOptimizerRun = (projectId: number, runId: number) =>
+  api.get<OptimizerRun>(`/projects/${projectId}/optimizer-runs/${runId}`).then(r => r.data)
+export const startOptimizerRun = (
+  projectId: number,
+  body: {
+    optimizer_name: string
+    dimension_name: string
+    gold_dataset_id: number
+    budget?: number
+    train_frac?: number
+    val_frac?: number
+    test_frac?: number
+  }
+) => api.post<OptimizerRun>(`/projects/${projectId}/optimizer-runs`, body).then(r => r.data)
+
+export default api

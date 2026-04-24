@@ -2,11 +2,24 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
 import pandas as pd
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from self_disclosure_unified import (
+    canonical_topic_category_for_topic,
+    canonicalize_level,
+    canonicalize_scheme,
+    canonicalize_topic,
+    normalize_text,
+)
 
 
 @dataclass(frozen=True)
@@ -24,62 +37,6 @@ class CleanConfig:
     topic_category_col: str = "Topic thematic category "
     timestamp_col: str = "Time stamp"
 
-
-SCHEME_NAME_MAP: Dict[str, str] = {
-    "Level of disclosure": "Level of disclosure",
-    "Depth of disclosure": "Depth of disclosure",
-    "Disclosure as confession": "Disclosure as confession",
-    "Intimacy of self-disclosure": "Intimacy of self-disclosure",
-    "Initmacy of self-disclosure": "Intimacy of self-disclosure",
-}
-
-LEVEL_MAP_BY_SCHEME: Dict[str, Dict[str, str]] = {
-    "Level of disclosure": {
-        "High": "High",
-        "High ": "High",
-        "Low": "Low",
-        "Low ": "Low",
-        "No": "No",
-    },
-    "Depth of disclosure": {
-        "Peripheral layer": "Peripheral layer",
-        "Peripheral": "Peripheral layer",
-        "Intermediate layer": "Intermediate layer",
-        "Intermediate level": "Intermediate layer",
-        "Central layer": "Central layer",
-    },
-    "Intimacy of self-disclosure": {
-        "Peripheral layer": "Peripheral level",
-        "Peripheral level": "Peripheral level",
-        "Intermediate layer": "Intermediate level",
-        "Intermediate level": "Intermediate level",
-        "Core layer": "Core layer",
-        "Core": "Core layer",
-    },
-    "Disclosure as confession": {
-        "Yes, it's a confession": "Yes, it's a confession",
-        "No": "No, it's not a confession",
-    },
-}
-
-
-def _normalize_text(value: str) -> str:
-    if value is None:
-        return ""
-    return str(value).strip()
-
-
-def normalize_scheme(raw_scheme: str) -> str:
-    return SCHEME_NAME_MAP.get(_normalize_text(raw_scheme), "")
-
-
-def normalize_level(raw_scheme: str, raw_level: str) -> str:
-    # First normalize the scheme name to get the canonical name
-    normalized_scheme = normalize_scheme(raw_scheme)
-    level_key = _normalize_text(raw_level)
-    return LEVEL_MAP_BY_SCHEME.get(normalized_scheme, {}).get(level_key, "")
-
-
 def clean_ground_truth(cfg: CleanConfig) -> Tuple[List[dict], dict]:
     df = pd.read_csv(cfg.csv_path, skiprows=cfg.skiprows)
 
@@ -92,7 +49,7 @@ def clean_ground_truth(cfg: CleanConfig) -> Tuple[List[dict], dict]:
     stats = Counter()
 
     for _, row in df.iterrows():
-        sentence = _normalize_text(row.get(cfg.text_col))
+        sentence = normalize_text(row.get(cfg.text_col))
         scheme_raw = row.get(cfg.scheme_col)
         level_raw = row.get(cfg.level_col)
 
@@ -100,12 +57,12 @@ def clean_ground_truth(cfg: CleanConfig) -> Tuple[List[dict], dict]:
             stats["skipped_missing_sentence"] += 1
             continue
 
-        scheme = normalize_scheme(scheme_raw)
+        scheme = canonicalize_scheme(scheme_raw)
         if not scheme:
             stats["skipped_non_target_scheme"] += 1
             continue
 
-        level = normalize_level(scheme_raw, level_raw)
+        level = canonicalize_level(scheme_raw, level_raw)
         if not level:
             stats["skipped_invalid_level"] += 1
             continue
@@ -114,13 +71,14 @@ def clean_ground_truth(cfg: CleanConfig) -> Tuple[List[dict], dict]:
         
         # Store metadata for this sentence (first occurrence wins)
         if sentence not in metadata_buckets:
+            topic = canonicalize_topic(row.get(cfg.topic_col))
             metadata_buckets[sentence] = {
-                "row_number": _normalize_text(row.get(cfg.row_num_col)),
-                "user_id": _normalize_text(row.get(cfg.user_col)),
-                "status": _normalize_text(row.get(cfg.status_col)),
-                "topic": _normalize_text(row.get(cfg.topic_col)),
-                "topic_category": _normalize_text(row.get(cfg.topic_category_col)),
-                "timestamp": _normalize_text(row.get(cfg.timestamp_col)),
+                "row_number": normalize_text(row.get(cfg.row_num_col)),
+                "user_id": normalize_text(row.get(cfg.user_col)),
+                "status": normalize_text(row.get(cfg.status_col)),
+                "topic": topic,
+                "topic_category": canonical_topic_category_for_topic(topic),
+                "timestamp": normalize_text(row.get(cfg.timestamp_col)),
             }
         
         stats["kept_rows"] += 1
@@ -153,6 +111,7 @@ def clean_ground_truth(cfg: CleanConfig) -> Tuple[List[dict], dict]:
 
     stats["unique_sentences"] = len(cleaned_rows)
     stats.update({f"conflicts_{k}": v for k, v in conflict_counts.items()})
+    stats["canonical_topic_categories"] = True
 
     return cleaned_rows, dict(stats)
 

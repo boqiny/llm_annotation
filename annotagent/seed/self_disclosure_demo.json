@@ -1,0 +1,52 @@
+[
+  {
+    "content": "I've been feeling really anxious lately and can't sleep well.",
+    "context": "",
+    "gold_labels": {"Topic": "Emotional response", "Level of disclosure": "High", "Depth of disclosure": "Intermediate", "Intimacy of disclosure": "Intermediate", "Confession": "Yes"}
+  },
+  {
+    "content": "Work has been crazy this week with the product launch.",
+    "context": "",
+    "gold_labels": {"Topic": "Work stress", "Level of disclosure": "Low", "Depth of disclosure": "Peripheral", "Intimacy of disclosure": "Peripheral", "Confession": "No"}
+  },
+  {
+    "content": "I sometimes hate myself for how I handled that situation.",
+    "context": "Talking about a past relationship",
+    "gold_labels": {"Topic": "Emotional response", "Level of disclosure": "High", "Depth of disclosure": "Central", "Intimacy of disclosure": "Core", "Confession": "Yes"}
+  },
+  {
+    "content": "What's your favorite type of coffee?",
+    "context": "",
+    "gold_labels": {"Topic": "Causal conversation", "Level of disclosure": "No", "Depth of disclosure": "Peripheral", "Intimacy of disclosure": "Peripheral", "Confession": "No"}
+  },
+  {
+    "content": "I grew up in a small town in Ohio and moved to the city after college.",
+    "context": "",
+    "gold_labels": {"Topic": "Causal conversation", "Level of disclosure": "Low", "Depth of disclosure": "Peripheral", "Intimacy of disclosure": "Peripheral", "Confession": "No"}
+  },
+  {
+    "content": "I can't afford rent this month and I'm scared to tell anyone.",
+    "context": "",
+    "gold_labels": {"Topic": "Financial struggles", "Level of disclosure": "High", "Depth of disclosure": "Intermediate", "Intimacy of disclosure": "Intermediate", "Confession": "Yes"}
+  },
+  {
+    "content": "Yeah that sounds good.",
+    "context": "Agreeing with a suggestion",
+    "gold_labels": {"Topic": "Causal conversation", "Level of disclosure": "No", "Depth of disclosure": "Peripheral", "Intimacy of disclosure": "Peripheral", "Confession": "No"}
+  },
+  {
+    "content": "I think life is mostly about finding small moments of peace.",
+    "context": "",
+    "gold_labels": {"Topic": "Philosophical perspective", "Level of disclosure": "Low", "Depth of disclosure": "Peripheral", "Intimacy of disclosure": "Peripheral", "Confession": "No"}
+  },
+  {
+    "content": "I love you so much, you mean everything to me.",
+    "context": "",
+    "gold_labels": {"Topic": "Intimate exchange", "Level of disclosure": "High", "Depth of disclosure": "Central", "Intimacy of disclosure": "Core", "Confession": "No"}
+  },
+  {
+    "content": "Do you have any tips for managing burnout?",
+    "context": "",
+    "gold_labels": {"Topic": "Information and advice", "Level of disclosure": "Low", "Depth of disclosure": "Peripheral", "Intimacy of disclosure": "Peripheral", "Confession": "No"}
+  }
+]
