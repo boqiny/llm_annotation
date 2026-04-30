@@ -11,7 +11,8 @@ dependencies = [
     "pydantic",
     "rich",
     "typer",
-    "jinja2"
+    "jinja2",
+    "pyyaml"
 ]
 
 [tool.setuptools.packages.find]
