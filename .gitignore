@@ -6,3 +6,4 @@ artifacts/*
 .venv/
 *.egg-info/
 *.pyc
+annotation_demo/.env
