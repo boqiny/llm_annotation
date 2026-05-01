@@ -6,7 +6,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from annotation_demo.core.llm import make_llm
-from annotation_demo.workflows.project_workflow import ProjectWorkflow
+from annotation_demo.workflows.workflow import ProjectWorkflow
 from annotation_demo.utils.storage import load_json, load_yaml
 
 
