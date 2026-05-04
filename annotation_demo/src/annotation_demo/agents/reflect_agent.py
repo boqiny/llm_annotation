@@ -23,6 +23,11 @@ from annotation_demo.prompts.renderer import render_template
 
 @dataclass
 class MemoryRule:
+    """A reusable annotation guidance rule produced by reflection.
+
+    Each rule should describe a concrete labeling principle, common error pattern,
+    or clarification that can improve future annotation consistency.
+    """
     id: str
     title: str
     rule: str
@@ -33,11 +38,13 @@ class MemoryRule:
 
 @dataclass
 class ReflectMemory:
+    """Collection of reflection rules generated from a completed run."""
     version: str
     rules: list[MemoryRule]
 
 
 class ReflectAgent:
+    """LLM-powered agent that converts run outputs into reflection memory."""
     def __init__(self, llm: BaseLLM):
         self.llm = llm
 

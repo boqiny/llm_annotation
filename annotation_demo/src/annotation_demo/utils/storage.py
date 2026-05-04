@@ -62,6 +62,10 @@ def ensure_project_dirs(
 
 
 def save_json(path: str | Path, obj: Any, indent: int = 2) -> Path:
+    """Save an object as pretty-printed JSON.
+
+    Parent directories are created automatically when needed.
+    """
     path = Path(path)
     ensure_dir(path.parent)
     path.write_text(
@@ -72,6 +76,7 @@ def save_json(path: str | Path, obj: Any, indent: int = 2) -> Path:
 
 
 def load_json(path: str | Path) -> Any:
+    """Load a JSON file from disk."""
     path = Path(path)
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -87,6 +92,7 @@ def save_yaml(path: str | Path, obj: Any) -> Path:
 
 
 def load_yaml(path: str | Path) -> Any:
+    """Load a YAML file from disk."""
     path = Path(path)
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
@@ -185,6 +191,14 @@ def next_run_id(runs_dir: str | Path) -> str:
 
 
 def create_run_dir(project_dir: str | Path) -> tuple[str, Path]:
+    """Create and return a new run directory for a project.
+
+    Run directories are created under:
+        workspace/{project_id}/runs/{run_id}
+
+    The generated run_id should be stable enough for local debugging and artifact
+    inspection, but does not replace a database-backed run identifier in production.
+    """
     project_dir = Path(project_dir)
     runs_dir = project_dir / "runs"
 

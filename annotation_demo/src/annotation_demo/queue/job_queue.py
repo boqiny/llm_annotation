@@ -31,6 +31,7 @@ CoroFactory = Callable[[ProgressCallback], Awaitable[dict[str, Any]]]
 
 @dataclass
 class JobState:
+    """Lifecycle states for a submitted workflow job."""
     job_id: str
     project_id: str
     status: str = "queued"
@@ -44,11 +45,21 @@ class JobState:
 
 @dataclass
 class Job:
+    """In-memory representation of a submitted job.
+
+    Stores job state, timestamps, result metadata, and error information for local
+    inspection.
+    """
     state: JobState
     coro_factory: CoroFactory
 
 
 class InMemoryJobQueue:
+    """Small async-compatible in-memory queue for demo workflow jobs.
+
+    The queue is suitable for local development and frontend integration testing,
+    but it does not provide persistence, distributed workers, retries, or recovery.
+    """
     def __init__(self, max_workers: int = 2):
         self.queue: asyncio.Queue[Job] = asyncio.Queue()
         self.jobs: dict[str, JobState] = {}

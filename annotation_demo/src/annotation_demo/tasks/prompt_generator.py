@@ -20,6 +20,16 @@ def generate_annotation_prompt(
     task_type: str,
     llm: BaseLLM,
 ) -> str:
+    """Generate the messages for one annotation request.
+
+    Args:
+        codebook: Codebook definition containing schemes, levels, and instructions.
+        item: The input item to annotate.
+        task_config: Task-level settings controlling prompt style and output format.
+
+    Returns:
+        A list of role-based messages ready to send to an LLM client.
+    """
     system_prompt = render_template(
         "prompt_generator.jinja",
         task_type=task_type,

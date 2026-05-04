@@ -1,3 +1,15 @@
+"""Run a local annotation workflow from versioned project input files.
+
+This script is intended for local development and backend smoke testing. It
+loads a project codebook, annotation items, and task configuration from the
+workspace directory, constructs the configured LLM client, and runs the
+ProjectWorkflow asynchronously.
+
+The current file-based inputs are a temporary development interface. In the
+frontend-integrated version, these inputs may be replaced by API-provided
+payloads or database records.
+"""
+
 from __future__ import annotations
 
 import asyncio

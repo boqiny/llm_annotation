@@ -50,6 +50,16 @@ from annotation_demo.utils.storage import (
 
 @dataclass
 class WorkflowResult:
+    """Summary metadata for a completed workflow run.
+
+    Attributes:
+        project_id: Project identifier.
+        run_id: Generated run identifier.
+        run_dir: Directory where run artifacts were written.
+        annotation_path: Path to saved annotation outputs.
+        evaluation_path: Optional path to saved evaluation results.
+        reflection_path: Optional path to saved reflection-memory results.
+    """
     project_id: str
     prompt_version: str
     run_id: str
@@ -77,6 +87,11 @@ class ProjectWorkflow:
         llm: BaseLLM,
         workspace_dir: str | Path = "workspace",
     ):
+        """Orchestrates annotation, evaluation, and reflection for a project.
+
+        The workflow owns project-level file layout and artifact writing, while task
+        modules own prompt construction and LLM annotation logic.
+        """
         self.project_id = project_id
         self.llm = llm
         self.workspace_dir = Path(workspace_dir)
@@ -91,6 +106,21 @@ class ProjectWorkflow:
         concurrency: int = 5,
         on_progress: Callable[[float], None] | None = None,
     ) -> WorkflowResult:
+        """Run the project annotation workflow asynchronously.
+
+        Args:
+            codebook: Codebook definition used for annotation.
+            items: Input items to annotate.
+            task_config: Task settings, including provider/model options and optional
+                evaluation or reflection settings.
+
+        Returns:
+            WorkflowResult describing the generated artifacts.
+
+        Notes:
+            This method is async because LLM calls are async. Callers from synchronous
+            scripts should use asyncio.run(...).
+        """
         created_at = utc_now_iso()
 
         # 1. Save uploaded / provided inputs.

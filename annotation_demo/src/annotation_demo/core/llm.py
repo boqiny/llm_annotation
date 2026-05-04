@@ -33,6 +33,11 @@ Message = dict[str, str]
 
 @dataclass
 class LLMUsage:
+    """Token usage metadata returned by an LLM provider.
+
+    Fields may be None when the provider does not report token usage or when usage
+    information is unavailable for a specific request.
+    """
     input_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
@@ -40,6 +45,14 @@ class LLMUsage:
 
 @dataclass
 class LLMResponse:
+    """Normalized response object returned by all LLM clients.
+
+    Attributes:
+        text: Raw text returned by the provider.
+        parsed_json: Parsed JSON object when JSON parsing succeeds; otherwise None.
+        usage: Optional token usage metadata.
+        raw: Provider-specific raw metadata useful for debugging.
+    """
     raw: str
     parsed: Optional[dict[str, Any]] = None
     provider: Optional[str] = None
@@ -48,7 +61,12 @@ class LLMResponse:
 
 
 class BaseLLM(ABC):
-    """Abstract base class for all LLM providers."""
+    """Abstract interface for asynchronous LLM clients.
+
+    Implementations should accept role-based messages and return an LLMResponse.
+    The interface is intentionally small so annotation components can remain
+    provider-independent.
+    """
 
     provider: str
 
@@ -260,6 +278,20 @@ def make_llm(
     temperature: float = 0.0,
     max_tokens: int = 1024,
 ) -> BaseLLM:
+    """Create an LLM client from provider and model configuration.
+
+    Args:
+        provider: Provider name, such as "openai" or "anthropic".
+        model: Model name. If None, the provider default is used.
+        temperature: Sampling temperature.
+        max_tokens: Maximum number of output tokens.
+
+    Returns:
+        A provider-specific LLM client implementing the shared async interface.
+
+    Raises:
+        ValueError: If the provider is unsupported.
+    """
     provider = provider.lower()
 
     if provider == "openai":
@@ -280,6 +312,16 @@ def make_llm(
 
 
 def extract_json(text: str) -> dict[str, Any]:
+    """Best-effort extraction of a JSON object from model text.
+
+    This helper is intended for providers or model settings that do not enforce
+    native JSON output. It first attempts to parse the full response as JSON and
+    then falls back to extracting the largest JSON-looking object.
+
+    This is not a full schema validator. Downstream code should validate the parsed
+    object against the expected annotation schema.
+    """
+
     text = text.strip()
 
     try:
