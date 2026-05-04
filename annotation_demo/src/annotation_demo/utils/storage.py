@@ -54,6 +54,7 @@ def ensure_project_dirs(
         "prompts",
         "runs",
         "logs",
+        "memory",
     ]:
         ensure_dir(project_dir / subdir)
 
@@ -206,5 +207,6 @@ def project_paths(
         "prompts": project_dir / "prompts",
         "runs": project_dir / "runs",
         "logs": project_dir / "logs",
+        "memory": project_dir / "memory",
         "runs_log": project_dir / "logs" / "runs.jsonl",
     }

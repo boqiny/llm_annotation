@@ -25,6 +25,10 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+ProgressCallback = Callable[[float], None]
+CoroFactory = Callable[[ProgressCallback], Awaitable[dict[str, Any]]]
+
+
 @dataclass
 class JobState:
     job_id: str
@@ -41,7 +45,7 @@ class JobState:
 @dataclass
 class Job:
     state: JobState
-    coro_factory: Callable[[], Awaitable[dict[str, Any]]]
+    coro_factory: CoroFactory
 
 
 class InMemoryJobQueue:
@@ -64,7 +68,7 @@ class InMemoryJobQueue:
     async def submit(
         self,
         project_id: str,
-        coro_factory: Callable[[], Awaitable[dict[str, Any]]],
+        coro_factory: CoroFactory,
     ) -> JobState:
         job_id = f"job_{uuid.uuid4().hex[:8]}"
         state = JobState(job_id=job_id, project_id=project_id)
@@ -89,7 +93,10 @@ class InMemoryJobQueue:
                 state.started_at = utc_now()
                 state.progress = 0.0
 
-                result = await job.coro_factory()
+                def on_progress(p: float) -> None:
+                    state.progress = p
+
+                result = await job.coro_factory(on_progress)
 
                 state.status = "succeeded"
                 state.result = result
