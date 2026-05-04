@@ -34,7 +34,7 @@ export default function AppLayout() {
                 <Separator />
                 <TopLink to={`/projects/${id}/setup`}>Setup</TopLink>
                 <TopLink to={`/projects/${id}/codebook`}>Codebook</TopLink>
-                <TopLink to={`/projects/${id}/prompt-lab`}>Prompt Lab</TopLink>
+                <TopLink to={`/projects/${id}/prompt-lab`}>Improve</TopLink>
                 <TopLink to={`/projects/${id}/pipeline`}>Pipeline</TopLink>
               </>
             )}

@@ -15,9 +15,22 @@ function fmtError(e: any): string {
   return e?.message || 'Unknown error'
 }
 
+// Toggling Researcher mode flips ALL technical surface (optimizer dropdown,
+// split sliders, budget knob, algorithmic labels) at once. Default is off so a
+// non-CS user sees one button. Persisted across reloads so reviewers don't
+// have to re-toggle every visit.
+const RESEARCHER_KEY = 'annotagent.researcher_mode'
+
 export default function PromptLab() {
   const { id } = useParams<{ id: string }>()
   const projectId = Number(id)
+
+  const [researcherMode, setResearcherMode] = useState<boolean>(() => {
+    try { return localStorage.getItem(RESEARCHER_KEY) === '1' } catch { return false }
+  })
+  useEffect(() => {
+    try { localStorage.setItem(RESEARCHER_KEY, researcherMode ? '1' : '0') } catch {}
+  }, [researcherMode])
 
   const [optimizers, setOptimizers] = useState<OptimizerInfo[]>([])
   const [codebooks, setCodebooks] = useState<Codebook[]>([])
@@ -133,11 +146,13 @@ export default function PromptLab() {
       `Available dimensions in this gold set: ${[...goldLabelKeys].join(', ') || '(none)'}.`
     )
   }
-  if (splitTotal !== 100) {
-    preflightIssues.push(`Train + Val + Test must sum to 100 (current: ${splitTotal}).`)
+  if (researcherMode) {
+    if (splitTotal !== 100) {
+      preflightIssues.push(`Train + Val + Test must sum to 100 (current: ${splitTotal}).`)
+    }
+    if (trainPct < 5)  preflightIssues.push('Train < 5% is unstable. Bump it up.')
+    if (testPct < 10)  preflightIssues.push('Test < 10% gives a noisy held-out score. Bump it up.')
   }
-  if (trainPct < 5) preflightIssues.push('Train < 5% is unstable. Bump it up.')
-  if (testPct < 10) preflightIssues.push('Test < 10% gives a noisy held-out score. Bump it up.')
 
   const canLaunch = preflightIssues.length === 0 && !launching
 
@@ -145,15 +160,23 @@ export default function PromptLab() {
     if (!selectedGold) return
     setLaunching(true)
     setLaunchError('')
+    // In default mode the user never sees optimizer/split/budget knobs, so
+    // launch with safe defaults regardless of any state a previous Researcher-
+    // mode session might have left behind.
+    const launchOpt    = researcherMode ? selectedOpt : 'reflect_agent'
+    const launchBudget = researcherMode ? budget      : 5
+    const launchTrain  = researcherMode ? trainPct    : 15
+    const launchVal    = researcherMode ? valPct      : 42
+    const launchTest   = researcherMode ? testPct     : 43
     try {
       const run = await startOptimizerRun(projectId, {
-        optimizer_name: selectedOpt,
+        optimizer_name: launchOpt,
         dimension_name: selectedDim,
         gold_dataset_id: selectedGold,
-        budget,
-        train_frac: trainPct / 100,
-        val_frac:   valPct / 100,
-        test_frac:  testPct / 100,
+        budget: launchBudget,
+        train_frac: launchTrain / 100,
+        val_frac:   launchVal   / 100,
+        test_frac:  launchTest  / 100,
       })
       setRuns([run, ...runs])
       setSelectedRunId(run.id)
@@ -171,46 +194,80 @@ export default function PromptLab() {
     <div className="space-y-12">
       {/* Masthead */}
       <header className="border-b border-seam pb-6">
-        <div className="font-mono-editorial text-stone-500 mb-2">Prompt optimization workbench</div>
-        <h1 className="text-4xl sm:text-5xl font-medium tracking-tight leading-[1.05]">
-          Distil a prompt.<br />
-          Compare optimizers head-to-head.
-        </h1>
-        <p className="mt-5 max-w-2xl text-stone-600 leading-relaxed">
-          Pick any optimizer, target one codebook dimension, and the gold subset you've loaded. Runs execute in the background. ReflectAgent is our method; the other three are post-2023 SOTA baselines.
-        </p>
+        <div className="flex items-start justify-between gap-6">
+          <div>
+            <div className="font-mono-editorial text-stone-500 mb-2">
+              {researcherMode ? 'Prompt optimization workbench' : 'Improve from examples'}
+            </div>
+            {researcherMode ? (
+              <>
+                <h1 className="text-4xl sm:text-5xl font-medium tracking-tight leading-[1.05]">
+                  Distil a prompt.<br />
+                  Compare optimizers head-to-head.
+                </h1>
+                <p className="mt-5 max-w-2xl text-stone-600 leading-relaxed">
+                  Pick any optimizer, target one codebook dimension, and the gold subset you've loaded. Runs execute in the background. ReflectAgent is our method; the other three are post-2023 SOTA baselines.
+                </p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-4xl sm:text-5xl font-medium tracking-tight leading-[1.05]">
+                  Find and fix annotation<br />
+                  mistakes from your examples.
+                </h1>
+                <p className="mt-5 max-w-2xl text-stone-600 leading-relaxed">
+                  Pick the dimension you want to improve and the labeled examples to learn from.
+                  We review the cases the system gets wrong, write plain-English guidance,
+                  double-check on examples it hasn't seen, and quietly roll back any guidance
+                  that hurts accuracy.
+                </p>
+              </>
+            )}
+          </div>
+          <ResearcherToggle on={researcherMode} onChange={setResearcherMode} />
+        </div>
       </header>
 
-      {/* Section 01 — Pick an optimizer */}
-      <Section num="01" title="Optimizer" hint="ReflectAgent is our method. The three baselines are the current SOTA we compare against.">
-        {optimizers.length === 0 ? (
-          <div className="font-mono-editorial text-stone-400">Loading…</div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {method && (
-              <OptimizerCard
-                opt={method}
-                selected={selectedOpt === method.name}
-                onSelect={() => setSelectedOpt(method.name)}
-                emphasized
-              />
-            )}
-            {baselines.map(opt => (
-              <OptimizerCard
-                key={opt.name}
-                opt={opt}
-                selected={selectedOpt === opt.name}
-                onSelect={() => setSelectedOpt(opt.name)}
-              />
-            ))}
-          </div>
-        )}
-      </Section>
+      {/* Section 01 — Pick an optimizer (Researcher mode only) */}
+      {researcherMode && (
+        <Section num="01" title="Optimizer" hint="ReflectAgent is our method. The three baselines are the current SOTA we compare against.">
+          {optimizers.length === 0 ? (
+            <div className="font-mono-editorial text-stone-400">Loading…</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {method && (
+                <OptimizerCard
+                  opt={method}
+                  selected={selectedOpt === method.name}
+                  onSelect={() => setSelectedOpt(method.name)}
+                  emphasized
+                />
+              )}
+              {baselines.map(opt => (
+                <OptimizerCard
+                  key={opt.name}
+                  opt={opt}
+                  selected={selectedOpt === opt.name}
+                  onSelect={() => setSelectedOpt(opt.name)}
+                />
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
 
       {/* Section 02 — Target */}
-      <Section num="02" title="Target" hint="Which codebook dimension to optimize, and which gold subset to score against.">
+      <Section
+        num={researcherMode ? '02' : '01'}
+        title={researcherMode ? 'Target' : 'What to improve'}
+        hint={
+          researcherMode
+            ? 'Which codebook dimension to optimize, and which gold subset to score against.'
+            : 'Pick the dimension you want to improve and the labeled examples to learn from.'
+        }
+      >
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          <div className="md:col-span-5">
+          <div className={researcherMode ? 'md:col-span-5' : 'md:col-span-6'}>
             <Field label="Dimension">
               {activeCb ? (
                 <select
@@ -220,7 +277,9 @@ export default function PromptLab() {
                 >
                   {activeCb.dimensions.map(d => (
                     <option key={d.id} value={d.name}>
-                      {d.name} ({d.labels.length} labels · {d.dim_type})
+                      {researcherMode
+                        ? `${d.name} (${d.labels.length} labels · ${d.dim_type})`
+                        : `${d.name} (${d.labels.length} labels)`}
                     </option>
                   ))}
                 </select>
@@ -229,8 +288,8 @@ export default function PromptLab() {
               )}
             </Field>
           </div>
-          <div className="md:col-span-5">
-            <Field label="Gold dataset">
+          <div className={researcherMode ? 'md:col-span-5' : 'md:col-span-6'}>
+            <Field label={researcherMode ? 'Gold dataset' : 'Labeled examples'}>
               {goldDatasets.length > 0 ? (
                 <select
                   value={selectedGold ?? ''}
@@ -242,23 +301,34 @@ export default function PromptLab() {
                   ))}
                 </select>
               ) : (
-                <p className="text-sm text-stone-500">No gold dataset loaded. Go to Setup.</p>
+                <p className="text-sm text-stone-500">No labeled examples loaded. Go to Setup.</p>
               )}
             </Field>
           </div>
-          <div className="md:col-span-2">
-            <Field label="Budget · rounds">
-              <input
-                type="number" min={1} max={20}
-                value={budget}
-                onChange={e => setBudget(Math.max(1, Math.min(20, Number(e.target.value) || 5)))}
-                className="w-full px-0 py-2 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-mono text-sm"
-              />
-            </Field>
-          </div>
+          {researcherMode && (
+            <div className="md:col-span-2">
+              <Field label="Budget · rounds">
+                <input
+                  type="number" min={1} max={20}
+                  value={budget}
+                  onChange={e => setBudget(Math.max(1, Math.min(20, Number(e.target.value) || 5)))}
+                  className="w-full px-0 py-2 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-mono text-sm"
+                />
+              </Field>
+            </div>
+          )}
         </div>
 
-        {/* 3-way split */}
+        {!researcherMode && (
+          <p className="mt-6 text-sm text-stone-600 leading-relaxed max-w-2xl">
+            We split your labeled examples three ways: a small slice to learn from,
+            a slice to verify each new piece of guidance, and a held-out slice to
+            score the final result honestly. Held-out examples never enter the prompt.
+          </p>
+        )}
+
+        {/* 3-way split — Researcher mode only */}
+        {researcherMode && (
         <div className="mt-8 border border-seam bg-paper/40 p-5">
           <div className="flex items-baseline justify-between mb-4">
             <div>
@@ -287,6 +357,7 @@ export default function PromptLab() {
             </button>
           </div>
         </div>
+        )}
 
         {/* Pre-flight + error banner */}
         {(preflightIssues.length > 0 || launchError) && (
@@ -312,7 +383,9 @@ export default function PromptLab() {
 
         <div className="mt-8 flex items-end justify-between gap-6 flex-wrap">
           <p className="text-xs text-stone-500 max-w-md leading-relaxed">
-            Optimizer runs in background on train + val; held-out test is scored after. Expect a few minutes with {budget} rounds.
+            {researcherMode
+              ? `Optimizer runs in background on train + val; held-out test is scored after. Expect a few minutes with ${budget} rounds.`
+              : 'Runs in the background. Expect a few minutes — you can leave this page and come back.'}
           </p>
           <button
             onClick={handleLaunch}
@@ -320,18 +393,34 @@ export default function PromptLab() {
             title={!canLaunch && preflightIssues.length > 0 ? preflightIssues.join(' · ') : ''}
             className="group inline-flex items-center gap-3 px-6 py-3 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            <span>{launching ? 'Launching…' : 'Launch optimizer run'}</span>
+            <span>
+              {launching
+                ? (researcherMode ? 'Launching…' : 'Starting…')
+                : (researcherMode ? 'Launch optimizer run' : 'Improve from examples')}
+            </span>
             <span className="transition-transform group-enabled:group-hover:translate-x-1">→</span>
           </button>
         </div>
       </Section>
 
       {/* Section 03 — Runs */}
-      <Section num="03" title="Runs" hint="Select a run to inspect its trajectory, final prompt, and rule library (ReflectAgent only).">
+      <Section
+        num={researcherMode ? '03' : '02'}
+        title={researcherMode ? 'Runs' : 'Recent improvements'}
+        hint={
+          researcherMode
+            ? 'Select a run to inspect its trajectory, final prompt, and rule library (ReflectAgent only).'
+            : 'Click any improvement to see what changed and how the accuracy moved.'
+        }
+      >
         {runs.length === 0 ? (
           <div className="border border-dashed border-seam bg-paper/40 py-10 text-center">
-            <div className="font-mono-editorial text-stone-500 mb-1">No runs yet</div>
-            <p className="text-sm text-stone-600">Launch the first one above.</p>
+            <div className="font-mono-editorial text-stone-500 mb-1">
+              {researcherMode ? 'No runs yet' : 'Nothing here yet'}
+            </div>
+            <p className="text-sm text-stone-600">
+              {researcherMode ? 'Launch the first one above.' : 'Try the button above.'}
+            </p>
           </div>
         ) : (
           <ul className="divide-y divide-seam border-y border-seam">
@@ -341,6 +430,7 @@ export default function PromptLab() {
                 run={r}
                 isSelected={r.id === selectedRunId}
                 onSelect={() => setSelectedRunId(r.id === selectedRunId ? null : r.id)}
+                researcherMode={researcherMode}
               />
             ))}
           </ul>
@@ -348,11 +438,32 @@ export default function PromptLab() {
 
         {selectedRun && (
           <div className="mt-10">
-            <RunDetail run={selectedRun} />
+            <RunDetail run={selectedRun} researcherMode={researcherMode} />
           </div>
         )}
       </Section>
     </div>
+  )
+}
+
+function ResearcherToggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!on)}
+      title={on
+        ? 'Researcher mode on — exposes optimizer choice (ReflectAgent / GEPA / MIPROv2 / OPRO), 3-way split sliders, and round budget.'
+        : 'Default mode — one button, no jargon. Click to switch to Researcher mode for optimizer choice and split controls.'}
+      className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 border text-xs font-medium transition-colors ${
+        on
+          ? 'border-ink bg-ink text-cream hover:bg-stone-800'
+          : 'border-seam text-stone-600 hover:border-stone-400 hover:text-ink'
+      }`}
+    >
+      <span className={`inline-block w-2 h-2 rounded-full ${on ? 'bg-cream' : 'bg-stone-400'}`} />
+      <span>Researcher mode</span>
+      <span className="font-mono-editorial">{on ? 'on' : 'off'}</span>
+    </button>
   )
 }
 
@@ -442,14 +553,36 @@ function OptimizerCard({
   )
 }
 
-function RunRow({ run, isSelected, onSelect }: { run: OptimizerRun; isSelected: boolean; onSelect: () => void }) {
+function RunRow({
+  run, isSelected, onSelect, researcherMode,
+}: {
+  run: OptimizerRun
+  isSelected: boolean
+  onSelect: () => void
+  researcherMode: boolean
+}) {
   const statusTone =
     run.status === 'completed' ? 'text-emerald-700' :
     run.status === 'running' ? 'text-blue-700' :
     run.status === 'failed' ? 'text-red-700' :
     'text-stone-500'
 
-  const delta = run.status === 'completed' ? run.final_score - run.initial_score : null
+  const friendlyStatus =
+    run.status === 'completed' ? 'done' :
+    run.status === 'running'   ? 'in progress' :
+    run.status === 'pending'   ? 'queued' :
+    run.status === 'failed'    ? 'failed' :
+    run.status
+
+  // Held-out test score is the user-meaningful number. Fall back to val score
+  // for in-flight runs that haven't reached the test eval yet.
+  const test = (run.artifact as any)?.test as { final_score?: number; delta?: number } | undefined
+  const showScore = run.status === 'completed'
+    ? (test?.final_score ?? run.final_score)
+    : null
+  const showDelta = run.status === 'completed'
+    ? (test?.delta ?? (run.final_score - run.initial_score))
+    : null
 
   return (
     <li
@@ -460,24 +593,30 @@ function RunRow({ run, isSelected, onSelect }: { run: OptimizerRun; isSelected: 
         {run.id.toString().padStart(4, '0')}
       </div>
       <div className="col-span-3">
-        <div className="font-medium">{run.optimizer_name}</div>
-        <div className="font-mono-editorial text-stone-400 mt-0.5">{run.dimension_name}</div>
+        <div className="font-medium">
+          {researcherMode ? run.optimizer_name : run.dimension_name}
+        </div>
+        <div className="font-mono-editorial text-stone-400 mt-0.5">
+          {researcherMode ? run.dimension_name : 'improve from examples'}
+        </div>
       </div>
       <div className="col-span-2">
-        <div className={`font-mono-editorial ${statusTone}`}>{run.status}</div>
+        <div className={`font-mono-editorial ${statusTone}`}>
+          {researcherMode ? run.status : friendlyStatus}
+        </div>
       </div>
       <div className="col-span-2 text-right">
         <div className="font-mono text-sm">
-          {run.status === 'completed' ? `${(run.final_score * 100).toFixed(1)}%` : '—'}
+          {showScore !== null ? `${(showScore * 100).toFixed(1)}%` : '—'}
         </div>
-        {delta !== null && (
-          <div className={`font-mono-editorial ${delta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-            {delta >= 0 ? '+' : ''}{(delta * 100).toFixed(1)}pp
+        {showDelta !== null && (
+          <div className={`font-mono-editorial ${showDelta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+            {showDelta >= 0 ? '+' : ''}{(showDelta * 100).toFixed(1)}pp
           </div>
         )}
       </div>
       <div className="col-span-2 text-right font-mono text-xs text-stone-600">
-        ${run.total_cost.toFixed(4)}
+        {researcherMode ? `$${run.total_cost.toFixed(4)}` : ''}
       </div>
       <div className="col-span-2 text-right text-stone-400">
         {isSelected ? '↑' : '↓'}
@@ -486,7 +625,7 @@ function RunRow({ run, isSelected, onSelect }: { run: OptimizerRun; isSelected: 
   )
 }
 
-function RunDetail({ run }: { run: OptimizerRun }) {
+function RunDetail({ run, researcherMode }: { run: OptimizerRun; researcherMode: boolean }) {
   const ruleLib: any[] = Array.isArray(run.artifact?.rule_library) ? run.artifact.rule_library : []
   const delta = run.final_score - run.initial_score
 
@@ -524,7 +663,11 @@ function RunDetail({ run }: { run: OptimizerRun }) {
       <div className="flex items-start justify-between gap-4 px-6 py-4 border-b border-seam">
         <div>
           <div className="font-mono-editorial text-stone-500 mb-1 flex items-baseline gap-3">
-            <span>Run № {run.id.toString().padStart(4, '0')} · {run.optimizer_name}</span>
+            <span title={researcherMode ? '' : `optimizer: ${run.optimizer_name}`}>
+              {researcherMode
+                ? `Run № ${run.id.toString().padStart(4, '0')} · ${run.optimizer_name}`
+                : `Improvement № ${run.id.toString().padStart(4, '0')}`}
+            </span>
             <span className={`font-mono-editorial px-2 py-0.5 border ${statusTone}`}>
               {run.status}{isRunning ? ' · live' : ''}
             </span>
@@ -533,30 +676,56 @@ function RunDetail({ run }: { run: OptimizerRun }) {
         </div>
         <div className="flex gap-6 text-right items-start">
           {test ? (
-            <>
-              <Metric label="Test · initial" value={`${(test.initial_score * 100).toFixed(1)}%`} />
-              <Metric
-                label="Test · final (held-out)"
-                value={`${(test.final_score * 100).toFixed(1)}%`}
-                tone={test.delta >= 0 ? 'text-emerald-700' : 'text-red-700'}
-              />
-              <Metric
-                label="Test · Δ"
-                value={`${test.delta >= 0 ? '+' : ''}${(test.delta * 100).toFixed(1)}pp`}
-                tone={test.delta > 0 ? 'text-emerald-700' : test.delta < 0 ? 'text-red-700' : 'text-stone-500'}
-              />
-              <Metric label="Val · final (dev)" value={`${(run.final_score * 100).toFixed(1)}%`} tone="text-stone-500" />
-              <Metric label="Cost" value={`$${run.total_cost.toFixed(4)}`} />
-            </>
+            researcherMode ? (
+              <>
+                <Metric label="Test · initial" value={`${(test.initial_score * 100).toFixed(1)}%`} />
+                <Metric
+                  label="Test · final (held-out)"
+                  value={`${(test.final_score * 100).toFixed(1)}%`}
+                  tone={test.delta >= 0 ? 'text-emerald-700' : 'text-red-700'}
+                />
+                <Metric
+                  label="Test · Δ"
+                  value={`${test.delta >= 0 ? '+' : ''}${(test.delta * 100).toFixed(1)}pp`}
+                  tone={test.delta > 0 ? 'text-emerald-700' : test.delta < 0 ? 'text-red-700' : 'text-stone-500'}
+                />
+                <Metric label="Val · final (dev)" value={`${(run.final_score * 100).toFixed(1)}%`} tone="text-stone-500" />
+                <Metric label="Cost" value={`$${run.total_cost.toFixed(4)}`} />
+              </>
+            ) : (
+              <>
+                <Metric label="Before" value={`${(test.initial_score * 100).toFixed(1)}%`} />
+                <Metric
+                  label="After"
+                  value={`${(test.final_score * 100).toFixed(1)}%`}
+                  tone={test.delta >= 0 ? 'text-emerald-700' : 'text-red-700'}
+                />
+                <Metric
+                  label="Change"
+                  value={`${test.delta >= 0 ? '+' : ''}${(test.delta * 100).toFixed(1)}pp`}
+                  tone={test.delta > 0 ? 'text-emerald-700' : test.delta < 0 ? 'text-red-700' : 'text-stone-500'}
+                />
+              </>
+            )
           ) : (
-            <>
-              <Metric label="Val · initial" value={`${(run.initial_score * 100).toFixed(1)}%`} />
-              <Metric label="Val · final (dev)" value={`${(run.final_score * 100).toFixed(1)}%`}
-                      tone={delta >= 0 ? 'text-emerald-700' : 'text-red-700'} />
-              <Metric label="Δ" value={`${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}pp`}
-                      tone={delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-red-700' : 'text-stone-500'} />
-              <Metric label="Cost" value={`$${run.total_cost.toFixed(4)}`} />
-            </>
+            researcherMode ? (
+              <>
+                <Metric label="Val · initial" value={`${(run.initial_score * 100).toFixed(1)}%`} />
+                <Metric label="Val · final (dev)" value={`${(run.final_score * 100).toFixed(1)}%`}
+                        tone={delta >= 0 ? 'text-emerald-700' : 'text-red-700'} />
+                <Metric label="Δ" value={`${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}pp`}
+                        tone={delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-red-700' : 'text-stone-500'} />
+                <Metric label="Cost" value={`$${run.total_cost.toFixed(4)}`} />
+              </>
+            ) : (
+              <>
+                <Metric label="Before" value={`${(run.initial_score * 100).toFixed(1)}%`} />
+                <Metric label="So far" value={`${(run.final_score * 100).toFixed(1)}%`}
+                        tone={delta >= 0 ? 'text-emerald-700' : 'text-red-700'} />
+                <Metric label="Change" value={`${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}pp`}
+                        tone={delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-red-700' : 'text-stone-500'} />
+              </>
+            )
           )}
         </div>
       </div>
@@ -567,9 +736,11 @@ function RunDetail({ run }: { run: OptimizerRun }) {
           <span>
             {isRunning ? 'Live · round' : 'Done · round'} {currentRound} / {budget}
           </span>
-          <span>
-            {(run.trajectory?.length || 0)} trajectory entries · {run.total_tokens.toLocaleString()} tokens
-          </span>
+          {researcherMode && (
+            <span>
+              {(run.trajectory?.length || 0)} trajectory entries · {run.total_tokens.toLocaleString()} tokens
+            </span>
+          )}
         </div>
         <div className="w-full h-[3px] bg-seam overflow-hidden">
           <div
@@ -577,13 +748,20 @@ function RunDetail({ run }: { run: OptimizerRun }) {
             style={{ width: `${progressPct}%` }}
           />
         </div>
-        {splits && (
+        {splits && researcherMode && (
           <div className="mt-2 flex items-center justify-between font-mono-editorial text-stone-500">
             <span>
               Split · train {splits.n_train} · val {splits.n_val} · test {splits.n_test}
               {splits.seed !== undefined && <span className="ml-3">seed {splits.seed}</span>}
             </span>
             <span className="text-emerald-700">test held out (not seen by optimizer)</span>
+          </div>
+        )}
+        {splits && !researcherMode && (
+          <div className="mt-2 font-mono-editorial text-stone-500">
+            <span>
+              {splits.n_train} examples to learn from · {splits.n_val} to verify · {splits.n_test} held out for the honest score
+            </span>
           </div>
         )}
       </div>
@@ -595,18 +773,28 @@ function RunDetail({ run }: { run: OptimizerRun }) {
         </div>
       )}
 
-      {/* Trajectory */}
+      {/* Trajectory · per-round progress log */}
       {run.trajectory?.length > 0 && (
         <div className="px-6 py-4 border-b border-seam">
-          <div className="font-mono-editorial text-stone-500 mb-3">Trajectory</div>
+          <div className="font-mono-editorial text-stone-500 mb-3">
+            {researcherMode ? 'Trajectory' : 'Round-by-round progress'}
+          </div>
           <table className="w-full text-xs font-mono">
             <thead>
               <tr className="border-b border-seam">
                 <th className="px-2 py-2 text-left text-stone-500">Round</th>
-                <th className="px-2 py-2 text-right text-stone-500">Val acc</th>
-                <th className="px-2 py-2 text-left text-stone-500">Action</th>
-                <th className="px-2 py-2 text-right text-stone-500">Rules</th>
-                <th className="px-2 py-2 text-right text-stone-500">Failures</th>
+                <th className="px-2 py-2 text-right text-stone-500">
+                  {researcherMode ? 'Val acc' : 'Accuracy'}
+                </th>
+                <th className="px-2 py-2 text-left text-stone-500">
+                  {researcherMode ? 'Action' : 'Outcome'}
+                </th>
+                <th className="px-2 py-2 text-right text-stone-500">
+                  {researcherMode ? 'Rules' : 'Notes'}
+                </th>
+                <th className="px-2 py-2 text-right text-stone-500">
+                  {researcherMode ? 'Failures' : 'Mistakes'}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-seam">
@@ -617,14 +805,20 @@ function RunDetail({ run }: { run: OptimizerRun }) {
                     {typeof t.val_acc === 'number' ? (t.val_acc * 100).toFixed(1) + '%' : '—'}
                   </td>
                   <td className="px-2 py-2">
-                    <span className={
-                      t.action === 'accept' ? 'text-emerald-700' :
-                      t.action === 'rollback' ? 'text-amber-700' :
-                      t.action === 'improve' ? 'text-emerald-700' :
-                      t.action === 'reject' ? 'text-stone-500' :
-                      'text-stone-700'
-                    }>
-                      {t.action ?? '—'}
+                    <span
+                      title={researcherMode ? '' : `internal action: ${t.action ?? '—'}`}
+                      className={
+                        t.action === 'accept' ? 'text-emerald-700' :
+                        t.action === 'rollback' ? 'text-amber-700' :
+                        t.action === 'improve' ? 'text-emerald-700' :
+                        t.action === 'reject' ? 'text-stone-500' :
+                        'text-stone-700'
+                      }
+                    >
+                      {researcherMode
+                        ? (t.action ?? '—')
+                        : ({ accept: 'kept', rollback: 'rolled back', improve: 'kept',
+                             reject: 'discarded', skipped: 'no change' } as Record<string, string>)[t.action] ?? (t.action ?? '—')}
                     </span>
                   </td>
                   <td className="px-2 py-2 text-right text-stone-600">{t.n_rules ?? '—'}</td>
@@ -636,12 +830,21 @@ function RunDetail({ run }: { run: OptimizerRun }) {
         </div>
       )}
 
-      {/* Rule library (ReflectAgent only) */}
+      {/* Rule library (ReflectAgent only) — shown as "Guidance notes" in default mode */}
       {ruleLib.length > 0 && (
         <div className="px-6 py-4 border-b border-seam">
           <div className="flex items-baseline gap-3 mb-4">
-            <div className="font-mono-editorial text-stone-500">Rule library</div>
-            <div className="font-mono-editorial text-violet-700">{ruleLib.length} rules · ReflectAgent artifact</div>
+            <div
+              className="font-mono-editorial text-stone-500"
+              title={researcherMode ? '' : 'Rule library — the editable, versioned ReflectAgent artifact.'}
+            >
+              {researcherMode ? 'Rule library' : 'Guidance notes'}
+            </div>
+            <div className="font-mono-editorial text-violet-700">
+              {researcherMode
+                ? `${ruleLib.length} rules · ReflectAgent artifact`
+                : `${ruleLib.length} ${ruleLib.length === 1 ? 'note' : 'notes'} learned from your examples`}
+            </div>
           </div>
           <ul className="space-y-4">
             {ruleLib.map((r: any, i: number) => (
@@ -679,7 +882,9 @@ function RunDetail({ run }: { run: OptimizerRun }) {
       {/* Final prompt */}
       {run.optimized_prompt && (
         <div className="px-6 py-4">
-          <div className="font-mono-editorial text-stone-500 mb-2">Optimized prompt</div>
+          <div className="font-mono-editorial text-stone-500 mb-2">
+            {researcherMode ? 'Optimized prompt' : 'Updated instructions'}
+          </div>
           <pre className="bg-paper/50 border border-seam p-4 font-mono text-xs leading-relaxed max-h-80 overflow-auto whitespace-pre-wrap text-stone-800">
             {run.optimized_prompt}
           </pre>

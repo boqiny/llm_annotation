@@ -25,9 +25,9 @@
       "name": "Level of disclosure",
       "type": "single_label",
       "labels": [
-        {"name": "High", "definition": "Personal, sensitive, or emotionally vulnerable content. The speaker shares extensively about personal beliefs and fears, vital constructs, or private sensitive information.", "examples": []},
-        {"name": "Low", "definition": "Mentions the user without sensitive content. The speaker references themselves but without emotional vulnerability.", "examples": []},
-        {"name": "No", "definition": "Does not mention the user at all. About people or things other than the author, or divulges information unrelated to the self.", "examples": []}
+        {"name": "High", "definition": "Include personal, sensitive, or emotionally vulnerable content (Zhang et al. 2025). Share extensively their personal beliefs and fear, for instance, their vital constructs and private, sensitive informational attributes. Associated with vulnerable and self-loathing thoughts (e.g. thoughts of suicide), bear a negative tone, or depict confessional experience (Balani & de Choudhury, 2015).", "examples": []},
+        {"name": "Low", "definition": "Mention the user without sensitive content (Zhang et al. 2025).", "examples": []},
+        {"name": "No", "definition": "Do not mention the user at all (Zhang et al. 2025). About people or things other than the author, and which divulged information unrelated to the self (Balani & de Choudhury, 2015).", "examples": []}
       ],
       "instructions": "Very restrictive 'No' — only for truly empty agreements/generic reactions with zero personal content. Sharing preferences, experiences, or opinions is at least Low."
     },
@@ -35,8 +35,8 @@
       "name": "Disclosure as confession",
       "type": "binary",
       "labels": [
-        {"name": "Yes, it's a confession", "definition": "Revealing something negative, bad, guilty, sinful, or wrongdoings — things the person might feel vulnerable, ashamed, or sensitive about disclosing.", "examples": []},
-        {"name": "No, it's not a confession", "definition": "The message does not reveal substantive personal information with emotional weight or negativity.", "examples": []}
+        {"name": "Yes, it's a confession", "definition": "Revealing personal info about the self, telling something about the person, describing the person in some way, or referring to the person's experiences, thoughts or feelings (Croes et al., 2024).", "examples": []},
+        {"name": "No, it's not a confession", "definition": "None of the above (Croes et al., 2024).", "examples": []}
       ],
       "instructions": "Broader than just revealing hidden burdens — includes shame/stigma-adjacent admissions."
     },
@@ -54,9 +54,9 @@
       "name": "Depth of disclosure",
       "type": "single_label",
       "labels": [
-        {"name": "Peripheral", "definition": "Superficial information — age, place of residence, professional interests, simple preferences stated without reasoning.", "examples": []},
-        {"name": "Intermediate", "definition": "Sharing of opinions or attitudes, OR preferences/experiences shared with context, reasoning, or explanation.", "examples": []},
-        {"name": "Central", "definition": "Information about one's self-worth, feelings, needs, values, and defining personal characteristics.", "examples": []}
+        {"name": "Peripheral", "definition": "Superficial information, such as a person's age, place of residence or professional interests (Altman & Taylor, 1973, as cited in Skjuve et al., 2023).", "examples": []},
+        {"name": "Intermediate", "definition": "Sharing of opinions or attitudes, such as political views (Altman & Taylor, 1973, as cited in Skjuve et al., 2023).", "examples": []},
+        {"name": "Central", "definition": "Information about one's self-worth, feelings, needs, values and, at its core, defining personal characteristics (Altman & Taylor, 1973, as cited in Skjuve et al., 2023).", "examples": []}
       ],
       "instructions": "Key distinction: CURRENTLY EXPERIENCED vs REFLECTING from distance. Factual condition reports are Intermediate, not Central."
     },
@@ -64,9 +64,9 @@
       "name": "Intimacy of self-disclosure",
       "type": "single_label",
       "labels": [
-        {"name": "Peripheral", "definition": "Biographical information — age, gender, height, and other basic facts.", "examples": []},
-        {"name": "Intermediate", "definition": "Preferences and personally interesting things — what the person loves, hates, values, believes.", "examples": []},
-        {"name": "Core", "definition": "Personal beliefs, fears, emotions, and things people are ashamed of — the inner emotional and psychological life.", "examples": []}
+        {"name": "Peripheral", "definition": "Biographical information (e.g., age, gender, height, and other basic info) (Croes et al., 2024).", "examples": []},
+        {"name": "Intermediate", "definition": "Opinions, attitudes, and values (Croes et al., 2024).", "examples": []},
+        {"name": "Core", "definition": "Personal beliefs, fears, emotions and things people are ashamed of (Croes et al., 2024).", "examples": []}
       ],
       "instructions": "SHOWING vs TELLING distinction. Brief direct emotional wounds are Core (SHOWING). Narrating events with emotions is Intermediate (TELLING)."
     }

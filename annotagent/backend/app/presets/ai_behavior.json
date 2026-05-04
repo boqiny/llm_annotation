@@ -19,7 +19,7 @@
         },
         {
           "name": "Paraphrase",
-          "definition": "The AI restates what the user just said in its own words, signaling comprehension without adding new information.",
+          "definition": "Paraphrases what users say (Bodie et al., 2012).",
           "examples": [
             "Using box cake mix with chocolate frosting is a great shortcut.",
             "So you're saying the deadline moved and now you have to rework the draft."
@@ -27,7 +27,7 @@
         },
         {
           "name": "Perspective-taking",
-          "definition": "The AI actively considers the situation from the user's point of view, going beyond restating to infer what the user might be feeling or experiencing.",
+          "definition": "Actively considering a particular situation from another person's point of view (Bodie et al., 2012).",
           "examples": [
             "Knowing you love making Chinese food must make the process even more enjoyable.",
             "Mark Klink is a friend of mine as well — we've had gallery exhibitions together."
@@ -35,7 +35,7 @@
         },
         {
           "name": "Sympathetic responsiveness",
-          "definition": "The AI shows concern or emotional understanding, validating the user's feelings. Distinct from perspective-taking: sympathy acknowledges the feeling; perspective-taking reconstructs the viewpoint.",
+          "definition": "Show concerns / understandings (Bodie et al., 2012).",
           "examples": [
             "That's so thoughtful of you! Celebrating your mom with flowers is a wonderful idea.",
             "Whatever you decide, I'll be here for you."
@@ -43,7 +43,7 @@
         },
         {
           "name": "Back-channel response",
-          "definition": "Minimal continuation tokens (uh-huh, yeah, right, mm-hmm) or very short acknowledgments that signal the AI is following without contributing content.",
+          "definition": "Engages in back-channel responding (saying uh-huh and yeah to signal they understand you) (Bodie et al., 2012).",
           "examples": [
             "Right.",
             "Mm-hmm, go on."
@@ -51,7 +51,7 @@
         },
         {
           "name": "Humor",
-          "definition": "The AI uses a joke, playful teasing, or lighthearted remark intended to produce amusement.",
+          "definition": "Tell jokes (Bodie et al., 2012).",
           "examples": [
             "But hey, at least you're the supervisor, so you get to keep everyone in line, right?"
           ]
@@ -73,7 +73,7 @@
       "labels": [
         {
           "name": "Emotional support",
-          "definition": "Focused on making the user feel better — affirmation, comfort, validation, or reassurance. Does not directly solve a problem.",
+          "definition": "Focusing on making others feel better (Yin et al., 2025).",
           "examples": [
             "Your mom will surely appreciate all the effort you've put into her birthday meal.",
             "I'm sure your family is proud of you."
@@ -81,7 +81,7 @@
         },
         {
           "name": "Functional support",
-          "definition": "Focused on helping the user solve a concrete problem — suggestions, steps, information, resources.",
+          "definition": "Helping others solve a problem (Yin et al., 2025).",
           "examples": [
             "If you're looking to make a bit of extra money quickly, maybe consider helping neighbors with small tasks.",
             "I have an apprentice currently who just got out of the Marine Corps; he works hard."

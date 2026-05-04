@@ -56,13 +56,6 @@ SEED_FILES = [
         "role": "test",
         "description": "206 unlabeled sentences, expanded test set for evaluation.",
     },
-    {
-        "id": "goemotions_sample",
-        "label": "GoEmotions · reproducibility sample (public)",
-        "relpath": "cleaned/goemotions_sample.json",
-        "role": "gold",
-        "description": "30 items with multi-label emotion gold labels. Open-data reproducibility substrate — pair with the 'goemotions' preset.",
-    },
 ]
 
 
