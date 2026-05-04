@@ -1,13 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 from annotation_demo.core.llm import make_llm
-from annotation_demo.workflows.workflow import ProjectWorkflow
 from annotation_demo.utils.storage import load_json, load_yaml
+from annotation_demo.workflows.workflow import ProjectWorkflow
 
 
 load_dotenv()
@@ -16,7 +17,7 @@ load_dotenv()
 ROOT_DIR = Path(__file__).resolve().parents[1]
 
 
-def main() -> None:
+async def amain() -> None:
     project_id = "project_0"
 
     input_dir = ROOT_DIR / "workspace" / project_id / "inputs"
@@ -38,7 +39,7 @@ def main() -> None:
         workspace_dir=ROOT_DIR / "workspace",
     )
 
-    result = workflow.run(
+    result = await workflow.run(
         codebook=codebook,
         items=items,
         task_config=task_config,
@@ -48,6 +49,9 @@ def main() -> None:
     print(json.dumps(result.__dict__, indent=2, ensure_ascii=False))
 
 
+def main() -> None:
+    asyncio.run(amain())
+
+
 if __name__ == "__main__":
     main()
-    
