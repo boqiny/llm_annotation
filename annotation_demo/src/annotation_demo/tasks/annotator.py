@@ -25,17 +25,19 @@ def annotate_items(
     annotation_prompt: str,
     llm: BaseLLM,
 ) -> list[dict[str, Any]]:
-    """Annotate a batch of items with the configured LLM.
+    """Annotate a batch of items using a generated annotation prompt.
 
     Args:
-        llm: Provider-agnostic async LLM client.
-        codebook: Codebook used to render annotation instructions.
-        items: Items to annotate.
-        task_config: Task configuration controlling prompt and decoding behavior.
+        items: Input annotation items.
+        annotation_prompt: Project-level annotation prompt generated from the
+            codebook and task type.
+        llm: Provider-agnostic LLM client used for annotation.
 
     Returns:
-        A list of per-item annotation records containing the original item,
-        raw model output, and parsed prediction when available.
+        A list of annotation records. Each record contains:
+            - item: The original input item.
+            - prediction: Parsed JSON prediction when available.
+            - raw_output: Raw model output text.
     """
     results = []
 

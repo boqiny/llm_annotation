@@ -48,13 +48,15 @@ class LLMUsage:
 
 @dataclass
 class LLMResponse:
-    """Normalized response object returned by all LLM clients.
+    """Normalized response returned by all LLM providers.
 
     Attributes:
-        text: Raw text returned by the provider.
-        parsed_json: Parsed JSON object when JSON parsing succeeds; otherwise None.
+        raw: Raw text returned by the provider.
+        parsed: Parsed JSON object when json_mode=True and parsing succeeds.
+            This is best-effort and should be validated downstream.
+        provider: Provider name, such as "openai" or "anthropic".
+        model: Model name used for the request.
         usage: Optional token usage metadata.
-        raw: Provider-specific raw metadata useful for debugging.
     """
     raw: str
     parsed: Optional[dict[str, Any]] = None

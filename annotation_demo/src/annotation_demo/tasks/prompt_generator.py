@@ -20,15 +20,17 @@ def generate_annotation_prompt(
     task_type: str,
     llm: BaseLLM,
 ) -> str:
-    """Generate the messages for one annotation request.
+    """Generate a project-level annotation prompt from a codebook.
 
     Args:
-        codebook: Codebook definition containing schemes, levels, and instructions.
-        item: The input item to annotate.
-        task_config: Task-level settings controlling prompt style and output format.
+        codebook: Codebook definition used to describe labels, schemes, and
+            annotation rules.
+        task_type: High-level annotation task type used by the prompt-generator
+            template.
+        llm: Provider-agnostic LLM client used to generate the prompt.
 
     Returns:
-        A list of role-based messages ready to send to an LLM client.
+        Generated annotation prompt text.
     """
     system_prompt = render_template(
         "prompt_generator.jinja",
@@ -51,6 +53,18 @@ async def agenerate_annotation_prompt(
     task_type: str,
     llm: BaseLLM,
 ) -> str:
+    """Asynchronously generate a project-level annotation prompt.
+
+    Args:
+        codebook: Codebook definition used to describe labels, schemes, and
+            annotation rules.
+        task_type: High-level annotation task type used by the prompt-generator
+            template.
+        llm: Provider-agnostic LLM client used to generate the prompt.
+
+    Returns:
+        Generated annotation prompt text.
+    """
     system_prompt = render_template(
         "prompt_generator.jinja",
         task_type=task_type,

@@ -50,15 +50,16 @@ from annotation_demo.utils.storage import (
 
 @dataclass
 class WorkflowResult:
-    """Summary metadata for a completed workflow run.
+    """Summary metadata for a completed annotation workflow run.
 
     Attributes:
         project_id: Project identifier.
+        prompt_version: Version of the generated annotation prompt.
         run_id: Generated run identifier.
-        run_dir: Directory where run artifacts were written.
-        annotation_path: Path to saved annotation outputs.
-        evaluation_path: Optional path to saved evaluation results.
-        reflection_path: Optional path to saved reflection-memory results.
+        prompt_path: Path to the saved generated prompt.
+        annotations_path: Path to the saved annotation outputs.
+        run_meta_path: Path to the saved run metadata file.
+        eval_result: Optional evaluation result when gold labels are provided.
     """
     project_id: str
     prompt_version: str
