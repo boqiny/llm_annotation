@@ -7,3 +7,5 @@ artifacts/*
 *.egg-info/
 *.pyc
 annotation_demo/.env
+.DS_Store
+**/.DS_Store
