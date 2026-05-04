@@ -34,3 +34,24 @@ def generate_annotation_prompt(
     )
 
     return response.raw.strip()
+
+
+async def agenerate_annotation_prompt(
+    codebook: dict[str, Any],
+    task_type: str,
+    llm: BaseLLM,
+) -> str:
+    system_prompt = render_template(
+        "prompt_generator.jinja",
+        task_type=task_type,
+        codebook=codebook,
+    )
+
+    response = await llm.agenerate(
+        messages=[
+            {"role": "system", "content": system_prompt},
+        ],
+        json_mode=False,
+    )
+
+    return response.raw.strip()

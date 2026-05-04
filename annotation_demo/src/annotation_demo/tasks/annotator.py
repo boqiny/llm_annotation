@@ -57,9 +57,15 @@ async def annotate_items_async(
     annotation_prompt: str,
     llm: BaseLLM,
     concurrency: int = 5,
+    max_retries: int = 2,
     on_progress: Callable[[float], None] | None = None,
 ) -> list[dict[str, Any]]:
-    """Annotate items concurrently using asyncio with bounded parallelism."""
+    """Annotate items concurrently with bounded parallelism and per-item retry.
+
+    Failed items (after all retries) are recorded with prediction=None and an
+    "error" key rather than raising, so one bad item never aborts the batch.
+    Retries use exponential backoff: 1 s, 2 s, 4 s, …
+    """
     semaphore = asyncio.Semaphore(concurrency)
     results: list[dict[str, Any] | None] = [None] * len(items)
     completed = 0
@@ -67,20 +73,35 @@ async def annotate_items_async(
     async def _annotate_one(i: int, item: dict[str, Any]) -> None:
         nonlocal completed
         async with semaphore:
-            system_prompt = render_template(
-                "annotator.jinja",
-                annotation_prompt=annotation_prompt,
-                item=item,
-            )
-            response = await llm.agenerate(
-                messages=[{"role": "system", "content": system_prompt}],
-                json_mode=True,
-            )
-            results[i] = {
-                "item": item,
-                "prediction": response.parsed,
-                "raw_output": response.raw,
-            }
+            last_exc: Exception | None = None
+            for attempt in range(max_retries + 1):
+                try:
+                    system_prompt = render_template(
+                        "annotator.jinja",
+                        annotation_prompt=annotation_prompt,
+                        item=item,
+                    )
+                    response = await llm.agenerate(
+                        messages=[{"role": "system", "content": system_prompt}],
+                        json_mode=True,
+                    )
+                    results[i] = {
+                        "item": item,
+                        "prediction": response.parsed,
+                        "raw_output": response.raw,
+                    }
+                    break
+                except Exception as exc:
+                    last_exc = exc
+                    if attempt < max_retries:
+                        await asyncio.sleep(2 ** attempt)
+            else:
+                results[i] = {
+                    "item": item,
+                    "prediction": None,
+                    "raw_output": None,
+                    "error": repr(last_exc),
+                }
             completed += 1
             if on_progress is not None:
                 on_progress(completed / len(items))

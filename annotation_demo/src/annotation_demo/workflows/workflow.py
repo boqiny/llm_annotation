@@ -32,7 +32,7 @@ from annotation_demo.agents.reflect_agent import (
 from annotation_demo.core.evaluation import evaluate_classification, result_to_dict
 from annotation_demo.core.llm import BaseLLM
 from annotation_demo.tasks.annotator import annotate_items_async
-from annotation_demo.tasks.prompt_generator import generate_annotation_prompt
+from annotation_demo.tasks.prompt_generator import agenerate_annotation_prompt
 from annotation_demo.utils.storage import (
     append_jsonl,
     create_run_dir,
@@ -107,7 +107,7 @@ class ProjectWorkflow:
             prefix="v",
         )
 
-        annotation_prompt = generate_annotation_prompt(
+        annotation_prompt = await agenerate_annotation_prompt(
             codebook=codebook,
             task_type=task_config["task_type"],
             llm=self.llm,
