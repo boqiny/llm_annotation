@@ -10,6 +10,9 @@ Design goals:
 - Keep prompts external to the LLM class; callers pass messages explicitly.
 - Provide optional JSON parsing for structured LLM outputs.
 - Return consistent metadata such as provider, model, raw output, and usage.
+
+# TODO(v1): Replace best-effort parsed_json handling with strict annotation
+# schema validation once the frontend/backend response contract is finalized.
 """
 
 from __future__ import annotations
