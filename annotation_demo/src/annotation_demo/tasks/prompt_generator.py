@@ -1,4 +1,14 @@
-# tasks/prompt_generator.py
+"""
+Prompt generation task.
+
+This module generates an initial annotation prompt from a task type and codebook.
+The generated prompt becomes a project-local, versioned prompt artifact.
+
+Responsibilities:
+- Render the prompt-generator system prompt.
+- Call the shared LLM interface.
+- Return the generated annotation prompt text.
+"""
 
 from typing import Any
 from annotation_demo.core.llm import BaseLLM

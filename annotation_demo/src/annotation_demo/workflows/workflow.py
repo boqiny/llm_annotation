@@ -1,3 +1,17 @@
+"""
+Project workflow orchestration.
+
+This module defines the end-to-end backend workflow for a single annotation
+project. It connects storage, prompt generation, annotation, and run tracking.
+
+Responsibilities:
+- Save uploaded project inputs.
+- Generate and save versioned prompts.
+- Run annotation over project items.
+- Save outputs and run metadata.
+- Return a stable workflow result for API or script callers.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

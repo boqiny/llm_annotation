@@ -1,3 +1,16 @@
+"""
+Evaluation utilities.
+
+This module provides lightweight metrics for annotation outputs, including
+single-label and multi-label classification evaluation.
+
+Responsibilities:
+- Normalize predicted and gold labels.
+- Compute exact-match accuracy.
+- Compute micro/macro precision, recall, and F1.
+- Return structured evaluation results for saving or frontend display.
+"""
+
 from __future__ import annotations
 
 from collections import defaultdict

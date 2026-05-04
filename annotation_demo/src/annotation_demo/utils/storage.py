@@ -1,3 +1,17 @@
+"""
+Filesystem storage utilities.
+
+This module provides lightweight project-local storage helpers for the demo
+backend. It manages JSON, YAML, text, JSONL, version IDs, run IDs, and project
+workspace directories.
+
+Responsibilities:
+- Create project workspace directories.
+- Save and load JSON/YAML/text files.
+- Append run summaries to JSONL logs.
+- Generate prompt/input versions and run IDs.
+"""
+
 from __future__ import annotations
 
 import json

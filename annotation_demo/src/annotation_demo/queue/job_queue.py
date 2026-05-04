@@ -1,4 +1,16 @@
-# src/annotation_demo/queue/job_queue.py
+"""
+In-process async job queue.
+
+This module provides a lightweight job queue for running annotation workflows
+asynchronously during demo usage. It is intended for local/demo deployment, not
+large-scale distributed production.
+
+Responsibilities:
+- Submit background jobs.
+- Track job status, progress, result, and error.
+- Limit concurrent workers.
+- Provide a simple interface for frontend polling.
+"""
 
 from __future__ import annotations
 

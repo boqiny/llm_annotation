@@ -1,8 +1,14 @@
 """
-Jinja prompt rendering utilities.
+Prompt rendering utilities.
 
-This module renders reusable prompt templates for prompt generation,
-annotation, and future reflection agents.
+This module renders reusable Jinja prompt templates used by prompt generation,
+annotation, and reflection agents.
+
+Responsibilities:
+- Load templates from the global prompt template directory.
+- Render templates with strict variable checking.
+- Support rendering project-local prompt strings.
+- Keep prompt text separate from task and agent logic.
 """
 
 from __future__ import annotations

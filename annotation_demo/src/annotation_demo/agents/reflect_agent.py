@@ -1,3 +1,17 @@
+"""
+ReflectAgent.
+
+This module implements feedback-driven prompt refinement through rule-level
+memory. It converts human corrections into reusable annotation rules and uses
+those rules to update future annotation prompts.
+
+Responsibilities:
+- Read annotation feedback examples.
+- Induce compact reusable memory rules.
+- Maintain project-local memory state.
+- Build updated prompts by injecting memory rules.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
