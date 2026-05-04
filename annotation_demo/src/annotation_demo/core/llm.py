@@ -1,3 +1,17 @@
+"""
+Core LLM interface for annotation_demo.
+
+This module defines a reusable LLM abstraction used by prompt generation,
+annotation, reflection agents, and future optimization modules.
+
+Design goals:
+- Keep provider-specific logic behind a common interface.
+- Support both synchronous and asynchronous calls.
+- Keep prompts external to the LLM class; callers pass messages explicitly.
+- Provide optional JSON parsing for structured LLM outputs.
+- Return consistent metadata such as provider, model, raw output, and usage.
+"""
+
 from __future__ import annotations
 
 import json
@@ -7,9 +21,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from anthropic import Anthropic, AsyncAnthropic
 from dotenv import load_dotenv
-from openai import OpenAI
-from anthropic import Anthropic
+from openai import AsyncOpenAI, OpenAI
 
 load_dotenv()
 
@@ -18,21 +32,33 @@ Message = dict[str, str]
 
 
 @dataclass
+class LLMUsage:
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+
+
+@dataclass
 class LLMResponse:
     raw: str
     parsed: Optional[dict[str, Any]] = None
-    model: Optional[str] = None
     provider: Optional[str] = None
+    model: Optional[str] = None
+    usage: Optional[LLMUsage] = None
 
 
 class BaseLLM(ABC):
+    """Abstract base class for all LLM providers."""
+
+    provider: str
+
     def __init__(
         self,
         model: str,
         temperature: float = 0.0,
         max_tokens: int = 1024,
         seed: Optional[int] = 42,
-    ):
+    ) -> None:
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -44,7 +70,17 @@ class BaseLLM(ABC):
         messages: list[Message],
         json_mode: bool = False,
     ) -> LLMResponse:
-        pass
+        """Synchronous LLM call."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def agenerate(
+        self,
+        messages: list[Message],
+        json_mode: bool = False,
+    ) -> LLMResponse:
+        """Asynchronous LLM call."""
+        raise NotImplementedError
 
     def generate_json(self, messages: list[Message]) -> dict[str, Any]:
         response = self.generate(messages, json_mode=True)
@@ -52,8 +88,16 @@ class BaseLLM(ABC):
             response.parsed = extract_json(response.raw)
         return response.parsed
 
+    async def agenerate_json(self, messages: list[Message]) -> dict[str, Any]:
+        response = await self.agenerate(messages, json_mode=True)
+        if response.parsed is None:
+            response.parsed = extract_json(response.raw)
+        return response.parsed
+
 
 class OpenAILLM(BaseLLM):
+    provider = "openai"
+
     def __init__(
         self,
         model: Optional[str] = None,
@@ -61,7 +105,8 @@ class OpenAILLM(BaseLLM):
         max_tokens: int = 1024,
         seed: Optional[int] = 42,
         client: Optional[OpenAI] = None,
-    ):
+        async_client: Optional[AsyncOpenAI] = None,
+    ) -> None:
         super().__init__(
             model=model or os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             temperature=temperature,
@@ -69,12 +114,33 @@ class OpenAILLM(BaseLLM):
             seed=seed,
         )
         self.client = client or OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.async_client = async_client or AsyncOpenAI(
+            api_key=os.getenv("OPENAI_API_KEY")
+        )
 
     def generate(
         self,
         messages: list[Message],
         json_mode: bool = False,
     ) -> LLMResponse:
+        kwargs = self._build_kwargs(messages, json_mode=json_mode)
+        response = self.client.chat.completions.create(**kwargs)
+        return self._parse_response(response, json_mode=json_mode)
+
+    async def agenerate(
+        self,
+        messages: list[Message],
+        json_mode: bool = False,
+    ) -> LLMResponse:
+        kwargs = self._build_kwargs(messages, json_mode=json_mode)
+        response = await self.async_client.chat.completions.create(**kwargs)
+        return self._parse_response(response, json_mode=json_mode)
+
+    def _build_kwargs(
+        self,
+        messages: list[Message],
+        json_mode: bool,
+    ) -> dict[str, Any]:
         kwargs: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
@@ -88,27 +154,39 @@ class OpenAILLM(BaseLLM):
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
 
-        resp = self.client.chat.completions.create(**kwargs)
-        raw = resp.choices[0].message.content or ""
+        return kwargs
 
-        parsed = extract_json(raw) if json_mode else None
+    def _parse_response(self, response: Any, json_mode: bool) -> LLMResponse:
+        raw = response.choices[0].message.content or ""
+
+        usage = None
+        if getattr(response, "usage", None) is not None:
+            usage = LLMUsage(
+                input_tokens=getattr(response.usage, "prompt_tokens", 0) or 0,
+                output_tokens=getattr(response.usage, "completion_tokens", 0) or 0,
+                total_tokens=getattr(response.usage, "total_tokens", 0) or 0,
+            )
 
         return LLMResponse(
             raw=raw,
-            parsed=parsed,
+            parsed=extract_json(raw) if json_mode else None,
+            provider=self.provider,
             model=self.model,
-            provider="openai",
+            usage=usage,
         )
 
 
 class AnthropicLLM(BaseLLM):
+    provider = "anthropic"
+
     def __init__(
         self,
         model: Optional[str] = None,
         temperature: float = 0.0,
         max_tokens: int = 1024,
         client: Optional[Anthropic] = None,
-    ):
+        async_client: Optional[AsyncAnthropic] = None,
+    ) -> None:
         super().__init__(
             model=model or os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5"),
             temperature=temperature,
@@ -116,6 +194,9 @@ class AnthropicLLM(BaseLLM):
             seed=None,
         )
         self.client = client or Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        self.async_client = async_client or AsyncAnthropic(
+            api_key=os.getenv("ANTHROPIC_API_KEY")
+        )
 
     def generate(
         self,
@@ -124,7 +205,7 @@ class AnthropicLLM(BaseLLM):
     ) -> LLMResponse:
         system_prompt, non_system_messages = split_system_messages(messages)
 
-        resp = self.client.messages.create(
+        response = self.client.messages.create(
             model=self.model,
             max_tokens=self.max_tokens,
             temperature=self.temperature,
@@ -132,14 +213,44 @@ class AnthropicLLM(BaseLLM):
             messages=non_system_messages,
         )
 
-        raw = "".join(getattr(block, "text", "") for block in resp.content)
-        parsed = extract_json(raw) if json_mode else None
+        return self._parse_response(response, json_mode=json_mode)
+
+    async def agenerate(
+        self,
+        messages: list[Message],
+        json_mode: bool = False,
+    ) -> LLMResponse:
+        system_prompt, non_system_messages = split_system_messages(messages)
+
+        response = await self.async_client.messages.create(
+            model=self.model,
+            max_tokens=self.max_tokens,
+            temperature=self.temperature,
+            system=system_prompt if system_prompt else None,
+            messages=non_system_messages,
+        )
+
+        return self._parse_response(response, json_mode=json_mode)
+
+    def _parse_response(self, response: Any, json_mode: bool) -> LLMResponse:
+        raw = "".join(getattr(block, "text", "") for block in response.content)
+
+        usage = None
+        if getattr(response, "usage", None) is not None:
+            input_tokens = getattr(response.usage, "input_tokens", 0) or 0
+            output_tokens = getattr(response.usage, "output_tokens", 0) or 0
+            usage = LLMUsage(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=input_tokens + output_tokens,
+            )
 
         return LLMResponse(
             raw=raw,
-            parsed=parsed,
+            parsed=extract_json(raw) if json_mode else None,
+            provider=self.provider,
             model=self.model,
-            provider="anthropic",
+            usage=usage,
         )
 
 
@@ -178,14 +289,14 @@ def extract_json(text: str) -> dict[str, Any]:
 
     match = re.search(r"\{.*\}", text, flags=re.DOTALL)
     if not match:
-        raise ValueError(f"No JSON found in output: {text[:200]!r}")
+        raise ValueError(f"No JSON found in LLM output: {text[:200]!r}")
 
     return json.loads(match.group(0))
 
 
 def split_system_messages(messages: list[Message]) -> tuple[str, list[Message]]:
     system_parts: list[str] = []
-    non_system: list[Message] = []
+    non_system_messages: list[Message] = []
 
     for message in messages:
         role = (message.get("role") or "").strip()
@@ -194,6 +305,6 @@ def split_system_messages(messages: list[Message]) -> tuple[str, list[Message]]:
         if role == "system":
             system_parts.append(content)
         else:
-            non_system.append({"role": role, "content": content})
+            non_system_messages.append({"role": role, "content": content})
 
-    return "\n\n".join(system_parts).strip(), non_system
+    return "\n\n".join(system_parts).strip(), non_system_messages
