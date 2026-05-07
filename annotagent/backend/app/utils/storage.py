@@ -1,17 +1,12 @@
+"""Versioned filesystem helpers (ported from annotation_demo/utils/storage.py).
+
+Used for prompt-version audit trails and run snapshots that live alongside the
+canonical SQLite store. The DB remains the source of truth; these files are a
+human-inspectable mirror.
+
+Default workspace location is ``annotagent/backend/workspace/`` (resolved
+relative to this module so it works regardless of CWD).
 """
-Filesystem storage utilities.
-
-This module provides lightweight project-local storage helpers for the demo
-backend. It manages JSON, YAML, text, JSONL, version IDs, run IDs, and project
-workspace directories.
-
-Responsibilities:
-- Create project workspace directories.
-- Save and load JSON/YAML/text files.
-- Append run summaries to JSONL logs.
-- Generate prompt/input versions and run IDs.
-"""
-
 from __future__ import annotations
 
 import json
@@ -23,7 +18,7 @@ from typing import Any
 import yaml
 
 
-DEFAULT_WORKSPACE_DIR = Path("workspace")
+DEFAULT_WORKSPACE_DIR = Path(__file__).resolve().parents[2] / "workspace"
 
 
 def utc_now_iso() -> str:
@@ -48,53 +43,31 @@ def ensure_project_dirs(
     workspace_dir: str | Path = DEFAULT_WORKSPACE_DIR,
 ) -> Path:
     project_dir = get_project_dir(project_id, workspace_dir)
-
-    for subdir in [
-        "inputs",
-        "prompts",
-        "runs",
-        "logs",
-        "memory",
-    ]:
+    for subdir in ["inputs", "prompts", "runs", "logs", "memory"]:
         ensure_dir(project_dir / subdir)
-
     return project_dir
 
 
 def save_json(path: str | Path, obj: Any, indent: int = 2) -> Path:
-    """Save an object as pretty-printed JSON.
-
-    Parent directories are created automatically when needed.
-    """
     path = Path(path)
     ensure_dir(path.parent)
-    path.write_text(
-        json.dumps(obj, indent=indent, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    path.write_text(json.dumps(obj, indent=indent, ensure_ascii=False), encoding="utf-8")
     return path
 
 
 def load_json(path: str | Path) -> Any:
-    """Load a JSON file from disk."""
-    path = Path(path)
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
 def save_yaml(path: str | Path, obj: Any) -> Path:
     path = Path(path)
     ensure_dir(path.parent)
-    path.write_text(
-        yaml.safe_dump(obj, sort_keys=False, allow_unicode=True),
-        encoding="utf-8",
-    )
+    path.write_text(yaml.safe_dump(obj, sort_keys=False, allow_unicode=True), encoding="utf-8")
     return path
 
 
 def load_yaml(path: str | Path) -> Any:
-    """Load a YAML file from disk."""
-    path = Path(path)
-    return yaml.safe_load(path.read_text(encoding="utf-8"))
+    return yaml.safe_load(Path(path).read_text(encoding="utf-8"))
 
 
 def save_text(path: str | Path, text: str) -> Path:
@@ -105,17 +78,14 @@ def save_text(path: str | Path, text: str) -> Path:
 
 
 def load_text(path: str | Path) -> str:
-    path = Path(path)
-    return path.read_text(encoding="utf-8")
+    return Path(path).read_text(encoding="utf-8")
 
 
 def append_jsonl(path: str | Path, obj: dict[str, Any]) -> Path:
     path = Path(path)
     ensure_dir(path.parent)
-
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(obj, ensure_ascii=False) + "\n")
-
     return path
 
 
@@ -125,24 +95,18 @@ def list_versions(
     prefix: str = "v",
 ) -> list[str]:
     directory = Path(directory)
-
     if not directory.exists():
         return []
-
     versions: list[str] = []
     pattern = re.compile(rf"^{re.escape(prefix)}(\d+)(?:\..+)?$")
-
     for path in directory.iterdir():
         if not path.is_file():
             continue
-
         if suffix is not None and path.suffix != suffix:
             continue
-
         match = pattern.match(path.name)
         if match:
             versions.append(f"{prefix}{int(match.group(1)):03d}")
-
     return sorted(set(versions))
 
 
@@ -152,60 +116,41 @@ def next_version(
     prefix: str = "v",
 ) -> str:
     versions = list_versions(directory, suffix=suffix, prefix=prefix)
-
     if not versions:
         return f"{prefix}001"
-
     last_num = max(int(v.replace(prefix, "")) for v in versions)
     return f"{prefix}{last_num + 1:03d}"
 
 
 def list_runs(runs_dir: str | Path) -> list[str]:
     runs_dir = Path(runs_dir)
-
     if not runs_dir.exists():
         return []
-
     run_ids: list[str] = []
     pattern = re.compile(r"^run_(\d+)$")
-
     for path in runs_dir.iterdir():
         if not path.is_dir():
             continue
-
         match = pattern.match(path.name)
         if match:
             run_ids.append(f"run_{int(match.group(1)):03d}")
-
     return sorted(run_ids)
 
 
 def next_run_id(runs_dir: str | Path) -> str:
     run_ids = list_runs(runs_dir)
-
     if not run_ids:
         return "run_001"
-
-    last_num = max(int(run_id.replace("run_", "")) for run_id in run_ids)
+    last_num = max(int(rid.replace("run_", "")) for rid in run_ids)
     return f"run_{last_num + 1:03d}"
 
 
 def create_run_dir(project_dir: str | Path) -> tuple[str, Path]:
-    """Create and return a new run directory for a project.
-
-    Run directories are created under:
-        workspace/{project_id}/runs/{run_id}
-
-    The generated run_id should be stable enough for local debugging and artifact
-    inspection, but does not replace a database-backed run identifier in production.
-    """
     project_dir = Path(project_dir)
     runs_dir = project_dir / "runs"
-
     run_id = next_run_id(runs_dir)
     run_dir = runs_dir / run_id
     ensure_dir(run_dir)
-
     return run_id, run_dir
 
 
@@ -214,7 +159,6 @@ def project_paths(
     workspace_dir: str | Path = DEFAULT_WORKSPACE_DIR,
 ) -> dict[str, Path]:
     project_dir = ensure_project_dirs(project_id, workspace_dir)
-
     return {
         "project": project_dir,
         "inputs": project_dir / "inputs",

@@ -148,11 +148,16 @@ class ReflectAgent(PromptOptimizer):
         budget: int = 5,              # rounds, not LLM calls
         rollback_epsilon: float = 0.005,  # val F1 regression tolerance
         label_defs: str = "",
+        seed_rules: list[dict] | None = None,
         **_ignored,
     ):
         super().__init__(provider=provider, model=model, api_key=api_key, budget=budget)
         self.rollback_epsilon = rollback_epsilon
         self.label_defs = label_defs
+        # Cumulative rules carried in from prior reflect runs on this (project, dim).
+        # Pre-populates the rule library and seeds the initial prompt so this run
+        # picks up where the last one left off.
+        self.seed_rules = list(seed_rules or [])
 
     async def optimize(
         self,
@@ -163,7 +168,9 @@ class ReflectAgent(PromptOptimizer):
         valset: list[Example],
         on_progress: Optional[ProgressCB] = None,
     ) -> OptimizationResult:
-        rules: list[dict] = []
+        # Seed from prior memory if any — earlier sessions' rules are already
+        # validated and we want this run to extend rather than restart them.
+        rules: list[dict] = list(self.seed_rules)
         trajectory: list[dict] = []
         total_tokens = 0
         total_cost = 0.0
@@ -183,17 +190,20 @@ class ReflectAgent(PromptOptimizer):
                 "final_score": current_val_acc if trajectory else 0.0,
             })
 
+        # Baseline = initial_prompt + already-accumulated seed rules. If seed_rules
+        # is empty this is identical to the previous behavior.
+        current_prompt = initial_prompt + _compile_rules(rules)
         base_acc, _, t, c = await evaluate_prompt(
-            initial_prompt, valset, valid_labels,
+            current_prompt, valset, valid_labels,
             provider=self.provider, model=self.model, api_key=self.api_key,
         )
         total_tokens += t
         total_cost += c
 
-        current_prompt = initial_prompt
         current_val_acc = base_acc
 
-        await record({"round": 0, "val_acc": base_acc, "n_rules": 0, "action": "baseline"})
+        await record({"round": 0, "val_acc": base_acc, "n_rules": len(rules),
+                      "action": "baseline_seeded" if rules else "baseline"})
 
         for r in range(1, self.budget + 1):
             # 1. Annotate the trainset with current prompt to find failures

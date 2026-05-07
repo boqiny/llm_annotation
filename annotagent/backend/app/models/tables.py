@@ -231,6 +231,27 @@ class OptimizerRun(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
+class ReflectMemoryVersion(Base):
+    """Cumulative reflection-rule library, versioned per (project, dimension).
+
+    Each new reflect_agent run writes a new row whose ``rules_json`` contains
+    *all* rules (prior versions + newly distilled), and whose ``version`` is one
+    higher than the previous row for the same (project_id, dimension_name).
+    Older rows are kept as an audit trail. Mirrors the
+    ``memory.vNNN.json`` convention from the demo prototype.
+    """
+    __tablename__ = "reflect_memory_versions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    dimension_name = Column(String(255), nullable=False)
+    version = Column(Integer, nullable=False)
+    rules_json = Column(JSON, default=list)
+    new_rules_count = Column(Integer, default=0)
+    source_optimizer_run_id = Column(Integer, ForeignKey("optimizer_runs.id"), nullable=True)
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class CalibrationRun(Base):
     __tablename__ = "calibration_runs"
 

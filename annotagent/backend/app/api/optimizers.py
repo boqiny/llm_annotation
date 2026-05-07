@@ -14,13 +14,48 @@ from app.config import resolve_api_key
 from app.database import get_db, async_session
 from app.engine.codebook_parser import parse_codebook
 from app.engine.prompt_generator import generate_dimension_prompt
-from app.models.tables import Codebook, DataItem, Dataset, OptimizerRun, Project
+from app.utils.storage import next_version, project_paths, save_text, save_yaml, utc_now_iso
+from app.models.tables import Codebook, DataItem, Dataset, OptimizerRun, Project, ReflectMemoryVersion
 from app.optimizers import Example, evaluate_prompt, get_optimizer, list_optimizers
 from app.schemas.schemas import OptimizerInfo, OptimizerRunCreate, OptimizerRunOut
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/projects/{project_id}/optimizer-runs", tags=["optimizers"])
+memory_router = APIRouter(prefix="/api/projects/{project_id}/memory", tags=["memory"])
+
+
+@memory_router.get("")
+async def list_memory_versions(
+    project_id: int,
+    dimension: str | None = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """List reflection-memory versions for a project (newest first).
+
+    Optional ``?dimension=`` filter restricts to a single dimension.
+    """
+    q = select(ReflectMemoryVersion).where(ReflectMemoryVersion.project_id == project_id)
+    if dimension:
+        q = q.where(ReflectMemoryVersion.dimension_name == dimension)
+    q = q.order_by(
+        ReflectMemoryVersion.dimension_name,
+        ReflectMemoryVersion.version.desc(),
+    )
+    rows = (await db.execute(q)).scalars().all()
+    return [
+        {
+            "id": r.id,
+            "dimension_name": r.dimension_name,
+            "version": r.version,
+            "n_rules": len(r.rules_json or []),
+            "new_rules_count": r.new_rules_count,
+            "source_optimizer_run_id": r.source_optimizer_run_id,
+            "rules": r.rules_json or [],
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
 
 
 @router.get("/available", response_model=list[OptimizerInfo])
@@ -211,11 +246,31 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
             f"(seed={rng_seed})"
         )
 
+        # For reflect_agent: seed rules from the latest memory version on this
+        # (project, dimension) so we accumulate across sessions instead of
+        # restarting the rule library every run.
+        seed_rules: list[dict] = []
+        if run.optimizer_name == "reflect_agent":
+            async with async_session() as session:
+                latest = await session.execute(
+                    select(ReflectMemoryVersion)
+                    .where(
+                        ReflectMemoryVersion.project_id == project_id,
+                        ReflectMemoryVersion.dimension_name == run.dimension_name,
+                    )
+                    .order_by(ReflectMemoryVersion.version.desc())
+                    .limit(1)
+                )
+                latest_row = latest.scalars().first()
+                if latest_row and latest_row.rules_json:
+                    seed_rules = list(latest_row.rules_json)
+
         # Invoke optimizer, streaming partial progress to DB per round
         opt = get_optimizer(
             run.optimizer_name,
             provider=provider, model=model, api_key=api_key,
             budget=run.budget, label_defs=label_defs,
+            seed_rules=seed_rules,
         )
 
         async def on_progress(payload: dict) -> None:
@@ -311,6 +366,60 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
             run.total_tokens  = result.total_tokens + test_tokens
             run.total_cost    = round(result.total_cost_usd + test_cost, 6)
             await session.commit()
+
+        # Filesystem audit trail: write the optimized prompt as a versioned
+        # artifact under workspace/project_<pid>/prompts/<dim>/<optimizer>/.
+        # DB is still canonical; this is for human inspection / reproducibility.
+        try:
+            paths = project_paths(f"project_{project_id}")
+            prompt_dir = paths["prompts"] / run.dimension_name / run.optimizer_name
+            version = next_version(prompt_dir)
+            save_text(prompt_dir / f"{version}.txt", result.optimized_prompt or "")
+            save_yaml(prompt_dir / f"{version}.meta.yaml", {
+                "version": version,
+                "optimizer": run.optimizer_name,
+                "dimension": run.dimension_name,
+                "project_id": project_id,
+                "optimizer_run_id": run_id,
+                "initial_score_val": result.initial_score,
+                "final_score_val": result.final_score,
+                "test_initial_score": enriched_artifact.get("test", {}).get("initial_score"),
+                "test_final_score": enriched_artifact.get("test", {}).get("final_score"),
+                "n_rules": len((enriched_artifact or {}).get("rule_library") or []),
+                "total_tokens": result.total_tokens + test_tokens,
+                "total_cost_usd": round(result.total_cost_usd + test_cost, 6),
+                "llm_provider": provider,
+                "llm_model": model,
+                "created_at": utc_now_iso(),
+            })
+        except Exception:
+            logger.warning(f"Filesystem prompt version write failed for run {run_id}", exc_info=True)
+
+        # Persist the final rule library as a new memory version (reflect_agent
+        # only — other optimizers don't produce rule libraries).
+        if run.optimizer_name == "reflect_agent":
+            final_rules = list((result.artifact or {}).get("rule_library") or [])
+            new_count = max(0, len(final_rules) - len(seed_rules))
+            async with async_session() as session:
+                last = await session.execute(
+                    select(ReflectMemoryVersion.version)
+                    .where(
+                        ReflectMemoryVersion.project_id == project_id,
+                        ReflectMemoryVersion.dimension_name == run.dimension_name,
+                    )
+                    .order_by(ReflectMemoryVersion.version.desc())
+                    .limit(1)
+                )
+                last_v = last.scalar() or 0
+                session.add(ReflectMemoryVersion(
+                    project_id=project_id,
+                    dimension_name=run.dimension_name,
+                    version=last_v + 1,
+                    rules_json=final_rules,
+                    new_rules_count=new_count,
+                    source_optimizer_run_id=run_id,
+                ))
+                await session.commit()
 
     except Exception as e:
         logger.exception(f"Optimizer run {run_id} failed")

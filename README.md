@@ -2,6 +2,11 @@
 
 Codebook-driven LLM annotation framework with a React frontend and FastAPI backend. Demo paper target: EMNLP 2026 System Demonstrations.
 
+## Repo layout
+
+- [`annotagent/`](./annotagent) — the live system (FastAPI backend + React frontend + Docker compose).
+- [`legacy/`](./legacy) — older self-disclosure prototype scripts and data; not on the live path.
+
 ## Architecture
 
 - **Backend**: FastAPI + SQLAlchemy + SQLite (async)
@@ -13,7 +18,7 @@ Codebook-driven LLM annotation framework with a React frontend and FastAPI backe
 ### Option A — Docker (one command, recommended)
 
 ```bash
-cd /Users/charles/llm_annotation/annotagent
+cd annotagent
 cp .env.example .env
 docker compose up --build
 ```
@@ -27,7 +32,7 @@ docker compose up --build
 Terminal 1 — backend:
 
 ```bash
-cd /Users/charles/llm_annotation/annotagent/backend
+cd annotagent/backend
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
@@ -35,15 +40,15 @@ uvicorn app.main:app --reload --port 8000
 Terminal 2 — frontend:
 
 ```bash
-cd /Users/charles/llm_annotation/annotagent/frontend
+cd annotagent/frontend
 npm install
 npm run dev                       # serves on http://localhost:5173
 ```
 
-Sample codebooks are loaded automatically via presets (`self_disclosure`, `sentiment`). Sample datasets with gold labels live in [`seed/`](./seed):
+Sample codebooks are loaded automatically via presets (`self_disclosure`, `sentiment`). Sample datasets with gold labels live in [`annotagent/seed/`](./annotagent/seed):
 
-- `seed/self_disclosure_demo.json` — 10-item multi-dimensional self-disclosure sample
-- `seed/sentiment_demo.json` — 10-item sentiment sample
+- `annotagent/seed/self_disclosure_demo.json` — 10-item multi-dimensional self-disclosure sample
+- `annotagent/seed/sentiment_demo.json` — 10-item sentiment sample
 
 Upload either one in the UI's Project Setup page to try the full pipeline end-to-end in under a minute.
 

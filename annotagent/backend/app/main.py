@@ -50,6 +50,7 @@ app.include_router(jobs.router)
 app.include_router(results.router)
 app.include_router(calibration.router)
 app.include_router(optimizers_api.router)
+app.include_router(optimizers_api.memory_router)
 app.include_router(ws.router)
 app.include_router(config_api.router)
 

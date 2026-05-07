@@ -11,6 +11,9 @@ __pycache__/
 artifacts/*
 gepa_logs
 gepa_logs_*
-/vis
-annotation_demo/.env
-annotation_demo/workspace/
+
+# Backend filesystem audit trail (DB is canonical; this dir is a mirror)
+annotagent/backend/workspace/
+
+# Legacy artifacts that shouldn't be tracked even though they live under legacy/
+legacy/vis/
