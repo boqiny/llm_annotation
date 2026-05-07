@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   uploadCodebookDraft, pasteCodebookDraft, presetCodebookDraft,
-  acceptCodebookDraft, deleteCodebookDraft,
+  acceptCodebookDraft, deleteCodebookDraft, patchCodebookDraft,
   artifactDownloadUrl,
   type CodebookDraft,
 } from '../lib/api'
@@ -83,10 +83,15 @@ export default function CodebookDraftWizard({
     }
   }
 
-  const handleAccept = async () => {
+  const handleAccept = async (editedJson?: Record<string, any>) => {
     if (!draft) return
     setAccepting(true); setError('')
     try {
+      // Persist user edits (if any) before accepting so the codebook row
+      // committed to the project reflects the final state shown in the UI.
+      if (editedJson) {
+        await patchCodebookDraft(draft.id, editedJson)
+      }
       await acceptCodebookDraft(projectId, draft.id)
       onAccepted()
     } catch (e: any) {
@@ -361,96 +366,192 @@ function PresetForm({
   )
 }
 
-/* ─── Draft preview ─────────────────────────────────────────── */
+/* ─── Draft preview (editable) ──────────────────────────────── */
 
 function DraftPreview({
   draft, onAccept, onDiscard, accepting,
 }: {
   draft: CodebookDraft
-  onAccept: () => void
+  onAccept: (editedJson?: Record<string, any>) => void
   onDiscard: () => void
   accepting: boolean
 }) {
-  const d = draft.draft_json || {}
-  const dimensions: any[] = Array.isArray(d.dimensions) ? d.dimensions : []
-  const rationalePerDim: Record<string, string> = d._rationale_per_dim || {}
+  // Local working copy. Reset whenever we get a new draft from the server.
+  const [working, setWorking] = useState<any>(() => structuredClone(draft.draft_json || {}))
+  const [draftId, setDraftId] = useState<number>(draft.id)
+  if (draft.id !== draftId) {
+    setDraftId(draft.id)
+    setWorking(structuredClone(draft.draft_json || {}))
+  }
+
+  const dirty = JSON.stringify(working) !== JSON.stringify(draft.draft_json || {})
+  const dimensions: any[] = Array.isArray(working.dimensions) ? working.dimensions : []
+  const rationalePerDim: Record<string, string> =
+    (draft.draft_json || {})._rationale_per_dim || {}
 
   const flags = draft.critic_flags || []
   const errorFlags = flags.filter(f => f.severity === 'error')
   const warnFlags = flags.filter(f => f.severity === 'warn')
   const infoFlags = flags.filter(f => f.severity === 'info')
 
+  const updateDim = (i: number, patch: Partial<any>) => {
+    setWorking((w: any) => {
+      const dims = [...(w.dimensions || [])]
+      dims[i] = { ...dims[i], ...patch }
+      return { ...w, dimensions: dims }
+    })
+  }
+  const updateLabel = (i: number, j: number, patch: Partial<any>) => {
+    setWorking((w: any) => {
+      const dims = [...(w.dimensions || [])]
+      const labels = [...(dims[i].labels || [])]
+      labels[j] = { ...labels[j], ...patch }
+      dims[i] = { ...dims[i], labels }
+      return { ...w, dimensions: dims }
+    })
+  }
+  const removeLabel = (i: number, j: number) => {
+    setWorking((w: any) => {
+      const dims = [...(w.dimensions || [])]
+      const labels = [...(dims[i].labels || [])]
+      labels.splice(j, 1)
+      dims[i] = { ...dims[i], labels }
+      return { ...w, dimensions: dims }
+    })
+  }
+  const addLabel = (i: number) => {
+    setWorking((w: any) => {
+      const dims = [...(w.dimensions || [])]
+      const labels = [...(dims[i].labels || []), { name: 'new_label', definition: '', examples: [] }]
+      dims[i] = { ...dims[i], labels }
+      return { ...w, dimensions: dims }
+    })
+  }
+  const removeDim = (i: number) => {
+    setWorking((w: any) => {
+      const dims = [...(w.dimensions || [])]
+      dims.splice(i, 1)
+      return { ...w, dimensions: dims }
+    })
+  }
+
+  const handleAccept = () => onAccept(dirty ? working : undefined)
+
+  const ActionBar = () => (
+    <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="font-mono-editorial text-stone-500">
+        {dirty ? <span className="text-amber-700">unsaved edits</span> : <span>no edits</span>}
+        <span className="text-stone-400 mx-2">·</span>
+        {dimensions.length} dimensions ·{' '}
+        {dimensions.reduce((n, d) => n + (d.labels?.length || 0), 0)} labels
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onDiscard}
+          disabled={accepting}
+          className="px-4 py-2 text-sm font-medium text-stone-600 border border-seam hover:border-stone-400"
+        >
+          Discard
+        </button>
+        <button
+          onClick={handleAccept}
+          disabled={accepting || errorFlags.length > 0}
+          title={errorFlags.length > 0 ? 'Resolve critic errors first' : ''}
+          className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40 transition-colors"
+        >
+          {accepting ? 'Accepting…' : dirty ? 'Save & load →' : 'Accept & load →'}
+        </button>
+      </div>
+    </div>
+  )
+
   return (
     <div className="border border-seam bg-white">
-      <div className="flex items-start justify-between gap-4 p-5 border-b border-seam">
-        <div>
-          <div className="font-mono-editorial text-stone-500 mb-1">
-            Draft · №{draft.id.toString().padStart(4, '0')} · {draft.source}
-            {draft.source_filename && ` · ${draft.source_filename}`}
-          </div>
-          <h3 className="text-2xl font-medium tracking-tight">{d.name || 'Untitled codebook'}</h3>
-          {d.description && (
-            <p className="text-sm text-stone-600 mt-1 max-w-2xl leading-relaxed">{d.description}</p>
-          )}
+      {/* TOP: editable header + action bar */}
+      <div className="p-5 border-b border-seam space-y-4">
+        <div className="font-mono-editorial text-stone-500">
+          Draft · №{draft.id.toString().padStart(4, '0')} · {draft.source}
+          {draft.source_filename && ` · ${draft.source_filename}`}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onDiscard}
-            disabled={accepting}
-            className="px-4 py-2 text-sm font-medium text-stone-600 border border-seam hover:border-stone-400"
-          >
-            Discard
-          </button>
-          <button
-            onClick={onAccept}
-            disabled={accepting || errorFlags.length > 0}
-            title={errorFlags.length > 0 ? 'Resolve critic errors first' : ''}
-            className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40 transition-colors"
-          >
-            {accepting ? 'Accepting…' : 'Accept & load →'}
-          </button>
-        </div>
+        <input
+          value={working.name || ''}
+          onChange={e => setWorking((w: any) => ({ ...w, name: e.target.value }))}
+          className="w-full px-0 py-1 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none text-2xl font-medium tracking-tight"
+          placeholder="Codebook name"
+        />
+        <textarea
+          value={working.description || ''}
+          onChange={e => setWorking((w: any) => ({ ...w, description: e.target.value }))}
+          rows={2}
+          className="w-full px-0 py-1 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none text-sm text-stone-700 leading-relaxed resize-none"
+          placeholder="One-line description of what this codebook annotates"
+        />
+        <ActionBar />
       </div>
 
       {/* Split: schema | rationale */}
       <div className="grid grid-cols-1 lg:grid-cols-3">
-        {/* LEFT: schema */}
         <div className="lg:col-span-2 divide-y divide-seam">
           {dimensions.map((dim: any, i: number) => (
             <div key={i} className="p-5 flex gap-5">
-              <div className="font-mono-editorial text-stone-400 w-8 shrink-0 pt-0.5">
+              <div className="font-mono-editorial text-stone-400 w-8 shrink-0 pt-2">
                 {(i + 1).toString().padStart(2, '0')}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-3 mb-1.5 flex-wrap">
-                  <span className="font-medium text-lg">{dim.name}</span>
-                  <span className={`font-mono-editorial ${
-                    (dim.type || '').includes('multi') ? 'text-violet-700' : 'text-indigo-700'
-                  }`}>
-                    {dim.type || 'single_label'}
-                  </span>
+              <div className="flex-1 min-w-0 space-y-2.5">
+                <div className="flex items-baseline gap-3 flex-wrap">
+                  <input
+                    value={dim.name || ''}
+                    onChange={e => updateDim(i, { name: e.target.value })}
+                    className="px-0 py-0.5 bg-transparent border-0 border-b border-transparent hover:border-seam focus:border-ink focus:outline-none text-lg font-medium min-w-0 flex-1"
+                    placeholder="Dimension name"
+                  />
+                  <select
+                    value={dim.type || 'single_label'}
+                    onChange={e => updateDim(i, { type: e.target.value })}
+                    className={`font-mono-editorial bg-transparent border-0 border-b border-transparent hover:border-seam focus:border-ink focus:outline-none ${
+                      (dim.type || '').includes('multi') ? 'text-violet-700' : 'text-indigo-700'
+                    }`}
+                  >
+                    <option value="single_label">single_label</option>
+                    <option value="multi_label">multi_label</option>
+                    <option value="binary">binary</option>
+                    <option value="ordinal">ordinal</option>
+                  </select>
                   <span className="font-mono-editorial text-stone-400">
                     {(dim.labels || []).length} labels
                   </span>
+                  <button
+                    onClick={() => removeDim(i)}
+                    className="ml-auto font-mono-editorial text-stone-400 hover:text-red-600 text-xs"
+                  >
+                    remove dimension
+                  </button>
                 </div>
-                {dim.instructions && (
-                  <p className="text-xs text-stone-600 mb-2 italic leading-relaxed">
-                    {dim.instructions}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-1.5">
+                <textarea
+                  value={dim.instructions || ''}
+                  onChange={e => updateDim(i, { instructions: e.target.value })}
+                  rows={2}
+                  className="w-full px-2 py-1.5 bg-paper/40 border border-transparent hover:border-seam focus:border-ink focus:outline-none text-xs text-stone-700 italic leading-relaxed resize-y"
+                  placeholder="Annotation instructions for this dimension (optional)"
+                />
+                <div className="space-y-1">
                   {(dim.labels || []).map((lbl: any, j: number) => (
-                    <span
+                    <LabelEditor
                       key={j}
-                      className="px-2 py-0.5 bg-paper border border-seam text-stone-800 text-xs"
-                      title={lbl.definition || ''}
-                    >
-                      {lbl.name}
-                    </span>
+                      lbl={lbl}
+                      onChange={(patch) => updateLabel(i, j, patch)}
+                      onRemove={() => removeLabel(i, j)}
+                    />
                   ))}
+                  <button
+                    onClick={() => addLabel(i)}
+                    className="text-xs px-2 py-1 border border-dashed border-seam hover:border-ink text-stone-500 hover:text-ink"
+                  >
+                    + add label
+                  </button>
                 </div>
                 {rationalePerDim[dim.name] && (
-                  <p className="text-xs text-stone-500 mt-3 italic leading-relaxed border-l-2 border-stone-200 pl-3">
+                  <p className="text-xs text-stone-500 italic leading-relaxed border-l-2 border-stone-200 pl-3 mt-3">
                     {rationalePerDim[dim.name]}
                   </p>
                 )}
@@ -464,7 +565,6 @@ function DraftPreview({
           )}
         </div>
 
-        {/* RIGHT: rationale / warnings / artifacts */}
         <div className="border-t lg:border-t-0 lg:border-l border-seam bg-paper/30 p-5 space-y-5">
           <div>
             <div className="font-mono-editorial text-stone-500 mb-2">Source</div>
@@ -498,9 +598,6 @@ function DraftPreview({
                   download .csv
                 </a>
               </div>
-              <p className="text-[11px] text-stone-500 mt-2 leading-relaxed">
-                Analysis-friendly tidy rows extracted from your annotator sheet.
-              </p>
             </div>
           )}
 
@@ -537,6 +634,57 @@ function DraftPreview({
           )}
         </div>
       </div>
+
+      {/* BOTTOM: duplicate action bar so users find it after scrolling */}
+      <div className="p-5 border-t border-seam">
+        <ActionBar />
+      </div>
+    </div>
+  )
+}
+
+function LabelEditor({
+  lbl, onChange, onRemove,
+}: {
+  lbl: any
+  onChange: (patch: Partial<any>) => void
+  onRemove: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="border border-seam bg-paper/40">
+      <div className="flex items-center gap-2 px-2 py-1.5">
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="font-mono-editorial text-stone-400 hover:text-ink text-xs w-4 shrink-0"
+          title="Toggle definition"
+        >
+          {open ? '−' : '+'}
+        </button>
+        <input
+          value={lbl.name || ''}
+          onChange={e => onChange({ name: e.target.value })}
+          className="px-1 py-0.5 bg-transparent border-0 focus:outline-none focus:bg-white text-xs text-stone-800 flex-1 min-w-0"
+          placeholder="label name"
+        />
+        <button
+          onClick={onRemove}
+          className="font-mono-editorial text-stone-400 hover:text-red-600 text-xs px-1"
+          title="Remove label"
+        >
+          ×
+        </button>
+      </div>
+      {open && (
+        <textarea
+          value={lbl.definition || ''}
+          onChange={e => onChange({ definition: e.target.value })}
+          rows={2}
+          className="w-full px-3 py-2 border-t border-seam bg-white text-xs text-stone-700 leading-relaxed focus:outline-none resize-y"
+          placeholder="What does this label mean? (definition, edge cases)"
+        />
+      )}
     </div>
   )
 }

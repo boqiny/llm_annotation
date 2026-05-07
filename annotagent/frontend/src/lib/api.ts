@@ -23,6 +23,23 @@ export const uploadCodebook = (projectId: number, data: { preset_name?: string; 
 export const listCodebooks = (projectId: number) =>
   api.get<Codebook[]>(`/projects/${projectId}/codebooks`).then(r => r.data)
 
+export interface DimensionPrompt {
+  dimension_name: string
+  prompt: string
+  version: string
+  path: string
+  error: string | null
+}
+export interface AutoPromptResponse {
+  prompts: DimensionPrompt[]
+}
+export const autoGeneratePrompt = (projectId: number, codebookId: number, taskType: string = 'text_annotation') =>
+  api.post<AutoPromptResponse>(
+    `/projects/${projectId}/codebooks/${codebookId}/auto-prompt`,
+    { task_type: taskType },
+    { timeout: 180_000 },
+  ).then(r => r.data)
+
 // Datasets
 export const uploadDataset = (projectId: number, file: File, isGold: boolean = false) => {
   const form = new FormData()
@@ -142,6 +159,10 @@ export const getCodebookDraft = (draftId: number) =>
 export const deleteCodebookDraft = (draftId: number) =>
   api.delete(`/codebook-drafts/${draftId}`)
 
+export const patchCodebookDraft = (draftId: number, draftJson: Record<string, any>) =>
+  api.patch<CodebookDraft>(`/codebook-drafts/${draftId}`, { draft_json: draftJson })
+     .then(r => r.data)
+
 export const acceptCodebookDraft = (projectId: number, draftId: number) =>
   api.post<Codebook>(`/projects/${projectId}/codebooks/accept-draft`, { draft_id: draftId })
      .then(r => r.data)
@@ -194,5 +215,9 @@ export const startOptimizerRun = (
     test_frac?: number
   }
 ) => api.post<OptimizerRun>(`/projects/${projectId}/optimizer-runs`, body).then(r => r.data)
+export const patchOptimizerRun = (
+  projectId: number, runId: number,
+  patch: { optimized_prompt?: string },
+) => api.patch<OptimizerRun>(`/projects/${projectId}/optimizer-runs/${runId}`, patch).then(r => r.data)
 
 export default api

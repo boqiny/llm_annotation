@@ -82,6 +82,38 @@ async def get_run(project_id: int, run_id: int, db: AsyncSession = Depends(get_d
     return run
 
 
+from pydantic import BaseModel as _BaseModel
+
+
+class OptimizerRunPatch(_BaseModel):
+    """Whitelisted fields the user can edit after a run completes."""
+    optimized_prompt: str | None = None
+
+
+@router.patch("/{run_id}", response_model=OptimizerRunOut)
+async def patch_run(
+    project_id: int, run_id: int,
+    body: OptimizerRunPatch,
+    db: AsyncSession = Depends(get_db),
+):
+    """Edit a completed run's user-visible fields (currently: ``optimized_prompt``).
+
+    The optimizer's trajectory and artifact are preserved as the run record;
+    edits here represent the user's manual override of the final prompt.
+    """
+    run = await db.get(OptimizerRun, run_id)
+    if not run or run.project_id != project_id:
+        raise HTTPException(404, "Run not found")
+    if run.status not in ("completed", "failed"):
+        raise HTTPException(409, f"Run is {run.status}; wait until it finishes before editing.")
+
+    if body.optimized_prompt is not None:
+        run.optimized_prompt = body.optimized_prompt
+    await db.commit()
+    await db.refresh(run)
+    return run
+
+
 @router.post("", response_model=OptimizerRunOut, status_code=201)
 async def start_run(
     project_id: int,
@@ -104,8 +136,11 @@ async def start_run(
     if not gold_dataset.is_gold:
         raise HTTPException(400, "Dataset is not marked as gold")
 
-    # Validate dimension exists in active codebook
-    cb_res = await db.execute(select(Codebook).where(Codebook.project_id == project_id))
+    # Validate dimension exists in active codebook (latest = highest id).
+    cb_res = await db.execute(
+        select(Codebook).where(Codebook.project_id == project_id)
+        .order_by(Codebook.id.desc()).limit(1)
+    )
     codebook_row = cb_res.scalars().first()
     if not codebook_row:
         raise HTTPException(400, "No codebook loaded for this project")
@@ -172,9 +207,10 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
             run.status = "running"
             await session.commit()
 
-            # Load codebook + build initial prompt
+            # Load codebook + build initial prompt (latest = highest id).
             cb_res = await session.execute(
                 select(Codebook).where(Codebook.project_id == project_id)
+                .order_by(Codebook.id.desc()).limit(1)
             )
             codebook_row = cb_res.scalars().first()
             parsed = parse_codebook(codebook_row.raw_json)

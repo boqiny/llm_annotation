@@ -70,7 +70,11 @@ export default function ProjectSetup() {
     try {
       await handleSaveLLM()
       await decomposePipeline(projectId)
-      navigate(`/projects/${projectId}/pipeline`)
+      // Land on PromptLab — the LLM auto-generates an annotation prompt from the
+      // codebook there, then the user iterates with the optimizer (if a gold
+      // dataset is loaded). Pipeline page is reachable from the top nav once
+      // the prompt is ready.
+      navigate(`/projects/${projectId}/prompt-lab`)
     } finally {
       setLoading(false)
     }
@@ -83,10 +87,11 @@ export default function ProjectSetup() {
   const activeCb = codebooks[codebooks.length - 1]
   const hasDataset = datasets.length > 0
   const keyOK = envKeyAvailable(backendCfg, llmProvider) || apiKey.length > 0
+  // Dataset is optional — the LLM-driven auto-prompt step runs without one;
+  // optimizers later require a gold dataset, but that gate is enforced on PromptLab.
   const canGenerate = !!activeCb && keyOK
   const missing: string[] = []
   if (!activeCb) missing.push('Codebook')
-  if (!hasDataset) missing.push('At least one dataset')
   if (!keyOK) missing.push(`${llmProvider === 'anthropic' ? 'Anthropic' : 'OpenAI'} API key`)
 
   return (
@@ -183,8 +188,11 @@ export default function ProjectSetup() {
       </Section>
 
       {/* Section 02 — Datasets */}
-      <Section num="02" title="Datasets" hint="Sentences to annotate. Gold subset drives calibration.">
-        {seeds.length > 0 && (
+      <Section num="02" title="Datasets · optional" hint="Labeled examples drive the Improve step. You can skip and add them later.">
+        {/* Seeds are repository-bundled gold sets specific to the self-disclosure
+            codebook. Only surface them when the user picked that preset; for any
+            other codebook they'd be misleading clutter. */}
+        {seeds.length > 0 && isSelfDisclosure(activeCb) && (
           <>
             <SubLabel>
               Ground truth · for prompt tuning and calibration
@@ -206,7 +214,7 @@ export default function ProjectSetup() {
           </>
         )}
 
-        <SubLabel>Or upload your own</SubLabel>
+        <SubLabel>Upload your own</SubLabel>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <Field label="Data (CSV/JSON)">
             <input type="file" accept=".csv,.json" onChange={e => handleDataUpload(e, false)} className="text-sm pt-2" />
@@ -300,8 +308,8 @@ export default function ProjectSetup() {
             <div className="font-mono-editorial text-stone-500 mb-3">Ready check</div>
             <ul className="space-y-1.5">
               <Check ok={!!activeCb} label="Codebook loaded" />
-              <Check ok={hasDataset} label="At least one dataset loaded" />
               <Check ok={keyOK} label={`${llmProvider === 'anthropic' ? 'Anthropic' : 'OpenAI'} key available`} />
+              <Check ok={hasDataset} label="Dataset loaded" optional optionalNote="for optimization" />
             </ul>
             {missing.length > 0 && (
               <p className="mt-3 text-sm text-stone-500">
@@ -409,17 +417,24 @@ function InlineEmpty({ hint }: { hint: string }) {
   )
 }
 
-function Check({ ok, label }: { ok: boolean; label: string }) {
+function Check({
+  ok, label, optional, optionalNote,
+}: { ok: boolean; label: string; optional?: boolean; optionalNote?: string }) {
   return (
     <li className="flex items-center gap-3 text-sm">
       <span
         className={`inline-flex items-center justify-center w-4 h-4 rounded-full border font-mono text-[10px] ${
-          ok ? 'bg-ink text-cream border-ink' : 'border-seam text-stone-400 bg-white'
+          ok ? 'bg-ink text-cream border-ink' : optional ? 'border-stone-300 text-stone-300 bg-white' : 'border-seam text-stone-400 bg-white'
         }`}
       >
-        {ok ? '✓' : ''}
+        {ok ? '✓' : optional ? '·' : ''}
       </span>
       <span className={ok ? 'text-ink' : 'text-stone-500'}>{label}</span>
+      {optional && !ok && (
+        <span className="font-mono-editorial text-stone-400 text-xs">
+          optional{optionalNote ? ` · ${optionalNote}` : ''}
+        </span>
+      )}
     </li>
   )
 }
@@ -427,6 +442,12 @@ function Check({ ok, label }: { ok: boolean; label: string }) {
 function envKeyAvailable(cfg: BackendConfig | null, provider: string): boolean {
   if (!cfg) return false
   return provider === 'anthropic' ? cfg.anthropic_key_loaded : cfg.openai_key_loaded
+}
+
+function isSelfDisclosure(cb: Codebook | undefined | null): boolean {
+  if (!cb) return false
+  const n = (cb.name || '').toLowerCase()
+  return n.includes('self-disclosure') || n.includes('self_disclosure') || n.includes('self disclosure')
 }
 
 function EnvKeyBadge({ label, loaded }: { label: string; loaded: boolean }) {

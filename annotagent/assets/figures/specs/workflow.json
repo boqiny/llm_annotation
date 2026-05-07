@@ -1,0 +1,41 @@
+{
+  "title": "AnnotAgent landing-page workflow figure",
+  "canvas": {"width": 1600, "height": 500},
+  "style": {
+    "font_family": "Inter, 'IBM Plex Sans', 'Helvetica Neue', system-ui, sans-serif",
+    "font_size": 14,
+    "palette": ["#0B0B0A", "#6E4FBE"]
+  },
+  "labels": [
+    {"text": "01 · DEFINE",   "x": 200,  "y": 70,  "font_size": 20, "color": "#0B0B0A", "anchor": "middle"},
+    {"text": "codebook in",   "x": 200,  "y": 100, "font_size": 13, "color": "#9A968F", "anchor": "middle"},
+
+    {"text": "02 · DRAFT",                       "x": 600,  "y": 70,  "font_size": 20, "color": "#0B0B0A", "anchor": "middle"},
+    {"text": "auto-prompts per dimension",       "x": 600,  "y": 100, "font_size": 13, "color": "#9A968F", "anchor": "middle"},
+
+    {"text": "03 · IMPROVE",                     "x": 1000, "y": 70,  "font_size": 20, "color": "#6E4FBE", "anchor": "middle"},
+    {"text": "rules from labeled examples",      "x": 1000, "y": 100, "font_size": 13, "color": "#9A968F", "anchor": "middle"},
+
+    {"text": "04 · ANNOTATE",                    "x": 1400, "y": 70,  "font_size": 20, "color": "#0B0B0A", "anchor": "middle"},
+    {"text": "calibrated LLM over your data",    "x": 1400, "y": 100, "font_size": 13, "color": "#9A968F", "anchor": "middle"}
+  ],
+  "nodes": [
+    {"id": "topic",     "label": "TOPIC",     "x": 200, "y": 220, "width": 220, "height": 56, "shape": "rounded", "fill": "#FFFFFF", "stroke": "#0B0B0A", "text_color": "#0B0B0A", "font_size": 15},
+    {"id": "sentiment", "label": "SENTIMENT", "x": 200, "y": 290, "width": 220, "height": 56, "shape": "rounded", "fill": "#FFFFFF", "stroke": "#0B0B0A", "text_color": "#0B0B0A", "font_size": 15},
+    {"id": "urgency",   "label": "URGENCY",   "x": 200, "y": 360, "width": 220, "height": 56, "shape": "rounded", "fill": "#FFFFFF", "stroke": "#0B0B0A", "text_color": "#0B0B0A", "font_size": 15},
+
+    {"id": "draft1", "label": "TOPIC prompt",     "x": 600, "y": 220, "width": 300, "height": 56, "shape": "rounded", "fill": "#FFFFFF", "stroke": "#0B0B0A", "text_color": "#0B0B0A", "font_size": 14},
+    {"id": "draft2", "label": "SENTIMENT prompt", "x": 600, "y": 290, "width": 300, "height": 56, "shape": "rounded", "fill": "#FFFFFF", "stroke": "#0B0B0A", "text_color": "#0B0B0A", "font_size": 14},
+    {"id": "draft3", "label": "URGENCY prompt",   "x": 600, "y": 360, "width": 300, "height": 56, "shape": "rounded", "fill": "#FFFFFF", "stroke": "#0B0B0A", "text_color": "#0B0B0A", "font_size": 14},
+
+    {"id": "improve_loop", "label": " ",    "x": 1000, "y": 290, "width": 220, "height": 220, "shape": "circle",  "fill": "#FFFFFF", "stroke": "#6E4FBE", "text_color": "#6E4FBE", "font_size": 1},
+    {"id": "improve_rule", "label": "RULE", "x": 1000, "y": 290, "width": 140, "height": 60,  "shape": "rounded", "fill": "#FFFFFF", "stroke": "#6E4FBE", "text_color": "#6E4FBE", "font_size": 18},
+
+    {"id": "table", "label": "—   —   —\n—   —   —\n—   —   —\n—   —   ✓", "x": 1400, "y": 290, "width": 280, "height": 220, "shape": "rect", "fill": "#FFFFFF", "stroke": "#0B0B0A", "text_color": "#0B0B0A", "font_size": 18}
+  ],
+  "edges": [
+    {"from": "sentiment",    "to": "draft2",       "style": "solid", "color": "#0B0B0A", "thickness": 2},
+    {"from": "draft2",       "to": "improve_loop", "style": "solid", "color": "#0B0B0A", "thickness": 2},
+    {"from": "improve_loop", "to": "table",        "style": "solid", "color": "#0B0B0A", "thickness": 2}
+  ]
+}

@@ -82,6 +82,7 @@ class PipelineRunner:
             codebook_dims: dict[str, list[str]] = {}
             codebook_result = await session.execute(
                 select(Codebook).where(Codebook.project_id == job.project_id)
+                .order_by(Codebook.id.desc()).limit(1)
             )
             codebook = codebook_result.scalars().first()
             if codebook:

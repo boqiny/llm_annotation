@@ -238,6 +238,33 @@ async def get_draft(draft_id: int, db: AsyncSession = Depends(get_db)):
     return _draft_to_out(draft)
 
 
+from pydantic import BaseModel
+
+
+class DraftPatch(BaseModel):
+    draft_json: dict
+
+
+@router.patch("/{draft_id}", response_model=CodebookDraftOut)
+async def patch_draft(draft_id: int, body: DraftPatch, db: AsyncSession = Depends(get_db)):
+    """Overwrite ``draft_json`` (user edits in the wizard).
+
+    Critic-flag re-evaluation is intentionally NOT re-run here; the existing
+    flags are preserved as a record of the original draft. Validation happens
+    on accept.
+    """
+    draft = await db.get(CodebookDraft, draft_id)
+    if not draft:
+        raise HTTPException(404, "Draft not found")
+    if draft.accepted_for_project_id is not None:
+        raise HTTPException(409, "Draft already accepted; create a new one to edit.")
+
+    draft.draft_json = body.draft_json
+    await db.commit()
+    await db.refresh(draft)
+    return _draft_to_out(draft)
+
+
 @router.get("/{draft_id}/artifact/{name}")
 async def download_artifact(draft_id: int, name: str, db: AsyncSession = Depends(get_db)):
     """Download the cleaned_data artifact as JSON or CSV.

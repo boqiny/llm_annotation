@@ -68,6 +68,34 @@ cd annotagent/frontend && npm install && npm run dev
 - The frontend expects the existing endpoint shapes — don't rename or restructure
   paths in `app/api/*` casually.
 
+## Optimizer 3-way split (train / val / test) — leakage rules
+
+Every optimizer run takes a gold dataset and splits it deterministically (seed
+derived from `(gold_dataset_id, dimension_name)`) into **train / val / test**.
+The split is enforced by `api/optimizers.py::_execute_run` with an assert-level
+leakage guard before the optimizer is invoked.
+
+| Split | Used for | Sees model output? | Influences final prompt? |
+|---|---|---|---|
+| **train** | optimizer-specific (see below) | yes | yes |
+| **val** | governor signal — accept/rollback decisions per round | yes | yes (selection signal) |
+| **test** | held-out final score, evaluated once after `optimize()` returns | no — never passed to optimizer | **no** |
+
+What `train` actually does, per optimizer:
+
+- **ReflectAgent (`optimizers/reflect_agent.py`)**: train is for **failure mining**, NOT few-shot demos. Each round, the current prompt is run on train, mistakes are collected, and the failures (gold + pred + sentence prefix) are fed to a `PatternExtractor` LLM that is *forbidden from quoting full failure sentences verbatim* — it must abstract them into rules. Rules go in the prompt, not raw train sentences.
+- **MIPROv2 (`optimizers/mipro.py`)**: train IS used as candidate few-shot demos via DSPy's compile. MIPROv2's whole job is to jointly search instructions + demos.
+- **GEPA (`optimizers/gepa.py`)**: train is the search corpus for DSPy's evolutionary loop.
+- **OPRO (`optimizers/opro.py`)**: train as exemplar pool for the meta-prompt.
+
+What's enforced (do not break this):
+
+- The optimizer's `optimize(initial_prompt, dimension, valid_labels, trainset, valset)` signature receives only train + val. Test is held by the executor.
+- After `optimize()` returns, `_execute_run` calls `evaluate_prompt(result.optimized_prompt, testset, ...)` exactly once. The numbers in `artifact.test.{initial,final}_score` are the **honest, leak-free** scores.
+- The asserts at lines `~276–278` of `api/optimizers.py` verify the three sets are disjoint by object identity. Don't remove them.
+
+If you add a new optimizer, it MUST honor this contract: don't read test, don't add testset to any prompt, don't peek at testset.gold for any selection decision. Anything else counts as cheating and the held-out test number stops meaning anything.
+
 ## Style notes
 
 - Global Karpathy guidelines apply (see `~/.claude/CLAUDE.md`): think before

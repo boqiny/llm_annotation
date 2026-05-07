@@ -28,33 +28,65 @@ export default function ProjectList() {
   return (
     <div className="space-y-16">
       {/* Hero */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-end">
-        <div className="lg:col-span-8">
-          <div className="font-mono-editorial text-stone-500 mb-5">
-            Workbench · for subtle multi-dimensional annotation
-          </div>
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-medium tracking-tight leading-[1.05]">
-            Turn adjudicated<br />
-            <span className="italic font-display font-normal">annotator insight</span><br />
-            into a calibrated LLM.
-          </h1>
-          <p className="mt-8 max-w-xl text-lg leading-relaxed text-stone-600">
-            AnnotAgent distills the decisions two human annotators already made —
-            codebook, gold subset, disagreement patterns — into an editable rule
-            library that drives LLM annotation with before / after metrics.
-          </p>
+      <section className="max-w-3xl">
+        <div className="font-mono-editorial text-stone-500 mb-5">
+          Annotation workbench · for messy multi-label tasks
         </div>
+        <h1 className="text-5xl sm:text-6xl font-medium tracking-tight leading-[1.05]">
+          Label text the way<br />
+          <span className="italic font-display font-normal">you'd label it</span> —
+          using an LLM.
+        </h1>
+        <p className="mt-8 text-lg leading-relaxed text-stone-600">
+          Bring a codebook (your label definitions) and AnnotAgent walks you through four steps:
+          define what to label, let the system draft a starting prompt for each dimension,
+          improve it with a few labeled examples, then annotate your data. No prompt engineering
+          required.
+        </p>
+      </section>
 
-        <div className="lg:col-span-4 lg:pl-6 lg:border-l border-seam">
-          <div className="font-mono-editorial text-stone-500 mb-3">The dataset</div>
-          <dl className="space-y-3 text-sm">
-            <StatRow label="Self-disclosure" value="169 agreed" />
-            <StatRow label="AI behavior" value="123 dual-annotated" />
-            <StatRow label="Dimensions" value="5 single + 3 multi-label" />
-            <StatRow label="Topic IAA" value="24.6% raw" muted />
-            <StatRow label="Level IAA" value="68.6% raw" muted />
-          </dl>
-        </div>
+      {/* How it works — 4-step workflow with figure slot */}
+      <section className="border-t border-seam pt-10">
+        <div className="font-mono-editorial text-stone-500 mb-3">How it works</div>
+        <h2 className="text-3xl font-medium tracking-tight mb-8">From codebook to annotated data in four steps</h2>
+
+        {/* Workflow figure — transparent PNG sits flush on the page background.
+            Source: annotagent/assets/workflow_transparent.png. No wrapper fill
+            so the cream page tone shows through any transparent areas. */}
+        <figure className="mb-12">
+          <img
+            src="/workflow.svg"
+            alt="AnnotAgent workflow: Define codebook → Auto-draft prompts → Improve from examples → Annotate dataset"
+            className="w-full h-auto"
+            onError={(e) => { (e.currentTarget.style.display = 'none') }}
+          />
+          <figcaption className="font-mono-editorial text-stone-400 mt-3">
+            workflow · define → draft → improve → annotate
+          </figcaption>
+        </figure>
+
+        <ol className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
+          <Step
+            n="01"
+            title="Define"
+            body="Pick a built-in codebook (Self-Disclosure, AI Behavior, Harm) or upload your own JSON. Don't have one? Upload a PDF, doc, or notes — CodebookAgent will draft a structured codebook for you to edit."
+          />
+          <Step
+            n="02"
+            title="Draft"
+            body="The system writes a starting annotation prompt for each dimension automatically, in parallel. You don't write any prompts yourself — you can read and tweak the drafts on the Improve page."
+          />
+          <Step
+            n="03"
+            title="Improve"
+            body="Optional. Upload a small set of labeled examples (gold) and the system tries the draft prompts on them, finds where it's wrong, writes plain-English correction rules, and rolls back any rule that hurts accuracy."
+          />
+          <Step
+            n="04"
+            title="Annotate"
+            body="Run the calibrated prompts over your unlabeled data. Watch progress live. Export results as CSV or JSON. Compare model output against gold — per-dimension accuracy, confusion matrix, mistakes you can scroll through."
+          />
+        </ol>
       </section>
 
       {/* Projects band */}
@@ -64,7 +96,7 @@ export default function ProjectList() {
             <div className="font-mono-editorial text-stone-500 mb-2">
               № {projects.length.toString().padStart(2, '0')} · projects
             </div>
-            <h2 className="text-3xl font-medium tracking-tight">All annotation projects</h2>
+            <h2 className="text-3xl font-medium tracking-tight">Your projects</h2>
           </div>
           <button
             onClick={() => setShowCreate(v => !v)}
@@ -86,7 +118,7 @@ export default function ProjectList() {
                   value={name}
                   onChange={e => setName(e.target.value)}
                   className="w-full px-0 py-2 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none text-base font-medium"
-                  placeholder="Self-disclosure · pilot"
+                  placeholder="My annotation project"
                 />
               </div>
               <div>
@@ -95,7 +127,7 @@ export default function ProjectList() {
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   className="w-full px-0 py-2 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none text-base"
-                  placeholder="e.g. 2-annotator pilot for calibration loop"
+                  placeholder="What are you annotating, and why?"
                 />
               </div>
             </div>
@@ -134,12 +166,15 @@ export default function ProjectList() {
   )
 }
 
-function StatRow({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
+function Step({ n, title, body }: { n: string; title: string; body: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 pb-2 border-b border-dotted border-seam">
-      <dt className="font-mono-editorial text-stone-500">{label}</dt>
-      <dd className={`font-mono text-sm ${muted ? 'text-stone-500' : 'text-ink font-medium'}`}>{value}</dd>
-    </div>
+    <li className="grid grid-cols-12 gap-4 list-none">
+      <div className="col-span-2 font-mono-editorial text-stone-400 pt-1">{n}</div>
+      <div className="col-span-10">
+        <h3 className="text-xl font-medium tracking-tight mb-1.5">{title}</h3>
+        <p className="text-sm text-stone-600 leading-relaxed">{body}</p>
+      </div>
+    </li>
   )
 }
 
@@ -194,14 +229,13 @@ function ProjectRow({
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="border border-dashed border-seam py-24 text-center bg-paper/40">
+    <div className="border border-dashed border-seam py-20 text-center bg-paper/40">
       <div className="font-mono-editorial text-stone-500 mb-3">No projects yet</div>
       <p className="text-stone-600 max-w-md mx-auto mb-6">
-        Create a project to load the self-disclosure codebook and the agreed-subset
-        ground truth.
+        Start by creating a project — pick a preset codebook or upload your own.
       </p>
       <button onClick={onCreate} className="px-5 py-2.5 bg-ink text-cream text-sm font-medium">
-        Start the first project →
+        Create your first project →
       </button>
     </div>
   )

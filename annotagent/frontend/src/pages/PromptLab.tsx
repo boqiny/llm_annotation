@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
-  listCodebooks, listDatasets,
-  type OptimizerInfo, type OptimizerRun,
+  listCodebooks, listDatasets, autoGeneratePrompt, patchOptimizerRun,
+  type OptimizerInfo, type OptimizerRun, type AutoPromptResponse,
 } from '../lib/api'
 import type { Codebook, Dataset } from '../types'
 
@@ -52,6 +52,12 @@ export default function PromptLab() {
   const [selectedRun, setSelectedRun] = useState<OptimizerRun | null>(null)
   const [launchError, setLaunchError] = useState<string>('')
   const [goldLabelKeys, setGoldLabelKeys] = useState<Set<string>>(new Set())
+
+  // Auto-generated annotation prompt (PR #1's LLM-driven path). Cached per
+  // (project, codebook) so it doesn't refire on every visit and burn tokens.
+  const [autoPrompt, setAutoPrompt] = useState<AutoPromptResponse | null>(null)
+  const [autoPromptLoading, setAutoPromptLoading] = useState(false)
+  const [autoPromptError, setAutoPromptError] = useState<string>('')
 
   useEffect(() => {
     Promise.all([
@@ -132,6 +138,52 @@ export default function PromptLab() {
 
   const activeCb = codebooks[codebooks.length - 1]
   const goldDatasets = datasets.filter(d => d.is_gold)
+
+  // Auto-prompt cache key. Stored in localStorage so the LLM call only fires
+  // once per (project, codebook); the user explicitly re-runs via the button.
+  const autoPromptCacheKey = activeCb ? `annotagent.autoPrompt.${projectId}.${activeCb.id}` : null
+
+  useEffect(() => {
+    if (!activeCb || !autoPromptCacheKey) return
+    if (autoPrompt) return
+    try {
+      const cached = localStorage.getItem(autoPromptCacheKey)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        // Validate shape — old single-prompt cache should be discarded so the
+        // user gets the new per-dimension result on the next visit.
+        if (parsed && Array.isArray(parsed.prompts)) {
+          setAutoPrompt(parsed); return
+        }
+        localStorage.removeItem(autoPromptCacheKey)
+      }
+    } catch { /* ignore */ }
+    // Fire once per (project, codebook). User can force a re-run via the button.
+    setAutoPromptLoading(true)
+    setAutoPromptError('')
+    autoGeneratePrompt(projectId, activeCb.id)
+      .then(resp => {
+        setAutoPrompt(resp)
+        try { localStorage.setItem(autoPromptCacheKey, JSON.stringify(resp)) } catch { /* ignore */ }
+      })
+      .catch(e => setAutoPromptError(fmtError(e)))
+      .finally(() => setAutoPromptLoading(false))
+  }, [activeCb, autoPromptCacheKey, autoPrompt, projectId])
+
+  const handleRegeneratePrompt = async () => {
+    if (!activeCb || !autoPromptCacheKey) return
+    setAutoPromptLoading(true)
+    setAutoPromptError('')
+    try {
+      const resp = await autoGeneratePrompt(projectId, activeCb.id)
+      setAutoPrompt(resp)
+      try { localStorage.setItem(autoPromptCacheKey, JSON.stringify(resp)) } catch { /* ignore */ }
+    } catch (e: any) {
+      setAutoPromptError(fmtError(e))
+    } finally {
+      setAutoPromptLoading(false)
+    }
+  }
 
   // Pre-flight validation — tell the user WHY before they launch
   const splitTotal = trainPct + valPct + testPct
@@ -227,6 +279,66 @@ export default function PromptLab() {
           <ResearcherToggle on={researcherMode} onChange={setResearcherMode} />
         </div>
       </header>
+
+      {/* Section 00 — Auto-generated per-dimension starting prompts.
+          Each dimension gets its own LLM-written prompt so the optimizer can
+          tune them independently. Generation is parallel across dimensions. */}
+      <Section
+        num="00"
+        title="Starting prompts"
+        hint="One LLM-generated annotation prompt per dimension, generated in parallel. Each can be optimized independently below."
+      >
+        {!activeCb ? (
+          <div className="font-mono-editorial text-stone-400">
+            Load a codebook on the Setup page first.
+          </div>
+        ) : autoPromptLoading && !autoPrompt ? (
+          <div className="border border-seam bg-paper/40 px-5 py-8 text-center">
+            <div className="font-mono-editorial text-stone-500 mb-1">Generating…</div>
+            <p className="text-sm text-stone-600">
+              Drafting a prompt for each of the {activeCb.dimensions.length} dimensions in parallel.
+            </p>
+          </div>
+        ) : autoPromptError ? (
+          <div className="border border-red-200 bg-red-50/60 px-5 py-4 text-sm">
+            <div className="font-mono-editorial text-red-700 mb-1">Generation failed</div>
+            <p className="text-stone-700">{autoPromptError}</p>
+            <button
+              onClick={handleRegeneratePrompt}
+              className="mt-3 px-3 py-1.5 text-xs font-medium text-ink border border-ink hover:bg-ink hover:text-cream"
+            >
+              Try again
+            </button>
+          </div>
+        ) : autoPrompt && autoPrompt.prompts.length > 0 ? (
+          <div>
+            <div className="flex items-baseline justify-between gap-4 mb-3">
+              <div className="font-mono-editorial text-stone-500">
+                {autoPrompt.prompts.length} prompts · generated from {activeCb.name}
+              </div>
+              <button
+                onClick={handleRegeneratePrompt}
+                disabled={autoPromptLoading}
+                className="font-mono-editorial text-stone-500 hover:text-ink disabled:opacity-50"
+              >
+                {autoPromptLoading ? 're-generating…' : 're-generate all'}
+              </button>
+            </div>
+            <div className="space-y-3">
+              {autoPrompt.prompts.map(p => (
+                <DimensionPromptCard key={p.dimension_name} dp={p} />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={handleRegeneratePrompt}
+            className="px-4 py-2 text-sm font-medium text-ink border border-ink hover:bg-ink hover:text-cream"
+          >
+            Generate starting prompts
+          </button>
+        )}
+      </Section>
 
       {/* Section 01 — Pick an optimizer (Researcher mode only) */}
       {researcherMode && (
@@ -438,7 +550,15 @@ export default function PromptLab() {
 
         {selectedRun && (
           <div className="mt-10">
-            <RunDetail run={selectedRun} researcherMode={researcherMode} />
+            <RunDetail
+              run={selectedRun}
+              researcherMode={researcherMode}
+              onUpdate={(updated) => {
+                setSelectedRun(updated)
+                setRuns(prev => prev.map(x => x.id === updated.id ? updated : x))
+              }}
+              projectId={projectId}
+            />
           </div>
         )}
       </Section>
@@ -520,6 +640,34 @@ function Field({ label, children }: { label: React.ReactNode; children: React.Re
       <span className="font-mono-editorial text-stone-500 block mb-1">{label}</span>
       {children}
     </label>
+  )
+}
+
+function DimensionPromptCard({ dp }: { dp: { dimension_name: string; prompt: string; version: string; path: string; error: string | null } }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="border border-seam bg-paper/40">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-baseline justify-between gap-3 px-5 py-3 hover:bg-paper text-left"
+      >
+        <div className="flex items-baseline gap-3">
+          <span className="font-mono-editorial text-stone-400">{open ? '−' : '+'}</span>
+          <span className="font-medium">{dp.dimension_name}</span>
+          <span className="font-mono-editorial text-stone-400">{dp.version}</span>
+        </div>
+        {dp.error
+          ? <span className="font-mono-editorial text-red-700">failed</span>
+          : <span className="font-mono-editorial text-stone-500">{dp.prompt.length.toLocaleString()} chars</span>
+        }
+      </button>
+      {open && (
+        dp.error
+          ? <div className="px-5 py-4 text-sm text-red-700 border-t border-seam">{dp.error}</div>
+          : <pre className="px-5 py-4 text-xs text-stone-800 whitespace-pre-wrap font-mono leading-relaxed max-h-[420px] overflow-auto border-t border-seam">{dp.prompt}</pre>
+      )}
+    </div>
   )
 }
 
@@ -625,7 +773,14 @@ function RunRow({
   )
 }
 
-function RunDetail({ run, researcherMode }: { run: OptimizerRun; researcherMode: boolean }) {
+function RunDetail({
+  run, researcherMode, onUpdate, projectId,
+}: {
+  run: OptimizerRun
+  researcherMode: boolean
+  onUpdate: (updated: OptimizerRun) => void
+  projectId: number
+}) {
   const ruleLib: any[] = Array.isArray(run.artifact?.rule_library) ? run.artifact.rule_library : []
   const delta = run.final_score - run.initial_score
 
@@ -879,16 +1034,106 @@ function RunDetail({ run, researcherMode }: { run: OptimizerRun; researcherMode:
         </div>
       )}
 
-      {/* Final prompt */}
+      {/* Final prompt — editable when the run has finished */}
       {run.optimized_prompt && (
-        <div className="px-6 py-4">
-          <div className="font-mono-editorial text-stone-500 mb-2">
-            {researcherMode ? 'Optimized prompt' : 'Updated instructions'}
-          </div>
-          <pre className="bg-paper/50 border border-seam p-4 font-mono text-xs leading-relaxed max-h-80 overflow-auto whitespace-pre-wrap text-stone-800">
-            {run.optimized_prompt}
-          </pre>
+        <EditablePromptBlock
+          run={run}
+          researcherMode={researcherMode}
+          projectId={projectId}
+          onUpdate={onUpdate}
+        />
+      )}
+    </div>
+  )
+}
+
+function EditablePromptBlock({
+  run, researcherMode, projectId, onUpdate,
+}: {
+  run: OptimizerRun
+  researcherMode: boolean
+  projectId: number
+  onUpdate: (updated: OptimizerRun) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(run.optimized_prompt)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string>('')
+
+  // If the parent loads a different run, reset the local draft.
+  const [trackedRunId, setTrackedRunId] = useState(run.id)
+  if (trackedRunId !== run.id) {
+    setTrackedRunId(run.id)
+    setDraft(run.optimized_prompt)
+    setEditing(false); setErr('')
+  }
+
+  const dirty = draft !== run.optimized_prompt
+  const editable = run.status === 'completed' || run.status === 'failed'
+
+  const save = async () => {
+    setSaving(true); setErr('')
+    try {
+      const updated = await patchOptimizerRun(projectId, run.id, { optimized_prompt: draft })
+      onUpdate(updated)
+      setEditing(false)
+    } catch (e: any) {
+      setErr(e?.response?.data?.detail || e?.message || 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="px-6 py-4">
+      <div className="flex items-baseline justify-between gap-3 mb-2">
+        <div className="font-mono-editorial text-stone-500">
+          {researcherMode ? 'Optimized prompt' : 'Updated instructions'}
+          {dirty && <span className="ml-2 text-amber-700">unsaved edits</span>}
         </div>
+        <div className="flex items-center gap-3">
+          {!editing && editable && (
+            <button
+              onClick={() => setEditing(true)}
+              className="font-mono-editorial text-stone-500 hover:text-ink"
+            >
+              edit
+            </button>
+          )}
+          {editing && (
+            <>
+              <button
+                onClick={() => { setDraft(run.optimized_prompt); setEditing(false); setErr('') }}
+                disabled={saving}
+                className="font-mono-editorial text-stone-500 hover:text-ink"
+              >
+                cancel
+              </button>
+              <button
+                onClick={save}
+                disabled={saving || !dirty}
+                className="px-3 py-1 text-xs font-medium bg-ink text-cream hover:bg-stone-800 disabled:opacity-40"
+              >
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      {editing ? (
+        <textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          rows={Math.min(28, Math.max(10, draft.split('\n').length + 1))}
+          className="w-full bg-white border border-seam focus:border-ink focus:outline-none p-4 font-mono text-xs leading-relaxed text-stone-800 resize-y"
+        />
+      ) : (
+        <pre className="bg-paper/50 border border-seam p-4 font-mono text-xs leading-relaxed max-h-80 overflow-auto whitespace-pre-wrap text-stone-800">
+          {run.optimized_prompt}
+        </pre>
+      )}
+      {err && (
+        <div className="mt-2 text-xs text-red-700">{err}</div>
       )}
     </div>
   )

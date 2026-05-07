@@ -22,9 +22,10 @@ async def decompose(project_id: int, db: AsyncSession = Depends(get_db)):
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # Get codebook
+    # Get codebook (latest = highest id).
     result = await db.execute(
         select(Codebook).where(Codebook.project_id == project_id)
+        .order_by(Codebook.id.desc()).limit(1)
     )
     codebook = result.scalars().first()
     if not codebook:

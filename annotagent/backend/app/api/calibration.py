@@ -69,7 +69,10 @@ async def create_calibration(
     steps = pipeline.steps if pipeline else []
 
     codebook_dims: dict[str, list[str]] = {}
-    cb_q = await db.execute(select(Codebook).where(Codebook.project_id == project_id))
+    cb_q = await db.execute(
+        select(Codebook).where(Codebook.project_id == project_id)
+        .order_by(Codebook.id.desc()).limit(1)
+    )
     codebook = cb_q.scalars().first()
     if codebook:
         dim_q = await db.execute(

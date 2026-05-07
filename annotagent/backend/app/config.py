@@ -17,9 +17,9 @@ def _find_env_file() -> str:
 
 
 _BACKEND_DIR = Path(__file__).resolve().parent.parent  # .../annotagent/backend
-# Widened to project-root /data so seed entries can reference any subfolder
-# (cleaned/ for gold + reference, test/cleaned/ for unseen test sets).
-_DEFAULT_SEED_DIR = (_BACKEND_DIR.parent.parent / "data").resolve()
+# Bundled seed data lives under annotagent/assets/data/ so the demo is self-
+# contained inside the annotagent/ subtree. Override via SEED_DATA_DIR env var.
+_DEFAULT_SEED_DIR = (_BACKEND_DIR.parent / "assets" / "data").resolve()
 
 
 class Settings(BaseSettings):

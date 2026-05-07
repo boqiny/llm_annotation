@@ -2,11 +2,6 @@
 
 Codebook-driven LLM annotation framework with a React frontend and FastAPI backend. Demo paper target: EMNLP 2026 System Demonstrations.
 
-## Repo layout
-
-- [`annotagent/`](./annotagent) — the live system (FastAPI backend + React frontend + Docker compose).
-- [`legacy/`](./legacy) — older self-disclosure prototype scripts and data; not on the live path.
-
 ## Architecture
 
 - **Backend**: FastAPI + SQLAlchemy + SQLite (async)
@@ -15,19 +10,7 @@ Codebook-driven LLM annotation framework with a React frontend and FastAPI backe
 
 ## Quick Start
 
-### Option A — Docker (one command, recommended)
-
-```bash
-cd annotagent
-cp .env.example .env
-docker compose up --build
-```
-
-- Frontend: http://localhost:8080
-- Backend health: http://localhost:8000/api/health
-- API docs: http://localhost:8000/docs
-
-### Option B — Local dev (two terminals, hot reload)
+Local dev (two terminals, hot reload)
 
 Terminal 1 — backend:
 
@@ -42,7 +25,7 @@ Terminal 2 — frontend:
 ```bash
 cd annotagent/frontend
 npm install
-npm run dev                       # serves on http://localhost:5173
+npm run dev
 ```
 
 Sample codebooks are loaded automatically via presets (`self_disclosure`, `sentiment`). Sample datasets with gold labels live in [`annotagent/seed/`](./annotagent/seed):

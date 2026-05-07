@@ -15,8 +15,9 @@ from app.models.tables import Codebook, CodebookDraft, Dimension, Label, Project
 from app.schemas.schemas import (
     AcceptDraftRequest, CodebookOut, CodebookUpload, PresetInfo,
 )
+from app.config import resolve_api_key
 from app.engine.codebook_parser import parse_codebook, validate_codebook
-from app.engine.auto_prompt_generator import agenerate_prompt_from_codebook
+from app.engine.auto_prompt_generator import agenerate_prompts_per_dimension
 from app.utils.storage import next_version, project_paths, save_text, save_yaml, utc_now_iso
 
 router = APIRouter(prefix="/api/projects/{project_id}/codebooks", tags=["codebooks"])
@@ -112,10 +113,16 @@ class AutoPromptRequest(BaseModel):
     task_type: str = "text_annotation"
 
 
-class AutoPromptResponse(BaseModel):
+class DimensionPrompt(BaseModel):
+    dimension_name: str
     prompt: str
     version: str
     path: str
+    error: str | None = None
+
+
+class AutoPromptResponse(BaseModel):
+    prompts: list[DimensionPrompt]
 
 
 @router.post("/{codebook_id}/auto-prompt", response_model=AutoPromptResponse)
@@ -125,55 +132,87 @@ async def auto_generate_prompt(
     body: AutoPromptRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """LLM-generate an annotation prompt from a (typically user-custom) codebook.
+    """LLM-generate one annotation prompt per dimension, in parallel.
 
-    Saves the result to ``workspace/project_<id>/prompts/auto_vNNN.txt`` plus a
-    sibling ``.meta.yaml``. The deterministic Jinja generator in
-    ``engine/prompt_generator.py`` is used for preset/gallery prompts; this
-    endpoint is the alternate path for custom codebooks.
+    Each dimension's prompt is saved as
+    ``workspace/project_<id>/prompts/<dim_name>/auto_vNNN.txt`` with a sibling
+    ``.meta.yaml``. Per-dimension matches the multi-step pipeline + per-
+    dimension optimizer architecture; the deterministic Jinja generator in
+    ``engine/prompt_generator.py`` remains the path for preset/gallery prompts.
     """
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
-    if not project.api_key:
-        raise HTTPException(400, "Project has no api_key configured")
+
+    api_key = resolve_api_key(project.llm_provider, project.api_key_encrypted)
+    if not api_key:
+        raise HTTPException(
+            400,
+            f"No {project.llm_provider} API key available. Set one in Setup or add it to the backend .env.",
+        )
 
     cb = await db.get(Codebook, codebook_id)
     if not cb or cb.project_id != project_id:
         raise HTTPException(404, "Codebook not found for this project")
 
-    prompt_text = await agenerate_prompt_from_codebook(
-        codebook=cb.raw_json or {},
+    parsed = parse_codebook(cb.raw_json or {})
+    if not parsed.dimensions:
+        raise HTTPException(400, "Codebook has no dimensions")
+
+    results = await agenerate_prompts_per_dimension(
+        parsed.dimensions,
         task_type=body.task_type,
         provider=project.llm_provider,
         model=project.llm_model,
-        api_key=project.api_key,
+        api_key=api_key,
     )
 
     paths = project_paths(f"project_{project_id}")
-    version = next_version(paths["prompts"], prefix="auto_v")
-    prompt_path = paths["prompts"] / f"{version}.txt"
-    save_text(prompt_path, prompt_text)
-    save_yaml(paths["prompts"] / f"{version}.meta.yaml", {
-        "version": version,
-        "source": "auto_prompt_generator",
-        "codebook_id": codebook_id,
-        "codebook_name": cb.name,
-        "task_type": body.task_type,
-        "llm_provider": project.llm_provider,
-        "llm_model": project.llm_model,
-        "created_at": utc_now_iso(),
-    })
+    out: list[DimensionPrompt] = []
+    for dim_name, res in results:
+        # Sanitize dim name for filesystem (spaces / slashes happen in real codebooks).
+        safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in dim_name)
+        dim_dir = paths["prompts"] / safe
+        version = next_version(dim_dir, prefix="auto_v")
 
-    return AutoPromptResponse(prompt=prompt_text, version=version, path=str(prompt_path))
+        if isinstance(res, Exception):
+            out.append(DimensionPrompt(
+                dimension_name=dim_name, prompt="", version=version,
+                path=str(dim_dir / f"{version}.txt"), error=repr(res),
+            ))
+            continue
+
+        prompt_path = dim_dir / f"{version}.txt"
+        save_text(prompt_path, res)
+        save_yaml(dim_dir / f"{version}.meta.yaml", {
+            "version": version,
+            "source": "auto_prompt_generator",
+            "codebook_id": codebook_id,
+            "codebook_name": cb.name,
+            "dimension_name": dim_name,
+            "task_type": body.task_type,
+            "llm_provider": project.llm_provider,
+            "llm_model": project.llm_model,
+            "created_at": utc_now_iso(),
+        })
+        out.append(DimensionPrompt(
+            dimension_name=dim_name, prompt=res, version=version,
+            path=str(prompt_path), error=None,
+        ))
+
+    return AutoPromptResponse(prompts=out)
 
 
 @router.get("", response_model=list[CodebookOut])
 async def list_codebooks(project_id: int, db: AsyncSession = Depends(get_db)):
+    # Oldest → newest. Frontend treats codebooks[length-1] as the active one,
+    # so this ordering must match every backend lookup that uses
+    # ``order_by(Codebook.id.desc()).limit(1)`` to pick the latest.
     result = await db.execute(
         select(Codebook)
         .where(Codebook.project_id == project_id)
         .options(selectinload(Codebook.dimensions).selectinload(Dimension.labels))
+        .order_by(Codebook.id.asc())
     )
     return result.scalars().all()
 
