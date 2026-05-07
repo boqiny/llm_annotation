@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom'
 import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
   listCodebooks, listDatasets, autoGeneratePrompt, patchOptimizerRun,
-  type OptimizerInfo, type OptimizerRun, type AutoPromptResponse,
+  listMemoryVersions, deleteOptimizerRun, cancelOptimizerRun,
+  type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion,
 } from '../lib/api'
 import type { Codebook, Dataset } from '../types'
 
@@ -58,6 +59,14 @@ export default function PromptLab() {
   const [autoPrompt, setAutoPrompt] = useState<AutoPromptResponse | null>(null)
   const [autoPromptLoading, setAutoPromptLoading] = useState(false)
   const [autoPromptError, setAutoPromptError] = useState<string>('')
+
+  // Cross-session reflection memory (cumulative rule library, versioned per
+  // (project, dimension)). Re-fetched whenever runs list updates so a freshly
+  // completed reflect_agent run pulls in its new memory version.
+  const [memory, setMemory] = useState<MemoryVersion[]>([])
+  useEffect(() => {
+    listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))
+  }, [projectId, runs.length, runs.map(r => r.status).join(',')])
 
   useEffect(() => {
     Promise.all([
@@ -280,13 +289,14 @@ export default function PromptLab() {
         </div>
       </header>
 
-      {/* Section 00 — Auto-generated per-dimension starting prompts.
+      {/* Section 00 — Current prompt per dimension (optimized if one exists,
+          otherwise the LLM-drafted starting prompt).
           Each dimension gets its own LLM-written prompt so the optimizer can
           tune them independently. Generation is parallel across dimensions. */}
       <Section
         num="00"
-        title="Starting prompts"
-        hint="One LLM-generated annotation prompt per dimension, generated in parallel. Each can be optimized independently below."
+        title="Current prompts"
+        hint="The active annotation prompt per dimension. Defaults to the optimized version when one exists; toggle to see the original LLM-drafted starting prompt for comparison."
       >
         {!activeCb ? (
           <div className="font-mono-editorial text-stone-400">
@@ -325,9 +335,29 @@ export default function PromptLab() {
               </button>
             </div>
             <div className="space-y-3">
-              {autoPrompt.prompts.map(p => (
-                <DimensionPromptCard key={p.dimension_name} dp={p} />
-              ))}
+              {autoPrompt.prompts.map(p => {
+                // Latest completed reflect_agent run for this dim, if any.
+                const completed = runs
+                  .filter(r => r.dimension_name === p.dimension_name
+                    && r.optimizer_name === 'reflect_agent'
+                    && r.status === 'completed')
+                  .sort((a, b) => b.id - a.id)[0]
+                return (
+                  <DimensionPromptCard
+                    key={p.dimension_name}
+                    dp={p}
+                    optimizedRun={completed}
+                    onJumpToRun={completed ? () => {
+                      setSelectedRunId(completed.id)
+                      // Scroll into view after the detail mounts.
+                      setTimeout(() => {
+                        const el = document.getElementById('section-runs')
+                        el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }, 50)
+                    } : undefined}
+                  />
+                )
+              })}
             </div>
           </div>
         ) : (
@@ -335,7 +365,7 @@ export default function PromptLab() {
             onClick={handleRegeneratePrompt}
             className="px-4 py-2 text-sm font-medium text-ink border border-ink hover:bg-ink hover:text-cream"
           >
-            Generate starting prompts
+            Generate prompts
           </button>
         )}
       </Section>
@@ -516,6 +546,7 @@ export default function PromptLab() {
       </Section>
 
       {/* Section 03 — Runs */}
+      <div id="section-runs" className="scroll-mt-20" />
       <Section
         num={researcherMode ? '03' : '02'}
         title={researcherMode ? 'Runs' : 'Recent improvements'}
@@ -542,6 +573,24 @@ export default function PromptLab() {
                 run={r}
                 isSelected={r.id === selectedRunId}
                 onSelect={() => setSelectedRunId(r.id === selectedRunId ? null : r.id)}
+                onDelete={async () => {
+                  try {
+                    await deleteOptimizerRun(projectId, r.id)
+                    setRuns(prev => prev.filter(x => x.id !== r.id))
+                    if (selectedRunId === r.id) setSelectedRunId(null)
+                  } catch (e: any) {
+                    alert(`Delete failed: ${fmtError(e)}`)
+                  }
+                }}
+                onCancel={async () => {
+                  try {
+                    await cancelOptimizerRun(projectId, r.id)
+                    // Status flips to 'cancelled' once the worker observes the
+                    // cancellation; the polling loop will pick that up.
+                  } catch (e: any) {
+                    alert(`Cancel failed: ${fmtError(e)}`)
+                  }
+                }}
                 researcherMode={researcherMode}
               />
             ))}
@@ -562,7 +611,141 @@ export default function PromptLab() {
           </div>
         )}
       </Section>
+
+      {/* Section 04 — Memory (cross-session reflect_agent rule library).
+          Only meaningful for ReflectAgent runs; other optimizers don't
+          produce a rule library. The next run on the same dimension seeds
+          from the latest version listed here. */}
+      <Section
+        num={researcherMode ? '04' : '03'}
+        title="Memory"
+        hint="Rules learned across reflect_agent runs accumulate here, versioned per dimension. The next run on a dimension seeds from its latest version, so this is what carries between sessions."
+      >
+        <MemoryPanel memory={memory} onRefresh={() =>
+          listMemoryVersions(projectId).then(setMemory).catch(() => {})
+        } />
+      </Section>
     </div>
+  )
+}
+
+/* ─── Memory panel ──────────────────────────────────────────── */
+
+function MemoryPanel({
+  memory, onRefresh,
+}: { memory: MemoryVersion[]; onRefresh: () => void }) {
+  if (memory.length === 0) {
+    return (
+      <div className="border border-dashed border-seam bg-paper/40 py-10 text-center">
+        <div className="font-mono-editorial text-stone-500 mb-1">No memory yet</div>
+        <p className="text-sm text-stone-600 max-w-md mx-auto">
+          Memory is written when a reflect_agent run completes. Run one above and the rule library will appear here, ready to seed the next run on the same dimension.
+        </p>
+      </div>
+    )
+  }
+
+  // Group by dimension. Versions arrive ordered (dim, version DESC) from the API.
+  const byDim: Record<string, MemoryVersion[]> = {}
+  for (const v of memory) {
+    if (!byDim[v.dimension_name]) byDim[v.dimension_name] = []
+    byDim[v.dimension_name].push(v)
+  }
+  const dims = Object.keys(byDim).sort()
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3 font-mono-editorial text-stone-500">
+        <span>{memory.length} version{memory.length === 1 ? '' : 's'} across {dims.length} dimension{dims.length === 1 ? '' : 's'}</span>
+        <button onClick={onRefresh} className="hover:text-ink">refresh</button>
+      </div>
+      <div className="space-y-6">
+        {dims.map(d => (
+          <DimensionMemory key={d} dimension={d} versions={byDim[d]} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function DimensionMemory({
+  dimension, versions,
+}: { dimension: string; versions: MemoryVersion[] }) {
+  const latest = versions[0]
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3 pb-2 border-b border-seam mb-2">
+        <h3 className="text-lg font-medium tracking-tight">{dimension}</h3>
+        <div className="font-mono-editorial text-stone-500">
+          latest · v{String(latest.version).padStart(3, '0')} · {latest.n_rules} rules
+        </div>
+      </div>
+      <ul className="divide-y divide-seam">
+        {versions.map(v => <MemoryVersionRow key={v.id} v={v} />)}
+      </ul>
+    </div>
+  )
+}
+
+function MemoryVersionRow({ v }: { v: MemoryVersion }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full grid grid-cols-12 gap-3 py-2.5 px-1 text-left hover:bg-paper/60"
+      >
+        <span className="col-span-1 font-mono-editorial text-stone-400">{open ? '−' : '+'}</span>
+        <span className="col-span-2 font-mono text-sm">v{String(v.version).padStart(3, '0')}</span>
+        <span className="col-span-2 font-mono text-sm text-stone-700">{v.n_rules} rules</span>
+        <span className="col-span-2 font-mono-editorial text-stone-500">
+          {v.new_rules_count > 0 ? `+${v.new_rules_count} new` : 'no new'}
+        </span>
+        <span className="col-span-3 font-mono-editorial text-stone-500">
+          {v.source_optimizer_run_id !== null ? `from run ${String(v.source_optimizer_run_id).padStart(4, '0')}` : 'manual'}
+        </span>
+        <span className="col-span-2 font-mono-editorial text-stone-400 text-right">
+          {v.created_at ? new Date(v.created_at).toLocaleDateString() : '—'}
+        </span>
+      </button>
+      {open && (
+        <div className="px-1 pb-4 space-y-3">
+          {v.rules.length === 0 ? (
+            <div className="font-mono-editorial text-stone-400 text-sm">no rules</div>
+          ) : (
+            v.rules.map((r, i) => (
+              <div key={i} className="pl-4 border-l-2 border-violet-300">
+                <div className="font-mono-editorial text-stone-400 mb-0.5">
+                  {(i + 1).toString().padStart(2, '0')} · {r.id || 'unnamed'}
+                  {r.target_labels?.length ? ` · ${r.target_labels.join(' / ')}` : ''}
+                </div>
+                <div className="text-sm font-medium">{r.boundary || r.rule || '(no boundary)'}</div>
+                {r.rule && r.boundary && r.rule !== r.boundary && (
+                  <div className="text-sm text-stone-600 mt-0.5 leading-relaxed">{r.rule}</div>
+                )}
+                {(r.positive_cues?.length || r.negative_cues?.length) ? (
+                  <div className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1 text-xs">
+                    {r.positive_cues && r.positive_cues.length > 0 && (
+                      <span>
+                        <span className="font-mono-editorial text-emerald-700 mr-2">+ cues</span>
+                        <span className="text-stone-700">{r.positive_cues.map(c => `"${c}"`).join(', ')}</span>
+                      </span>
+                    )}
+                    {r.negative_cues && r.negative_cues.length > 0 && (
+                      <span>
+                        <span className="font-mono-editorial text-red-700 mr-2">− cues</span>
+                        <span className="text-stone-700">{r.negative_cues.map(c => `"${c}"`).join(', ')}</span>
+                      </span>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </li>
   )
 }
 
@@ -643,29 +826,86 @@ function Field({ label, children }: { label: React.ReactNode; children: React.Re
   )
 }
 
-function DimensionPromptCard({ dp }: { dp: { dimension_name: string; prompt: string; version: string; path: string; error: string | null } }) {
+function DimensionPromptCard({
+  dp, optimizedRun, onJumpToRun,
+}: {
+  dp: { dimension_name: string; prompt: string; version: string; path: string; error: string | null }
+  optimizedRun?: OptimizerRun
+  onJumpToRun?: () => void
+}) {
   const [open, setOpen] = useState(false)
+  // When an optimized version exists, two views are available: the original
+  // LLM draft and the optimizer's rule-augmented version. Default to the
+  // optimized (best) version when available — that's what the user actually
+  // ships; the starting prompt is reference only.
+  const [view, setView] = useState<'starting' | 'optimized'>(optimizedRun ? 'optimized' : 'starting')
+  const test = (optimizedRun?.artifact as any)?.test as { final_score?: number } | undefined
+  const score = test?.final_score ?? optimizedRun?.final_score
+  const optimizedPrompt = optimizedRun?.optimized_prompt || ''
+
   return (
     <div className="border border-seam bg-paper/40">
       <button
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-baseline justify-between gap-3 px-5 py-3 hover:bg-paper text-left"
+        className="w-full flex items-center justify-between gap-3 px-5 py-3 hover:bg-paper text-left"
       >
         <div className="flex items-baseline gap-3">
           <span className="font-mono-editorial text-stone-400">{open ? '−' : '+'}</span>
           <span className="font-medium">{dp.dimension_name}</span>
-          <span className="font-mono-editorial text-stone-400">{dp.version}</span>
+          <span className={`font-mono-editorial ${optimizedRun ? 'text-violet-700' : 'text-stone-400'}`}>
+            {optimizedRun
+              ? `optimized · run ${optimizedRun.id.toString().padStart(4, '0')}${typeof score === 'number' ? ` · ${(score * 100).toFixed(1)}%` : ''}`
+              : dp.version}
+          </span>
         </div>
-        {dp.error
-          ? <span className="font-mono-editorial text-red-700">failed</span>
-          : <span className="font-mono-editorial text-stone-500">{dp.prompt.length.toLocaleString()} chars</span>
-        }
+        <div className="flex items-baseline gap-3">
+          {dp.error
+            ? <span className="font-mono-editorial text-red-700">failed</span>
+            : <span className="font-mono-editorial text-stone-500">
+                {(optimizedRun ? optimizedPrompt.length : dp.prompt.length).toLocaleString()} chars
+              </span>
+          }
+        </div>
       </button>
       {open && (
-        dp.error
-          ? <div className="px-5 py-4 text-sm text-red-700 border-t border-seam">{dp.error}</div>
-          : <pre className="px-5 py-4 text-xs text-stone-800 whitespace-pre-wrap font-mono leading-relaxed max-h-[420px] overflow-auto border-t border-seam">{dp.prompt}</pre>
+        dp.error ? (
+          <div className="px-5 py-4 text-sm text-red-700 border-t border-seam">{dp.error}</div>
+        ) : (
+          <div className="border-t border-seam">
+            {optimizedRun && (
+              <div className="px-5 py-2 flex items-center gap-3 border-b border-seam bg-paper/60">
+                <button
+                  type="button"
+                  onClick={() => setView('starting')}
+                  className={`font-mono-editorial text-xs ${view === 'starting' ? 'text-ink underline' : 'text-stone-500 hover:text-ink'}`}
+                >
+                  starting
+                </button>
+                <span className="text-stone-300">·</span>
+                <button
+                  type="button"
+                  onClick={() => setView('optimized')}
+                  className={`font-mono-editorial text-xs ${view === 'optimized' ? 'text-violet-700 underline' : 'text-stone-500 hover:text-ink'}`}
+                >
+                  optimized
+                </button>
+                {onJumpToRun && (
+                  <button
+                    type="button"
+                    onClick={onJumpToRun}
+                    className="ml-auto font-mono-editorial text-xs text-stone-500 hover:text-ink"
+                  >
+                    open run →
+                  </button>
+                )}
+              </div>
+            )}
+            <pre className="px-5 py-4 text-xs text-stone-800 whitespace-pre-wrap font-mono leading-relaxed max-h-[420px] overflow-auto">
+              {view === 'optimized' ? optimizedPrompt : dp.prompt}
+            </pre>
+          </div>
+        )
       )}
     </div>
   )
@@ -702,13 +942,17 @@ function OptimizerCard({
 }
 
 function RunRow({
-  run, isSelected, onSelect, researcherMode,
+  run, isSelected, onSelect, onDelete, onCancel, researcherMode,
 }: {
   run: OptimizerRun
   isSelected: boolean
   onSelect: () => void
+  onDelete: () => void
+  onCancel: () => void
   researcherMode: boolean
 }) {
+  const canDelete = run.status !== 'running' && run.status !== 'pending'
+  const canCancel = run.status === 'running' || run.status === 'pending'
   const statusTone =
     run.status === 'completed' ? 'text-emerald-700' :
     run.status === 'running' ? 'text-blue-700' :
@@ -735,7 +979,7 @@ function RunRow({
   return (
     <li
       onClick={onSelect}
-      className={`grid grid-cols-12 gap-4 py-4 items-baseline cursor-pointer transition-colors ${isSelected ? 'bg-paper' : 'hover:bg-paper/60'}`}
+      className={`group grid grid-cols-12 gap-4 py-4 items-baseline cursor-pointer transition-colors ${isSelected ? 'bg-paper' : 'hover:bg-paper/60'}`}
     >
       <div className="col-span-1 font-mono text-xs text-stone-400">
         {run.id.toString().padStart(4, '0')}
@@ -766,8 +1010,36 @@ function RunRow({
       <div className="col-span-2 text-right font-mono text-xs text-stone-600">
         {researcherMode ? `$${run.total_cost.toFixed(4)}` : ''}
       </div>
-      <div className="col-span-2 text-right text-stone-400">
-        {isSelected ? '↑' : '↓'}
+      <div className="col-span-2 flex items-center justify-end gap-3 text-stone-400">
+        {canCancel && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              if (window.confirm(`Stop run ${run.id.toString().padStart(4, '0')} (${run.dimension_name})? Partial progress will be discarded.`)) {
+                onCancel()
+              }
+            }}
+            className="opacity-0 group-hover:opacity-100 hover:opacity-100 font-mono-editorial text-stone-400 hover:text-amber-700 text-xs transition-opacity"
+            title="Cancel this run"
+          >
+            stop
+          </button>
+        )}
+        {canDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              if (window.confirm(`Delete run ${run.id.toString().padStart(4, '0')} (${run.dimension_name})? This cannot be undone.`)) {
+                onDelete()
+              }
+            }}
+            className="opacity-0 group-hover:opacity-100 hover:opacity-100 font-mono-editorial text-stone-400 hover:text-red-600 text-xs transition-opacity"
+            title="Delete this run"
+          >
+            delete
+          </button>
+        )}
+        <span>{isSelected ? '↑' : '↓'}</span>
       </div>
     </li>
   )

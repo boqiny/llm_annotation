@@ -219,5 +219,34 @@ export const patchOptimizerRun = (
   projectId: number, runId: number,
   patch: { optimized_prompt?: string },
 ) => api.patch<OptimizerRun>(`/projects/${projectId}/optimizer-runs/${runId}`, patch).then(r => r.data)
+export const deleteOptimizerRun = (projectId: number, runId: number) =>
+  api.delete(`/projects/${projectId}/optimizer-runs/${runId}`)
+export const cancelOptimizerRun = (projectId: number, runId: number) =>
+  api.post(`/projects/${projectId}/optimizer-runs/${runId}/cancel`).then(r => r.data)
+
+// Reflection memory (cumulative rules learned across reflect_agent sessions)
+export interface MemoryRule {
+  id?: string
+  boundary?: string
+  rule?: string
+  target_labels?: string[]
+  positive_cues?: string[]
+  negative_cues?: string[]
+  [k: string]: any
+}
+export interface MemoryVersion {
+  id: number
+  dimension_name: string
+  version: number
+  n_rules: number
+  new_rules_count: number
+  source_optimizer_run_id: number | null
+  rules: MemoryRule[]
+  created_at: string | null
+}
+export const listMemoryVersions = (projectId: number, dimension?: string) => {
+  const params = dimension ? { dimension } : {}
+  return api.get<MemoryVersion[]>(`/projects/${projectId}/memory`, { params }).then(r => r.data)
+}
 
 export default api

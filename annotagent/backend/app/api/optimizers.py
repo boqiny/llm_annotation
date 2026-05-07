@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/projects/{project_id}/optimizer-runs", tags=["optimizers"])
 memory_router = APIRouter(prefix="/api/projects/{project_id}/memory", tags=["memory"])
 
+# In-process registry of in-flight optimizer tasks so we can cooperatively
+# cancel them. Keyed by run_id. Entries are removed by a done-callback when
+# the task finishes for any reason (success / failure / cancellation).
+_RUNNING_TASKS: dict[int, asyncio.Task] = {}
+
 
 @memory_router.get("")
 async def list_memory_versions(
@@ -88,6 +93,32 @@ from pydantic import BaseModel as _BaseModel
 class OptimizerRunPatch(_BaseModel):
     """Whitelisted fields the user can edit after a run completes."""
     optimized_prompt: str | None = None
+
+
+@router.delete("/{run_id}", status_code=204)
+async def delete_run(project_id: int, run_id: int, db: AsyncSession = Depends(get_db)):
+    """Delete an optimizer run row. Refuses to delete in-flight runs.
+
+    Memory versions that reference this run via ``source_optimizer_run_id``
+    keep their rules; the FK is nulled so the rule library survives even
+    when its source run is deleted.
+    """
+    run = await db.get(OptimizerRun, run_id)
+    if not run or run.project_id != project_id:
+        raise HTTPException(404, "Run not found")
+    if run.status in ("running", "pending"):
+        raise HTTPException(409, f"Run is {run.status}; wait for it to finish or fail first.")
+
+    # Null out the FK on any memory versions sourced from this run so the
+    # cumulative rule library isn't orphaned to a missing FK.
+    from sqlalchemy import update
+    await db.execute(
+        update(ReflectMemoryVersion)
+        .where(ReflectMemoryVersion.source_optimizer_run_id == run_id)
+        .values(source_optimizer_run_id=None)
+    )
+    await db.delete(run)
+    await db.commit()
 
 
 @router.patch("/{run_id}", response_model=OptimizerRunOut)
@@ -186,15 +217,42 @@ async def start_run(
     await db.commit()
     await db.refresh(run)
 
-    asyncio.create_task(_execute_run(
+    task = asyncio.create_task(_execute_run(
         run_id=run.id,
         project_id=project_id,
         provider=project.llm_provider,
         model=project.llm_model,
         api_key=resolve_api_key(project.llm_provider, project.api_key_encrypted),
     ))
+    _RUNNING_TASKS[run.id] = task
+    task.add_done_callback(lambda _t, rid=run.id: _RUNNING_TASKS.pop(rid, None))
 
     return run
+
+
+@router.post("/{run_id}/cancel", status_code=202)
+async def cancel_run(project_id: int, run_id: int, db: AsyncSession = Depends(get_db)):
+    """Cooperatively cancel an in-flight optimizer run.
+
+    Calls ``task.cancel()``. The next ``await`` inside the optimizer raises
+    ``asyncio.CancelledError``, which ``_execute_run`` catches to mark the
+    run ``cancelled`` in the DB. Returns 202 because cancellation is async.
+    """
+    run = await db.get(OptimizerRun, run_id)
+    if not run or run.project_id != project_id:
+        raise HTTPException(404, "Run not found")
+    if run.status not in ("pending", "running"):
+        raise HTTPException(409, f"Run is {run.status}; nothing to cancel.")
+
+    task = _RUNNING_TASKS.get(run_id)
+    if task is None:
+        # Task disappeared (server restart?). Mark cancelled so the UI clears.
+        run.status = "cancelled"
+        await db.commit()
+        return {"status": "cancelled", "note": "task not in registry"}
+
+    task.cancel()
+    return {"status": "cancelling"}
 
 
 async def _execute_run(run_id: int, project_id: int, provider: str, model: str, api_key: str):
@@ -456,6 +514,18 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
                     source_optimizer_run_id=run_id,
                 ))
                 await session.commit()
+
+    except asyncio.CancelledError:
+        logger.info(f"Optimizer run {run_id} cancelled by user")
+        try:
+            async with async_session() as session:
+                run = await session.get(OptimizerRun, run_id)
+                if run:
+                    run.status = "cancelled"
+                    await session.commit()
+        except Exception:
+            pass
+        raise
 
     except Exception as e:
         logger.exception(f"Optimizer run {run_id} failed")
