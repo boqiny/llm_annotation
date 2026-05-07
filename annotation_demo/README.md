@@ -307,7 +307,8 @@ Supports both single-label and multi-label classification.
 
 - Uses a `src/` layout with editable install (`pip install -e .`)
 - `workspace/` is not committed to git
-- All LLM calls in the main workflow are non-blocking (`agenerate`)
+- `workflow.run()` is fully async — prompt generation and annotation both use `agenerate`
+- `workflow.run_reflection()` is synchronous — it calls `llm.generate_json()` (blocking); call it outside an event loop or wrap with `asyncio.to_thread` if needed
 - The sync `generate_annotation_prompt` / `annotate_items` are preserved for script use outside async contexts
 - Requires Python ≥ 3.10
 
