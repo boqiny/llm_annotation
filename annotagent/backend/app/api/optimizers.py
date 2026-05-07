@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import resolve_api_key
 from app.database import get_db, async_session
 from app.engine.codebook_parser import parse_codebook
+from app.engine.metrics import compute_metrics
 from app.engine.prompt_generator import generate_dimension_prompt
 from app.utils.storage import next_version, project_paths, save_text, save_yaml, utc_now_iso
 from app.models.tables import Codebook, DataItem, Dataset, OptimizerRun, Project, ReflectMemoryVersion
@@ -410,17 +411,23 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
         test_final_acc = 0.0
         test_tokens = 0
         test_cost = 0.0
+        test_initial_metrics: dict | None = None
+        test_final_metrics: dict | None = None
         if testset:
             # Score the initial (unoptimized) prompt on test, so the user can see
             # the lift attributable to optimization, not just prompt quality.
-            test_initial_acc, _, ti_tok, ti_cost = await evaluate_prompt(
+            test_initial_acc, ti_preds, ti_tok, ti_cost = await evaluate_prompt(
                 initial_prompt, testset, valid_labels,
                 provider=provider, model=model, api_key=api_key,
             )
-            test_final_acc, _, tf_tok, tf_cost = await evaluate_prompt(
+            test_final_acc, tf_preds, tf_tok, tf_cost = await evaluate_prompt(
                 result.optimized_prompt, testset, valid_labels,
                 provider=provider, model=model, api_key=api_key,
             )
+            # Compute full P/R/F1 (macro / weighted / per-class) from predictions.
+            y_true = [ex.gold for ex in testset]
+            test_initial_metrics = compute_metrics(y_true, ti_preds)
+            test_final_metrics   = compute_metrics(y_true, tf_preds)
             test_tokens = ti_tok + tf_tok
             test_cost = ti_cost + tf_cost
             logger.info(
@@ -447,6 +454,9 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
             "tokens":        test_tokens,
             "cost_usd":      round(test_cost, 6),
             "leakage_guard": "test examples were never passed to the optimizer",
+            # Full metrics: macro / weighted P/R/F1 + per-class breakdown.
+            "initial_metrics": test_initial_metrics,
+            "final_metrics":   test_final_metrics,
         }
 
         async with async_session() as session:

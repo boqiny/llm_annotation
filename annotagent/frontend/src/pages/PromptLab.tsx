@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend,
+} from 'recharts'
 import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
   listCodebooks, listDatasets, autoGeneratePrompt, patchOptimizerRun,
@@ -1257,6 +1260,50 @@ function RunDetail({
         </div>
       )}
 
+      {/* Trajectory chart — visual companion to the table above */}
+      {(run.trajectory?.length || 0) > 1 && (
+        <div className="px-6 py-4 border-b border-seam">
+          <div className="font-mono-editorial text-stone-500 mb-3">
+            {researcherMode ? 'Validation accuracy & macro F1 by round' : 'Accuracy & F1 by round'}
+          </div>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={(run.trajectory || []).map((t: any) => ({
+                  round: t.round,
+                  acc: typeof t.val_acc === 'number' ? t.val_acc * 100 : null,
+                  f1:  typeof t.val_macro_f1 === 'number' ? t.val_macro_f1 * 100 : null,
+                }))}
+                margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
+              >
+                <CartesianGrid strokeDasharray="2 4" stroke="#E5E2D9" />
+                <XAxis dataKey="round" tick={{ fontSize: 11, fill: '#9A968F' }} stroke="#D6D2C8" />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#9A968F' }} stroke="#D6D2C8"
+                       tickFormatter={(v) => `${v}%`} />
+                <Tooltip
+                  contentStyle={{ fontSize: 12, background: '#FAF7F0', border: '1px solid #E5E2D9' }}
+                  formatter={(v: any) => typeof v === 'number' ? `${v.toFixed(1)}%` : '—'}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Line type="monotone" dataKey="acc" name="Val accuracy" stroke="#0B0B0A" strokeWidth={2}
+                      dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+                <Line type="monotone" dataKey="f1"  name="Val macro F1" stroke="#6E4FBE" strokeWidth={2}
+                      strokeDasharray="4 3" dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Per-class metrics — only present when test eval finished */}
+      {test && (test as any).final_metrics && (
+        <PerClassMetricsBlock
+          initial={(test as any).initial_metrics}
+          final={(test as any).final_metrics}
+          researcherMode={researcherMode}
+        />
+      )}
+
       {/* Rule library (ReflectAgent only) — shown as "Guidance notes" in default mode */}
       {ruleLib.length > 0 && (
         <div className="px-6 py-4 border-b border-seam">
@@ -1407,6 +1454,84 @@ function EditablePromptBlock({
       {err && (
         <div className="mt-2 text-xs text-red-700">{err}</div>
       )}
+    </div>
+  )
+}
+
+function PerClassMetricsBlock({
+  initial, final, researcherMode,
+}: { initial: any; final: any; researcherMode: boolean }) {
+  const labels: string[] = (final?.classes ?? Object.keys(final?.per_class || {})).slice().sort()
+  const headerLine = (
+    <div className="flex items-baseline gap-6 flex-wrap font-mono text-xs">
+      <span><span className="font-mono-editorial text-stone-500 mr-1.5">Macro F1</span>
+            <span className="text-stone-700">{(initial.macro_f1 * 100).toFixed(1)}%</span>
+            <span className="text-stone-400 mx-1">→</span>
+            <span className={final.macro_f1 >= initial.macro_f1 ? 'text-emerald-700' : 'text-red-600'}>
+              {(final.macro_f1 * 100).toFixed(1)}%
+            </span></span>
+      <span><span className="font-mono-editorial text-stone-500 mr-1.5">Weighted F1</span>
+            <span className="text-stone-700">{(initial.weighted_f1 * 100).toFixed(1)}%</span>
+            <span className="text-stone-400 mx-1">→</span>
+            <span className={final.weighted_f1 >= initial.weighted_f1 ? 'text-emerald-700' : 'text-red-600'}>
+              {(final.weighted_f1 * 100).toFixed(1)}%
+            </span></span>
+      <span><span className="font-mono-editorial text-stone-500 mr-1.5">Macro precision</span>
+            <span className="text-stone-700">{(initial.macro_precision * 100).toFixed(1)}%</span>
+            <span className="text-stone-400 mx-1">→</span>
+            <span className="text-stone-700">{(final.macro_precision * 100).toFixed(1)}%</span></span>
+      <span><span className="font-mono-editorial text-stone-500 mr-1.5">Macro recall</span>
+            <span className="text-stone-700">{(initial.macro_recall * 100).toFixed(1)}%</span>
+            <span className="text-stone-400 mx-1">→</span>
+            <span className="text-stone-700">{(final.macro_recall * 100).toFixed(1)}%</span></span>
+    </div>
+  )
+
+  return (
+    <div className="px-6 py-4 border-b border-seam">
+      <div className="font-mono-editorial text-stone-500 mb-3">
+        {researcherMode ? 'Held-out test metrics · per-class' : 'Per-label scores on the held-out set'}
+      </div>
+      <div className="mb-4">{headerLine}</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs font-mono">
+          <thead>
+            <tr className="border-b border-seam">
+              <th className="px-2 py-2 text-left text-stone-500">Label</th>
+              <th className="px-2 py-2 text-right text-stone-500">Support</th>
+              <th className="px-2 py-2 text-right text-stone-500">Precision</th>
+              <th className="px-2 py-2 text-right text-stone-500">Recall</th>
+              <th className="px-2 py-2 text-right text-stone-500">F1 (initial → final)</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-seam">
+            {labels.map(lbl => {
+              const i = initial?.per_class?.[lbl]
+              const f = final?.per_class?.[lbl]
+              const f1Delta = (f?.f1 ?? 0) - (i?.f1 ?? 0)
+              return (
+                <tr key={lbl}>
+                  <td className="px-2 py-2 text-stone-800">{lbl}</td>
+                  <td className="px-2 py-2 text-right text-stone-600">{f?.support ?? 0}</td>
+                  <td className="px-2 py-2 text-right text-stone-600">
+                    {f != null ? `${(f.precision * 100).toFixed(1)}%` : '—'}
+                  </td>
+                  <td className="px-2 py-2 text-right text-stone-600">
+                    {f != null ? `${(f.recall * 100).toFixed(1)}%` : '—'}
+                  </td>
+                  <td className="px-2 py-2 text-right text-stone-700">
+                    {i != null ? `${(i.f1 * 100).toFixed(1)}%` : '—'}
+                    <span className="text-stone-400 mx-1">→</span>
+                    <span className={f1Delta > 0 ? 'text-emerald-700' : f1Delta < 0 ? 'text-red-600' : 'text-stone-700'}>
+                      {f != null ? `${(f.f1 * 100).toFixed(1)}%` : '—'}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }

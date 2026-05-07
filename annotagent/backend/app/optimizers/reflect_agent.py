@@ -22,6 +22,7 @@ import logging
 from typing import Optional
 
 from app.engine.llm_client import call_llm
+from app.engine.metrics import compute_metrics
 from app.optimizers.base import (
     Example, OptimizationResult, ProgressCB, PromptOptimizer,
     _emit, evaluate_prompt,
@@ -193,7 +194,8 @@ class ReflectAgent(PromptOptimizer):
         # Baseline = initial_prompt + already-accumulated seed rules. If seed_rules
         # is empty this is identical to the previous behavior.
         current_prompt = initial_prompt + _compile_rules(rules)
-        base_acc, _, t, c = await evaluate_prompt(
+        val_y_true = [ex.gold for ex in valset]
+        base_acc, base_preds, t, c = await evaluate_prompt(
             current_prompt, valset, valid_labels,
             provider=self.provider, model=self.model, api_key=self.api_key,
         )
@@ -201,8 +203,11 @@ class ReflectAgent(PromptOptimizer):
         total_cost += c
 
         current_val_acc = base_acc
+        base_metrics = compute_metrics(val_y_true, base_preds)
 
-        await record({"round": 0, "val_acc": base_acc, "n_rules": len(rules),
+        await record({"round": 0, "val_acc": base_acc,
+                      "val_macro_f1": round(base_metrics.get("macro_f1", 0.0), 4),
+                      "n_rules": len(rules),
                       "action": "baseline_seeded" if rules else "baseline"})
 
         for r in range(1, self.budget + 1):
@@ -245,17 +250,20 @@ class ReflectAgent(PromptOptimizer):
             candidate_prompt = initial_prompt + _compile_rules(candidate_rules)
 
             # 4. Governor: evaluate on val
-            val_acc, _, t, c = await evaluate_prompt(
+            val_acc, val_preds, t, c = await evaluate_prompt(
                 candidate_prompt, valset, valid_labels,
                 provider=self.provider, model=self.model, api_key=self.api_key,
             )
             total_tokens += t
             total_cost += c
+            val_metrics = compute_metrics(val_y_true, val_preds)
+            val_f1 = round(val_metrics.get("macro_f1", 0.0), 4)
 
             if val_acc + self.rollback_epsilon < current_val_acc:
                 # Regression — rollback
                 await record({
-                    "round": r, "val_acc": val_acc, "n_rules": len(rules),
+                    "round": r, "val_acc": val_acc, "val_macro_f1": val_f1,
+                    "n_rules": len(rules),
                     "n_failures": len(failures), "n_candidate_rules": len(new_rules),
                     "action": "rollback", "regression": round(current_val_acc - val_acc, 4),
                 })
@@ -265,7 +273,8 @@ class ReflectAgent(PromptOptimizer):
                 current_prompt = candidate_prompt
                 current_val_acc = val_acc
                 await record({
-                    "round": r, "val_acc": val_acc, "n_rules": len(rules),
+                    "round": r, "val_acc": val_acc, "val_macro_f1": val_f1,
+                    "n_rules": len(rules),
                     "n_failures": len(failures), "n_candidate_rules": len(new_rules),
                     "action": "accept", "delta": round(val_acc - base_acc, 4),
                 })

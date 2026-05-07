@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  listPipelines, listDatasets, startJob,
-  listSeedDatasets, loadSeedDataset,
-  type SeedDatasetInfo,
+  listPipelines, listDatasets, startJob, decomposePipeline, uploadDataset,
+  listSeedDatasets, loadSeedDataset, listCodebooks,
+  type SeedDatasetInfo, type DecomposeMode,
 } from '../lib/api'
-import type { Pipeline, PipelineStep, Dataset } from '../types'
+import type { Pipeline, PipelineStep, Dataset, Codebook } from '../types'
+
+function isSelfDisclosure(cb: Codebook | null | undefined): boolean {
+  if (!cb) return false
+  const n = (cb.name || '').toLowerCase()
+  return n.includes('self-disclosure') || n.includes('self_disclosure') || n.includes('self disclosure')
+}
 
 export default function PipelineView() {
   const { id } = useParams<{ id: string }>()
@@ -15,28 +21,31 @@ export default function PipelineView() {
   const [pipeline, setPipeline] = useState<Pipeline | null>(null)
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [testSeeds, setTestSeeds] = useState<SeedDatasetInfo[]>([])
+  const [activeCb, setActiveCb] = useState<Codebook | null>(null)
   const [selectedDataset, setSelectedDataset] = useState<number | null>(null)
   const [expandedStep, setExpandedStep] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingSeed, setLoadingSeed] = useState<string | null>(null)
+  const [decomposing, setDecomposing] = useState<DecomposeMode | null>(null)
 
-  useEffect(() => {
-    Promise.all([
-      listPipelines(projectId),
-      listDatasets(projectId),
-      listSeedDatasets(projectId),
-    ]).then(([pipelines, ds, sd]) => {
-      if (pipelines.length > 0) setPipeline(pipelines[pipelines.length - 1])
-      setDatasets(ds)
-      setTestSeeds(sd.filter(s => s.role === 'test'))
-      const nonGold = ds.filter(d => !d.is_gold)
-      // Prefer an unseen "Test set" dataset as the default annotation target;
-      // fall back to any non-gold dataset.
+  const reload = () => Promise.all([
+    listPipelines(projectId),
+    listDatasets(projectId),
+    listSeedDatasets(projectId),
+    listCodebooks(projectId),
+  ]).then(([pipelines, ds, sd, cbs]) => {
+    if (pipelines.length > 0) setPipeline(pipelines[pipelines.length - 1])
+    setDatasets(ds)
+    setTestSeeds(sd.filter(s => s.role === 'test'))
+    setActiveCb(cbs.length > 0 ? cbs[cbs.length - 1] : null)
+    const nonGold = ds.filter(d => !d.is_gold)
+    if (nonGold.length > 0 && !selectedDataset) {
       const testDs = nonGold.find(d => d.name.toLowerCase().includes('test set'))
-      if (testDs) setSelectedDataset(testDs.id)
-      else if (nonGold.length > 0) setSelectedDataset(nonGold[0].id)
-    })
-  }, [projectId])
+      setSelectedDataset(testDs?.id ?? nonGold[0].id)
+    }
+  })
+
+  useEffect(() => { reload() }, [projectId])
 
   const handleLoadTestSeed = async (seedId: string) => {
     setLoadingSeed(seedId)
@@ -50,6 +59,16 @@ export default function PipelineView() {
     }
   }
 
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const newDs = await uploadDataset(projectId, file, false)
+    const ds = await listDatasets(projectId)
+    setDatasets(ds)
+    setSelectedDataset(newDs.id)
+    e.target.value = ''
+  }
+
   const handleRunAnnotation = async () => {
     if (!pipeline || !selectedDataset) return
     setLoading(true)
@@ -58,6 +77,16 @@ export default function PipelineView() {
       navigate(`/projects/${projectId}/monitor/${job.id}`)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDecompose = async (mode: DecomposeMode) => {
+    setDecomposing(mode)
+    try {
+      const p = await decomposePipeline(projectId, mode)
+      setPipeline(p)
+    } finally {
+      setDecomposing(null)
     }
   }
 
@@ -73,6 +102,9 @@ export default function PipelineView() {
   }
 
   const steps = pipeline.steps as PipelineStep[]
+  const currentMode: DecomposeMode = steps.length === 1
+    ? 'all_together'
+    : steps.every(s => s.dimensions.length === 1) ? 'per_dimension' : 'auto'
 
   return (
     <div className="space-y-12">
@@ -80,10 +112,10 @@ export default function PipelineView() {
       <header className="border-b border-seam pb-6 flex items-end justify-between gap-6 flex-wrap">
         <div>
           <div className="font-mono-editorial text-stone-500 mb-2">
-            Pipeline · {pipeline.auto_generated ? 'auto-generated' : 'manually edited'}
+            Annotate · {steps.length} step{steps.length !== 1 ? 's' : ''} · {currentMode.replace('_', ' ')}
           </div>
           <h1 className="text-4xl font-medium tracking-tight">
-            {steps.length} step{steps.length !== 1 ? 's' : ''} in the annotator.
+            Run the calibrated prompts on your data.
           </h1>
         </div>
         <Link
@@ -94,9 +126,27 @@ export default function PipelineView() {
         </Link>
       </header>
 
-      {/* Pipeline graph — horizontal editorial strip */}
+      {/* Decomposition strategy switch */}
       <section>
-        <div className="font-mono-editorial text-stone-500 mb-4">Decomposition</div>
+        <div className="flex items-baseline justify-between mb-3">
+          <div className="font-mono-editorial text-stone-500">Decomposition</div>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-mono-editorial text-stone-500">label as:</span>
+            <ModeButton
+              active={currentMode === 'per_dimension'}
+              busy={decomposing === 'per_dimension'}
+              onClick={() => handleDecompose('per_dimension')}
+              label="one dimension at a time"
+            />
+            <ModeButton
+              active={currentMode === 'all_together'}
+              busy={decomposing === 'all_together'}
+              onClick={() => handleDecompose('all_together')}
+              label="all together"
+            />
+          </div>
+        </div>
+
         <div className="flex items-stretch gap-0 overflow-x-auto pb-3">
           {steps.map((step, i) => (
             <div key={i} className="flex items-stretch">
@@ -154,13 +204,14 @@ export default function PipelineView() {
 
       {/* Run */}
       <section className="border-t border-seam pt-8 space-y-8">
-        <div className="font-mono-editorial text-stone-500">Run the annotator on unseen data</div>
+        <div className="font-mono-editorial text-stone-500">Pick the data to annotate</div>
 
-        {/* Test sets — one-click load from data/test/cleaned/ */}
-        {testSeeds.length > 0 && (
+        {/* Bundled unseen test sets — only relevant for the self-disclosure
+            project (the rest of the test corpus belongs to that codebook). */}
+        {testSeeds.length > 0 && isSelfDisclosure(activeCb) && (
           <div>
             <div className="font-mono-editorial text-stone-500 mb-3">
-              Unseen test sets <code className="ml-2 font-mono text-[11px] normal-case tracking-normal bg-paper px-1.5 py-0.5 border border-seam">data/test/cleaned/</code>
+              Bundled unseen test sets <code className="ml-2 font-mono text-[11px] normal-case tracking-normal bg-paper px-1.5 py-0.5 border border-seam">assets/data/test/cleaned/</code>
             </div>
             <ul className="divide-y divide-seam border-y border-seam">
               {testSeeds.map(s => {
@@ -208,25 +259,28 @@ export default function PipelineView() {
           </div>
         )}
 
-        <div className="flex items-end justify-between gap-6 flex-wrap">
-          <label className="block">
-            <span className="font-mono-editorial text-stone-500 block mb-1">
-              Target dataset {datasets.filter(d => !d.is_gold).length === 0 && '· none loaded'}
-            </span>
-            <select
-              value={selectedDataset ?? ''}
-              onChange={e => setSelectedDataset(Number(e.target.value))}
-              disabled={datasets.filter(d => !d.is_gold).length === 0}
-              className="min-w-[320px] px-0 py-2 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-medium disabled:text-stone-400"
-            >
-              {datasets.filter(d => !d.is_gold).length === 0 && (
-                <option value="">Load a test set above →</option>
-              )}
-              {datasets.filter(d => !d.is_gold).map(ds => (
-                <option key={ds.id} value={ds.id}>{ds.name} ({ds.total_items.toLocaleString()} items)</option>
-              ))}
-            </select>
+        {/* Upload-your-own */}
+        <div>
+          <div className="font-mono-editorial text-stone-500 mb-3">Upload your own data</div>
+          <label className="block border border-dashed border-seam bg-paper/40 px-5 py-6 cursor-pointer hover:border-stone-400">
+            <input type="file" accept=".csv,.json" className="hidden" onChange={handleUpload} />
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="font-medium text-ink">Click to upload CSV or JSON</div>
+                <p className="text-xs text-stone-500 mt-0.5">Each row / item is one annotation target. Goes straight into the dataset list below.</p>
+              </div>
+              <span className="font-mono-editorial text-stone-500">choose file →</span>
+            </div>
           </label>
+        </div>
+
+        {/* Run */}
+        <div className="flex items-end justify-between gap-6 flex-wrap">
+          <div className="font-mono-editorial text-stone-500">
+            {selectedDataset
+              ? <>Selected · <span className="text-ink">{datasets.find(d => d.id === selectedDataset)?.name ?? '—'}</span></>
+              : 'Pick or upload a dataset above'}
+          </div>
           <button
             onClick={handleRunAnnotation}
             disabled={!selectedDataset || loading}
@@ -238,5 +292,22 @@ export default function PipelineView() {
         </div>
       </section>
     </div>
+  )
+}
+
+function ModeButton({
+  active, busy, onClick, label,
+}: { active: boolean; busy: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className={`px-2 py-1 border ${
+        active ? 'border-ink bg-ink text-cream' : 'border-seam text-stone-600 hover:border-stone-400 hover:text-ink'
+      } disabled:opacity-50 transition-colors`}
+    >
+      {busy ? 'switching…' : label}
+    </button>
   )
 }

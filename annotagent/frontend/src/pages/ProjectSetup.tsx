@@ -234,7 +234,6 @@ export default function ProjectSetup() {
                   <span className="col-span-2 font-mono text-sm">{ds.total_items.toLocaleString()} items</span>
                   <span className="col-span-2 font-mono-editorial text-stone-400">{ds.file_type}</span>
                   <span className="col-span-1 text-right">
-                    {ds.is_gold && <span className="font-mono-editorial text-amber-700">Gold</span>}
                   </span>
                 </li>
               ))}
@@ -380,7 +379,6 @@ function SeedRow({
       <div className="col-span-7">
         <div className="flex items-baseline gap-3">
           <span className="font-medium">{s.label}</span>
-          {s.role === 'gold' && <span className="font-mono-editorial text-amber-700">Gold</span>}
           {s.role === 'test' && <span className="font-mono-editorial text-blue-700">Unseen</span>}
         </div>
         <p className="text-sm text-stone-600 mt-0.5">{s.description}</p>

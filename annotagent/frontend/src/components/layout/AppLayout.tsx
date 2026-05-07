@@ -7,14 +7,6 @@ export default function AppLayout() {
 
   return (
     <div className="min-h-screen bg-cream text-ink">
-      {/* Meta strip — editorial header line */}
-      <div className="border-b border-seam bg-cream">
-        <div className="max-w-7xl mx-auto px-6 py-2 flex items-center justify-between font-mono-editorial text-stone-500">
-          <span>Annotation Workbench · v0.1</span>
-          <span>EMNLP 2026 · System Demonstration</span>
-        </div>
-      </div>
-
       {/* Main nav */}
       <header className="border-b border-seam bg-cream/80 backdrop-blur-sm sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -35,7 +27,7 @@ export default function AppLayout() {
                 <TopLink to={`/projects/${id}/setup`}>Setup</TopLink>
                 <TopLink to={`/projects/${id}/codebook`}>Codebook</TopLink>
                 <TopLink to={`/projects/${id}/prompt-lab`}>Improve</TopLink>
-                <TopLink to={`/projects/${id}/pipeline`}>Pipeline</TopLink>
+                <TopLink to={`/projects/${id}/pipeline`}>Annotate</TopLink>
               </>
             )}
           </nav>

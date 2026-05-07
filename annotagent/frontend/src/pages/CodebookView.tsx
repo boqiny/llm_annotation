@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getProject, listCodebooks } from '../lib/api'
 import type { Codebook, Dimension, Label, Project } from '../types'
-import { lookupStats, findDimStat, type CodebookStats, type DimStat } from '../lib/agreement_stats'
 
 type RawCodebook = {
   mode?: 'single_label' | 'multi_label' | 'mixed'
@@ -24,11 +23,6 @@ export default function CodebookView() {
       if (cbs.length > 0) setCodebook(cbs[cbs.length - 1])
     })
   }, [projectId])
-
-  const stats = useMemo<CodebookStats | null>(
-    () => (codebook ? lookupStats(codebook.name) : null),
-    [codebook]
-  )
 
   const raw = (codebook?.raw_json ?? {}) as RawCodebook
   const mode: 'single_label' | 'multi_label' | 'mixed' = useMemo(() => {
@@ -97,21 +91,7 @@ export default function CodebookView() {
           <MetaPair label="Dimensions" value={codebook.dimensions.length} />
           <MetaPair label="Labels" value={codebook.dimensions.reduce((s, d) => s + d.labels.length, 0)} />
           <MetaPair label="Pipeline steps" value={groups.length} />
-          {stats && <>
-            <MetaPair label="Annotator 1" value={stats.n_fiona} />
-            <MetaPair label="Annotator 2" value={stats.n_chang} />
-            <MetaPair label="Dual-annotated" value={stats.n_dual} accent />
-            {stats.n_agreed_any !== null && (
-              <MetaPair label="Agreed" value={stats.n_agreed_any} accent />
-            )}
-          </>}
         </div>
-
-        {stats && stats.n_agreed_any === null && (
-          <p className="mt-4 font-mono-editorial text-amber-700">
-            ⚠ Agreed subset not yet computed
-          </p>
-        )}
       </header>
 
       {/* Pipeline strip */}
@@ -160,7 +140,6 @@ export default function CodebookView() {
               key={dim.id}
               dim={dim}
               index={index}
-              stat={findDimStat(stats, dim.name)}
               rawDim={raw.dimensions?.find(d => d.name === dim.name)}
               isOpen={expanded.has(dim.id)}
               onToggle={() => toggleDim(dim.id)}
@@ -217,11 +196,10 @@ function SectionLabel({ children, className = '' }: { children: React.ReactNode;
 /* ─── DimensionCard (the main refactor) ─────────────────── */
 
 function DimensionCard({
-  dim, index, stat, rawDim, isOpen, onToggle,
+  dim, index, rawDim, isOpen, onToggle,
 }: {
   dim: Dimension
   index: number
-  stat: DimStat | null
   rawDim?: { name: string; type?: string; instructions?: string }
   isOpen: boolean
   onToggle: () => void
@@ -244,14 +222,11 @@ function DimensionCard({
           <div className="col-span-1 font-mono text-stone-400 text-sm">
             {String(index + 1).padStart(2, '0')}
           </div>
-          <div className="col-span-7 min-w-0">
+          <div className="col-span-10 min-w-0">
             <div className="font-mono-editorial text-stone-400 mb-1">
               {isMulti ? 'multi-label' : 'single-label'} · {dim.labels.length} labels
             </div>
             <h2 className="text-xl font-medium tracking-tight text-ink truncate">{dim.name}</h2>
-          </div>
-          <div className="col-span-3">
-            <InlineIAA stat={stat} />
           </div>
           <div className="col-span-1 text-right font-mono text-stone-400 text-sm">
             {isOpen ? '−' : '+'}
@@ -288,37 +263,6 @@ function DimensionCard({
         </div>
       )}
     </article>
-  )
-}
-
-function InlineIAA({ stat }: { stat: DimStat | null }) {
-  if (!stat) return null
-  if (stat.raw_agreement === null) {
-    return (
-      <div className="font-mono text-xs text-stone-400">
-        IAA · n={stat.n_joint} · sparse
-      </div>
-    )
-  }
-  const pct = Math.round(stat.raw_agreement * 100)
-  const tone =
-    stat.raw_agreement >= 0.65 ? 'text-emerald-700' :
-    stat.raw_agreement >= 0.40 ? 'text-amber-700' :
-    'text-rose-700'
-
-  return (
-    <div className="flex items-baseline gap-3">
-      <div>
-        <div className="font-mono-editorial text-stone-400 mb-0.5">IAA · raw</div>
-        <div className={`font-mono text-lg font-medium ${tone}`}>
-          {pct}<span className="text-xs font-normal">%</span>
-        </div>
-      </div>
-      <div className="font-mono text-[11px] text-stone-400">
-        n={stat.n_joint}
-        {stat.n_agreed !== null && <><br/>agreed {stat.n_agreed}</>}
-      </div>
-    </div>
   )
 }
 

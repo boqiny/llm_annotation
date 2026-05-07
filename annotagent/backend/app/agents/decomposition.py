@@ -11,31 +11,61 @@ from app.engine.prompt_generator import generate_step_prompt
 
 async def decompose_codebook(
     codebook: CodebookDef,
+    *,
+    mode: str = "per_dimension",
     provider: str = "openai",
     model: str = "gpt-5.4-mini",
     api_key: str = "",
 ) -> list[dict[str, Any]]:
     """Decompose a codebook into ordered pipeline steps.
 
-    If the codebook includes decomposition_hints, use those directly.
-    Otherwise, ask the LLM to group dimensions to minimize interference.
+    ``mode``:
+      - ``"per_dimension"`` (default): one step per dimension. Each dimension is
+        annotated independently. Safest, no cross-dimensional interference.
+      - ``"all_together"``: one step that covers all dimensions. The LLM produces
+        every label in a single call. Cheaper, but dimensions can confuse each
+        other.
+      - ``"auto"``: use ``codebook.decomposition_hints`` if present, otherwise
+        ask the LLM to group dimensions to minimize interference.
     """
-    if codebook.decomposition_hints:
-        return _steps_from_hints(codebook)
+    if not codebook.dimensions:
+        return []
 
-    if len(codebook.dimensions) <= 1:
-        dim = codebook.dimensions[0] if codebook.dimensions else None
-        if dim is None:
-            return []
-        prompt = generate_step_prompt([dim], step_name=dim.name)
-        return [{
+    if mode == "per_dimension":
+        return _per_dimension(codebook)
+    if mode == "all_together":
+        return _all_together(codebook)
+    if mode == "auto":
+        if codebook.decomposition_hints:
+            return _steps_from_hints(codebook)
+        if len(codebook.dimensions) == 1:
+            return _per_dimension(codebook)
+        return await _llm_decompose(codebook, provider, model, api_key)
+    raise ValueError(f"Unknown decomposition mode: {mode!r}")
+
+
+def _per_dimension(codebook: CodebookDef) -> list[dict[str, Any]]:
+    return [
+        {
             "name": dim.name,
             "dimensions": [dim.name],
-            "prompt": prompt,
+            "prompt": generate_step_prompt([dim], step_name=dim.name),
             "gate": None,
-        }]
+        }
+        for dim in codebook.dimensions
+    ]
 
-    return await _llm_decompose(codebook, provider, model, api_key)
+
+def _all_together(codebook: CodebookDef) -> list[dict[str, Any]]:
+    name = "All dimensions"
+    return [
+        {
+            "name": name,
+            "dimensions": [dim.name for dim in codebook.dimensions],
+            "prompt": generate_step_prompt(codebook.dimensions, step_name=name),
+            "gate": None,
+        }
+    ]
 
 
 def _steps_from_hints(codebook: CodebookDef) -> list[dict[str, Any]]:
