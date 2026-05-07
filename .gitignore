@@ -1,7 +1,16 @@
 .env
+.env.openai
+.env.llama
 __pycache__/
 **/__pycache__/
+*.pyc
+.venv/
+*.egg-info/
 .DS_Store
+**/.DS_Store
+artifacts/*
 gepa_logs
 gepa_logs_*
 /vis
+annotation_demo/.env
+annotation_demo/workspace/
