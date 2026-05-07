@@ -10,31 +10,35 @@ Codebook-driven LLM annotation framework with a React frontend and FastAPI backe
 
 ## Quick Start
 
-### Backend
+### Option A — Docker (one command, recommended)
 
 ```bash
-cd annotagent/backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-### Frontend
-
-```bash
-cd annotagent/frontend
-npm install
-npm run dev
-```
-
-### Docker (one-command)
-
-```bash
-cd annotagent
-cp .env.example .env   # (optional) add OPENAI_API_KEY / ANTHROPIC_API_KEY
+cd /Users/charles/llm_annotation/annotagent
+cp .env.example .env
 docker compose up --build
 ```
 
-Frontend: http://localhost:8080 · Backend: http://localhost:8000/api/health
+- Frontend: http://localhost:8080
+- Backend health: http://localhost:8000/api/health
+- API docs: http://localhost:8000/docs
+
+### Option B — Local dev (two terminals, hot reload)
+
+Terminal 1 — backend:
+
+```bash
+cd /Users/charles/llm_annotation/annotagent/backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+Terminal 2 — frontend:
+
+```bash
+cd /Users/charles/llm_annotation/annotagent/frontend
+npm install
+npm run dev                       # serves on http://localhost:5173
+```
 
 Sample codebooks are loaded automatically via presets (`self_disclosure`, `sentiment`). Sample datasets with gold labels live in [`seed/`](./seed):
 
