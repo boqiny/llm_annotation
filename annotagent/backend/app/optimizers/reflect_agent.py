@@ -108,6 +108,90 @@ Return JSON array of NEW or UPDATED rules."""
         return []
 
 
+_DEDUP_SYSTEM = """You are auditing an annotation rule library for redundant DUPLICATES.
+
+You will receive a JSON array of rules. Each rule has:
+  id, target_labels, boundary, positive_cues, negative_cues, rule
+
+Your job is CONSERVATIVE deduplication. Only merge two rules when ALL of
+these are true:
+  1. Identical target_labels.
+  2. The boundaries are paraphrases of the SAME distinction (one is a
+     restatement of the other in different words; they would catch the
+     same examples).
+  3. The positive_cues and negative_cues describe the same families of
+     surface signals.
+
+If you have ANY doubt about whether two rules describe different cases,
+KEEP THEM SEPARATE. The cost of leaving a near-duplicate is small; the
+cost of collapsing two distinct rules is high (we lose coverage of the
+edge case the second rule was capturing).
+
+Most rule libraries should not change much under this pass — only
+truly redundant rules should be merged.
+
+When merging:
+  - keep ONE id (pick the most descriptive of the merged set)
+  - union target_labels
+  - keep the clearest, most general boundary phrasing
+  - dedupe positive_cues and negative_cues (preserve all unique cues)
+  - merge the imperative `rule` text into the clearest single statement
+
+Output ONLY the JSON array. Same schema as input. No prose, no markdown
+fences, no commentary."""
+
+
+async def _dedupe_rules_semantic(
+    rules: list[dict], *, provider: str, model: str, api_key: str,
+) -> tuple[list[dict], int, float]:
+    """Ask the LLM to merge near-duplicate rules. Returns (deduped, tokens, cost).
+    On any failure (LLM error, JSON parse error, schema mismatch) returns the
+    input rules unchanged — never reduces the library by accident.
+    """
+    if len(rules) <= 1:
+        return rules, 0, 0.0
+    try:
+        resp = await call_llm(
+            messages=[
+                {"role": "system", "content": _DEDUP_SYSTEM},
+                {"role": "user",   "content": json.dumps(rules, indent=2)},
+            ],
+            provider=provider, model=model, api_key=api_key, max_tokens=4096,
+        )
+    except Exception as e:
+        logger.warning(f"Rule dedup LLM call failed: {e}")
+        return rules, 0, 0.0
+
+    text = (resp.text or "").strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+    try:
+        deduped = json.loads(text)
+    except json.JSONDecodeError:
+        logger.warning("Rule dedup returned non-JSON; keeping input rules")
+        return rules, resp.input_tokens + resp.output_tokens, resp.cost_usd
+
+    if not isinstance(deduped, list):
+        return rules, resp.input_tokens + resp.output_tokens, resp.cost_usd
+
+    valid = [
+        r for r in deduped
+        if isinstance(r, dict) and r.get("rule") and r.get("boundary")
+    ]
+    # Sanity guard: dedup is supposed to be conservative — small reductions,
+    # not radical collapses. Reject any reduction beyond 1/3 of the library.
+    floor = max(3, (2 * len(rules)) // 3)
+    if not valid or len(valid) > len(rules) or len(valid) < floor:
+        logger.warning(
+            f"Rule dedup produced suspect output ({len(rules)} → {len(valid)}, "
+            f"floor={floor}); keeping input rules"
+        )
+        return rules, resp.input_tokens + resp.output_tokens, resp.cost_usd
+
+    logger.info(f"Rule dedup: {len(rules)} → {len(valid)}")
+    return valid, resp.input_tokens + resp.output_tokens, resp.cost_usd
+
+
 def _merge_rules(existing: list[dict], new: list[dict]) -> list[dict]:
     """Upsert by `id`. New version replaces old with same id."""
     by_id = {r.get("id", f"r_{i}"): r for i, r in enumerate(existing)}
@@ -150,15 +234,27 @@ class ReflectAgent(PromptOptimizer):
         rollback_epsilon: float = 0.005,  # val F1 regression tolerance
         label_defs: str = "",
         seed_rules: list[dict] | None = None,
+        use_few_shot_demos: bool = True,
+        max_demos_per_rule: int = 1,
+        max_total_demos: int = 8,
+        use_val_consolidation: bool = True,
         **_ignored,
     ):
         super().__init__(provider=provider, model=model, api_key=api_key, budget=budget)
         self.rollback_epsilon = rollback_epsilon
         self.label_defs = label_defs
         # Cumulative rules carried in from prior reflect runs on this (project, dim).
-        # Pre-populates the rule library and seeds the initial prompt so this run
-        # picks up where the last one left off.
         self.seed_rules = list(seed_rules or [])
+        # Worked examples drawn from train (always) and val (only after the
+        # val-consolidation pass has run). Test never enters the prompt.
+        self.use_few_shot_demos = use_few_shot_demos
+        self.max_demos_per_rule = max_demos_per_rule
+        self.max_total_demos = max_total_demos
+        # After the governor-gated loop converges, do one final pass over val:
+        # mine its failures into rules and add val to the demo pool. Val is
+        # consumed exactly once (in the final pass) — never during the loop —
+        # so the per-round governor signal stays honest. Test still held out.
+        self.use_val_consolidation = use_val_consolidation
 
     async def optimize(
         self,
@@ -175,6 +271,9 @@ class ReflectAgent(PromptOptimizer):
         trajectory: list[dict] = []
         total_tokens = 0
         total_cost = 0.0
+        # Cached round-1 predictions on train — used to identify "originally
+        # wrong" items, which make the most instructive worked examples.
+        initial_train_preds: list[str] | None = None
 
         # Helper: record a trajectory row AND push live progress to the UI
         async def record(entry: dict) -> None:
@@ -219,6 +318,9 @@ class ReflectAgent(PromptOptimizer):
             total_tokens += t
             total_cost += c
 
+            if initial_train_preds is None:
+                initial_train_preds = list(preds)
+
             failures = [
                 {"sentence": ex.sentence, "gold": ex.gold, "pred": p}
                 for ex, p in zip(trainset, preds) if p != ex.gold
@@ -245,8 +347,21 @@ class ReflectAgent(PromptOptimizer):
                 })
                 continue
 
-            # 3. Merge rules + recompile prompt
-            candidate_rules = _merge_rules(rules, new_rules)
+            # 3. Merge rules. ID-merge first (cheap upsert by id), then ONLY
+            # if the library has grown enough to plausibly contain duplicates,
+            # ask the LLM to consolidate near-paraphrases. Skipping dedup for
+            # small libraries prevents the optimizer from collapsing distinct
+            # boundaries into one rule early on.
+            merged = _merge_rules(rules, new_rules)
+            if len(merged) >= 10:
+                candidate_rules, dedup_tok, dedup_cost = await _dedupe_rules_semantic(
+                    merged,
+                    provider=self.provider, model=self.model, api_key=self.api_key,
+                )
+                total_tokens += dedup_tok
+                total_cost += dedup_cost
+            else:
+                candidate_rules = merged
             candidate_prompt = initial_prompt + _compile_rules(candidate_rules)
 
             # 4. Governor: evaluate on val
@@ -279,6 +394,94 @@ class ReflectAgent(PromptOptimizer):
                     "action": "accept", "delta": round(val_acc - base_acc, 4),
                 })
 
+        # ─── Val consolidation (one final pass over val) ───
+        # Once the governor-gated loop converges, mine val failures into rules
+        # exactly once. This lets the rule library learn from val without
+        # contaminating the per-round governor signal (which has finished its
+        # job). Test still untouched.
+        n_val_failures = 0
+        n_val_rules = 0
+        consolidation_round = self.budget + 1
+        if self.use_val_consolidation and valset:
+            val_acc_pre, val_preds_pre, t, c = await evaluate_prompt(
+                current_prompt, valset, valid_labels,
+                provider=self.provider, model=self.model, api_key=self.api_key,
+            )
+            total_tokens += t
+            total_cost += c
+            val_failures = [
+                {"sentence": ex.sentence, "gold": ex.gold, "pred": p}
+                for ex, p in zip(valset, val_preds_pre) if p != ex.gold
+            ]
+            n_val_failures = len(val_failures)
+
+            if val_failures:
+                val_new_rules = await _extract_patterns(
+                    dimension=dimension, label_defs=self.label_defs,
+                    failures=val_failures, existing_rules=rules,
+                    provider=self.provider, model=self.model, api_key=self.api_key,
+                )
+                n_val_rules = len(val_new_rules)
+                if val_new_rules:
+                    merged = _merge_rules(rules, val_new_rules)
+                    if len(merged) >= 10:
+                        merged, dt, dc = await _dedupe_rules_semantic(
+                            merged,
+                            provider=self.provider, model=self.model, api_key=self.api_key,
+                        )
+                        total_tokens += dt
+                        total_cost += dc
+                    rules = merged
+                    current_prompt = initial_prompt + _compile_rules(rules)
+
+            await record({
+                "round": consolidation_round,
+                "val_acc": val_acc_pre,
+                "val_macro_f1": round(compute_metrics(val_y_true, val_preds_pre).get("macro_f1", 0.0), 4),
+                "n_rules": len(rules),
+                "n_failures": n_val_failures,
+                "n_candidate_rules": n_val_rules,
+                "action": "val_consolidation",
+            })
+
+        # ─── Worked examples augmentation ───
+        # Pool train items always; add val items only if val-consolidation ran
+        # (val has now been "used" — its sentences as demos can't bias the
+        # governor's signal because the governor's role is done). Test stays
+        # held out.
+        demo_pool = list(trainset)
+        if self.use_val_consolidation and valset:
+            demo_pool = list(trainset) + list(valset)
+
+        n_demos = 0
+        if self.use_few_shot_demos and rules and demo_pool:
+            picked = _pick_worked_examples(
+                rules, demo_pool, initial_train_preds,
+                max_per_rule=self.max_demos_per_rule,
+                max_total=self.max_total_demos,
+            )
+            demos_block = _format_worked_examples(picked, dimension)
+            if demos_block:
+                current_prompt = current_prompt + demos_block
+                n_demos = len(picked)
+
+                val_acc, val_preds, t, c = await evaluate_prompt(
+                    current_prompt, valset, valid_labels,
+                    provider=self.provider, model=self.model, api_key=self.api_key,
+                )
+                total_tokens += t
+                total_cost += c
+                final_metrics = compute_metrics(val_y_true, val_preds)
+                current_val_acc = val_acc
+                await record({
+                    "round": consolidation_round + 1 if self.use_val_consolidation and valset else self.budget + 1,
+                    "val_acc": val_acc,
+                    "val_macro_f1": round(final_metrics.get("macro_f1", 0.0), 4),
+                    "n_rules": len(rules), "n_demos": n_demos,
+                    "action": "demos_appended",
+                    "delta": round(val_acc - base_acc, 4),
+                })
+
         return OptimizationResult(
             optimizer_name=self.name,
             dimension=dimension,
@@ -287,7 +490,70 @@ class ReflectAgent(PromptOptimizer):
             initial_score=base_acc,
             final_score=current_val_acc,
             trajectory=trajectory,
-            artifact={"rule_library": rules, "n_rules": len(rules)},
+            artifact={"rule_library": rules, "n_rules": len(rules), "n_demos": n_demos},
             total_tokens=total_tokens,
             total_cost_usd=total_cost,
         )
+
+
+def _pick_worked_examples(
+    rules: list[dict],
+    trainset: list[Example],
+    initial_train_preds: list[str] | None,
+    *,
+    max_per_rule: int,
+    max_total: int,
+) -> list[tuple[dict, Example]]:
+    """Pick up to ``max_total`` train items total, distributed across rules.
+    Prefers items the baseline got wrong (most instructive). Each rule gets
+    up to ``max_per_rule`` demos. No item appears under more than one rule.
+    """
+    used_idx: set[int] = set()
+    out: list[tuple[dict, Example]] = []
+    for rule in rules:
+        if len(out) >= max_total:
+            break
+        targets = {str(t) for t in (rule.get("target_labels") or [])}
+        if not targets:
+            continue
+        candidates = [
+            (i, ex) for i, ex in enumerate(trainset)
+            if ex.gold in targets and i not in used_idx
+        ]
+        if initial_train_preds:
+            candidates.sort(key=lambda iex: (
+                0 if (iex[0] < len(initial_train_preds)
+                      and initial_train_preds[iex[0]] != iex[1].gold) else 1,
+                len(iex[1].sentence),
+            ))
+        room = min(max_per_rule, max_total - len(out))
+        for i, ex in candidates[:room]:
+            used_idx.add(i)
+            out.append((rule, ex))
+    return out
+
+
+def _format_worked_examples(
+    picked: list[tuple[dict, Example]],
+    dimension: str,
+) -> str:
+    if not picked:
+        return ""
+    lines = [
+        "",
+        "## Worked examples",
+        "Real cases reviewed by the system. Each anchors one of the rules above.",
+        "",
+    ]
+    for i, (rule, ex) in enumerate(picked, 1):
+        lines.append(f"Example {i} — rule: {rule.get('id', 'unnamed')}")
+        if ex.context:
+            lines.append(f"  Context: {ex.context}")
+        # Cap sentence length so we don't blow the prompt.
+        sentence = ex.sentence if len(ex.sentence) <= 400 else ex.sentence[:400] + "…"
+        lines.append(f"  Sentence: {sentence}")
+        lines.append(f"  Correct answer: {ex.gold}")
+        if rule.get("boundary"):
+            lines.append(f"  Why: {rule['boundary']}")
+        lines.append("")
+    return "\n".join(lines)

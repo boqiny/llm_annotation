@@ -1,9 +1,11 @@
 import { Outlet, NavLink, Link, useParams, useLocation } from 'react-router-dom'
+import { useUiVersion } from '../../hooks/useUiVersion'
 
 export default function AppLayout() {
   const { id } = useParams()
   const loc = useLocation()
   const onHome = loc.pathname === '/'
+  const [version, setVersion] = useUiVersion()
 
   return (
     <div className="min-h-screen bg-cream text-ink">
@@ -30,6 +32,14 @@ export default function AppLayout() {
                 <TopLink to={`/projects/${id}/pipeline`}>Annotate</TopLink>
               </>
             )}
+            <button
+              type="button"
+              onClick={() => setVersion(version === 'v2' ? 'v1' : 'v2')}
+              title={`Switch to ${version === 'v2' ? 'v1 (legacy)' : 'v2 (new)'} UI`}
+              className="ml-3 px-2.5 py-1 border border-seam text-[11px] font-mono tracking-wider uppercase text-stone-500 hover:border-ink hover:text-ink transition-colors"
+            >
+              UI · {version}
+            </button>
           </nav>
         </div>
       </header>
@@ -41,13 +51,6 @@ export default function AppLayout() {
         </div>
       </main>
 
-      {/* Footer colophon */}
-      <footer className="border-t border-seam mt-16">
-        <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between font-mono-editorial text-stone-400">
-          <span>Open-source research artifact</span>
-          <span>github.com/charles/llm_annotation</span>
-        </div>
-      </footer>
     </div>
   )
 }

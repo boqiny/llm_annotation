@@ -24,10 +24,14 @@ router = APIRouter(prefix="/api/projects/{project_id}/codebooks", tags=["codeboo
 
 PRESETS_DIR = Path(__file__).parent.parent / "presets"
 
+# Display order for the wizard's preset list. Anything not listed here
+# falls to the back, alphabetized.
+_PRESET_ORDER = ["ai_behavior", "self_disclosure", "harm"]
+
 
 @router.get("/presets", response_model=list[PresetInfo])
 async def list_presets(project_id: int):
-    """List available codebook presets."""
+    """List available codebook presets, ordered for the wizard."""
     presets = []
     for f in PRESETS_DIR.glob("*.json"):
         with open(f) as fp:
@@ -37,6 +41,8 @@ async def list_presets(project_id: int):
             description=data.get("description", ""),
             dimensions=len(data.get("dimensions", [])),
         ))
+    rank = {n: i for i, n in enumerate(_PRESET_ORDER)}
+    presets.sort(key=lambda p: (rank.get(p.name, len(_PRESET_ORDER)), p.name))
     return presets
 
 

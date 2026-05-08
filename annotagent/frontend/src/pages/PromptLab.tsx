@@ -57,6 +57,8 @@ export default function PromptLab() {
   const [launchError, setLaunchError] = useState<string>('')
   const [goldLabelKeys, setGoldLabelKeys] = useState<Set<string>>(new Set())
   const [goldLabelCounts, setGoldLabelCounts] = useState<Record<string, number>>({})
+  // Per-(dim, class) counts for the stratified-split preview.
+  const [goldClassCounts, setGoldClassCounts] = useState<Record<string, Record<string, number>>>({})
 
   // Auto-generated annotation prompt (PR #1's LLM-driven path). Cached per
   // (project, codebook) so it doesn't refire on every visit and burn tokens.
@@ -130,7 +132,9 @@ export default function PromptLab() {
   // Peek at the gold dataset to learn which dimensions actually have labels —
   // so we can warn the user BEFORE launching with a dim that has zero gold coverage.
   useEffect(() => {
-    if (!selectedGold) { setGoldLabelKeys(new Set()); setGoldLabelCounts({}); return }
+    if (!selectedGold) {
+      setGoldLabelKeys(new Set()); setGoldLabelCounts({}); setGoldClassCounts({}); return
+    }
     (async () => {
       try {
         const resp = await api.get(`/projects/${projectId}/datasets/${selectedGold}`, {
@@ -139,37 +143,59 @@ export default function PromptLab() {
         const items: any[] = resp.data?.items || []
         const keys = new Set<string>()
         const counts: Record<string, number> = {}
+        const classCounts: Record<string, Record<string, number>> = {}
         for (const it of items) {
           const g = it.gold_labels || {}
           for (const k of Object.keys(g)) {
-            if (g[k] != null && g[k] !== '') {
-              keys.add(k)
-              counts[k] = (counts[k] || 0) + 1
+            const v = g[k]
+            if (v == null || v === '') continue
+            keys.add(k)
+            counts[k] = (counts[k] || 0) + 1
+            // Multi-label cells can be lists; tally each.
+            const labels = Array.isArray(v) ? v.map(String) : [String(v)]
+            if (!classCounts[k]) classCounts[k] = {}
+            for (const lbl of labels) {
+              classCounts[k][lbl] = (classCounts[k][lbl] || 0) + 1
             }
           }
         }
         setGoldLabelKeys(keys)
         setGoldLabelCounts(counts)
+        setGoldClassCounts(classCounts)
       } catch {
         setGoldLabelKeys(new Set())
         setGoldLabelCounts({})
+        setGoldClassCounts({})
       }
     })()
   }, [selectedGold, projectId])
 
-  // Replicate backend split logic so the UI preview matches what
-  // _execute_run will actually do (api/optimizers.py:268–298).
-  const computeSplit = (n: number, trainPctV: number, valPctV: number, testPctV: number) => {
-    if (n <= 0) return { n_train: 0, n_val: 0, n_test: 0 }
-    let n_train = Math.max(5, Math.round((trainPctV / 100) * n))
-    let n_val   = Math.max(5, Math.round((valPctV   / 100) * n))
-    let n_test  = Math.max(0, n - n_train - n_val)
-    if (n_test < 3 && n_train > 5) {
-      const steal = Math.min(3 - n_test, n_train - 5)
-      n_train -= steal
-      n_test  += steal
+  // Replicate backend stratified-split logic for the preview tiles. Mirrors
+  // api/optimizers.py::_stratified_split — proportional per class, tiny
+  // classes (<3) all to train.
+  type ClassSplit = { n: number; train: number; val: number; test: number }
+  const computeStratifiedSplit = (
+    classCounts: Record<string, number>,
+    trainPctV: number, valPctV: number,
+  ) => {
+    const tf = trainPctV / 100, vf = valPctV / 100
+    const perClass: Record<string, ClassSplit> = {}
+    let n_train = 0, n_val = 0, n_test = 0
+    for (const cls of Object.keys(classCounts).sort()) {
+      const n = classCounts[cls]
+      if (n < 3) {
+        perClass[cls] = { n, train: n, val: 0, test: 0 }
+        n_train += n
+        continue
+      }
+      const nt = Math.max(1, Math.round(tf * n))
+      let nv = Math.max(1, Math.round(vf * n))
+      if (nt + nv > n - 1) nv = Math.max(1, n - nt - 1)
+      const nx = n - nt - nv
+      perClass[cls] = { n, train: nt, val: nv, test: nx }
+      n_train += nt; n_val += nv; n_test += nx
     }
-    return { n_train, n_val, n_test }
+    return { n_train, n_val, n_test, perClass }
   }
 
   const activeCb = codebooks[codebooks.length - 1]
@@ -498,10 +524,13 @@ export default function PromptLab() {
             sliders, default mode = 15/42/43). */}
         {selectedGold && selectedDim && (() => {
           const n = goldLabelCounts[selectedDim] ?? 0
+          const classes = goldClassCounts[selectedDim] ?? {}
           const tp = researcherMode ? trainPct : 15
           const vp = researcherMode ? valPct   : 42
           const xp = researcherMode ? testPct  : 43
-          const split = computeSplit(n, tp, vp, xp)
+          const split = computeStratifiedSplit(classes, tp, vp)
+          const sortedClasses = Object.keys(classes).sort((a, b) => classes[b] - classes[a])
+          const tinyClasses = sortedClasses.filter(c => classes[c] < 3)
           return (
             <div className="mt-6 border border-seam bg-paper/40 p-4 max-w-3xl">
               <div className="flex items-baseline justify-between gap-4 mb-3">
@@ -531,6 +560,47 @@ export default function PromptLab() {
                       accent
                     />
                   </div>
+
+                  {/* Per-class breakdown — stratified split mirrors backend. */}
+                  {sortedClasses.length > 0 && (
+                    <div className="mt-4">
+                      <div className="font-mono-editorial text-stone-500 mb-1.5">
+                        Per-class breakdown · stratified
+                      </div>
+                      <table className="w-full text-xs font-mono">
+                        <thead>
+                          <tr className="border-b border-seam text-stone-500">
+                            <th className="text-left py-1.5 font-mono-editorial">label</th>
+                            <th className="text-right py-1.5 font-mono-editorial">total</th>
+                            <th className="text-right py-1.5 font-mono-editorial">train</th>
+                            <th className="text-right py-1.5 font-mono-editorial">val</th>
+                            <th className="text-right py-1.5 font-mono-editorial">test</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-seam">
+                          {sortedClasses.map(cls => {
+                            const s = split.perClass[cls]
+                            const tiny = (s?.n ?? 0) < 3
+                            return (
+                              <tr key={cls}>
+                                <td className="py-1.5 text-stone-800 truncate max-w-[260px]" title={cls}>{cls}</td>
+                                <td className="py-1.5 text-right text-stone-700">{s?.n ?? 0}</td>
+                                <td className="py-1.5 text-right text-stone-700">{s?.train ?? 0}</td>
+                                <td className={`py-1.5 text-right ${tiny ? 'text-amber-700' : 'text-stone-700'}`}>{s?.val ?? 0}</td>
+                                <td className={`py-1.5 text-right ${tiny ? 'text-amber-700' : 'text-stone-700'}`}>{s?.test ?? 0}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                      {tinyClasses.length > 0 && (
+                        <p className="mt-2 font-mono-editorial text-amber-700">
+                          {tinyClasses.length} class{tinyClasses.length > 1 ? 'es' : ''} with &lt;3 items go entirely to train (no val/test slot). Add more labels for {tinyClasses.join(', ')} to score them on the held-out set.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   <p className="mt-3 font-mono-editorial text-stone-500 leading-relaxed">
                     Train + val are used during optimization. Test is held out — it gives the honest "Before / After" number on the run results.
                   </p>
