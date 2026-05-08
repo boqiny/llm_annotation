@@ -12,6 +12,13 @@ artifacts/*
 gepa_logs
 gepa_logs_*
 
+# SQLite DB — per-machine state (projects, jobs, runs, memory).
+# Auto-recreated empty on first uvicorn startup via Base.metadata.create_all.
+annotagent/backend/annotagent.db
+annotagent/backend/annotagent.db-journal
+annotagent/backend/annotagent.db-wal
+annotagent/backend/annotagent.db-shm
+
 # Backend filesystem audit trail (DB is canonical; this dir is a mirror)
 annotagent/backend/workspace/
 
