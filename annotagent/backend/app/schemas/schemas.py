@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 # ---------- Project ----------
@@ -85,10 +85,23 @@ class DataItemOut(BaseModel):
     index: int
     content: str
     context: str = ""
-    metadata_: dict[str, Any] = Field(default_factory=dict, alias="metadata")
+    # ORM attribute is ``metadata_`` (renamed in tables.py to dodge the clash
+    # with SQLAlchemy's class-level ``Base.metadata``). For from_attributes
+    # mode we must read by the python attr name; ``serialization_alias`` +
+    # ``serialize_by_name=True`` keeps the JSON key as ``metadata`` for the
+    # frontend.
+    metadata_: dict[str, Any] = Field(
+        default_factory=dict,
+        validation_alias=AliasChoices("metadata_", "metadata"),
+        serialization_alias="metadata",
+    )
     gold_labels: dict[str, Any] = {}
 
-    model_config = {"from_attributes": True, "populate_by_name": True}
+    model_config = {
+        "from_attributes": True,
+        "populate_by_name": True,
+        "serialize_by_alias": True,
+    }
 
 
 class DatasetOut(BaseModel):

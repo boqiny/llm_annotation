@@ -161,12 +161,13 @@ async def start_run(
     if body.optimizer_name not in available:
         raise HTTPException(400, f"Unknown optimizer. Available: {sorted(available)}")
 
-    # Validate gold dataset
+    # Validate labeled-examples dataset (any annotated set is acceptable —
+    # is_gold just flags the canonical "ground truth" for the demo's split,
+    # but Fiona/Chang per-annotator labels are equally valid as a learning
+    # source for the rule library).
     gold_dataset = await db.get(Dataset, body.gold_dataset_id)
     if not gold_dataset or gold_dataset.project_id != project_id:
-        raise HTTPException(404, "Gold dataset not found")
-    if not gold_dataset.is_gold:
-        raise HTTPException(400, "Dataset is not marked as gold")
+        raise HTTPException(404, "Labeled dataset not found for this project")
 
     # Validate dimension exists in active codebook (latest = highest id).
     cb_res = await db.execute(

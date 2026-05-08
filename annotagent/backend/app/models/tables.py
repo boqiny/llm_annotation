@@ -155,8 +155,8 @@ class AnnotationJob(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    dataset_id = Column(Integer, ForeignKey("datasets.id"), nullable=False)
-    pipeline_id = Column(Integer, ForeignKey("pipelines.id"), nullable=False)
+    dataset_id = Column(Integer, ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False)
+    pipeline_id = Column(Integer, ForeignKey("pipelines.id", ondelete="CASCADE"), nullable=False)
     status = Column(Enum(JobStatus), default=JobStatus.PENDING)
     total_items = Column(Integer, default=0)
     completed_items = Column(Integer, default=0)
@@ -176,7 +176,7 @@ class AnnotationResult(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     job_id = Column(Integer, ForeignKey("annotation_jobs.id", ondelete="CASCADE"), nullable=False)
-    data_item_id = Column(Integer, ForeignKey("data_items.id"), nullable=False)
+    data_item_id = Column(Integer, ForeignKey("data_items.id", ondelete="CASCADE"), nullable=False)
     step_order = Column(Integer, default=0)
     dimension_name = Column(String(255), nullable=False)
     predicted_label = Column(String(255), default="")
@@ -202,7 +202,9 @@ class CodebookDraft(Base):
     warnings = Column(JSON, default=list)
     critic_flags = Column(JSON, default=list)
     drafter_model = Column(String(100), default="")
-    accepted_for_project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    # SET NULL on project delete — drafts are project-agnostic until accepted,
+    # so we preserve the draft even if its accepted project goes away.
+    accepted_for_project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -213,7 +215,7 @@ class OptimizerRun(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    gold_dataset_id = Column(Integer, ForeignKey("datasets.id"), nullable=True)
+    gold_dataset_id = Column(Integer, ForeignKey("datasets.id", ondelete="SET NULL"), nullable=True)
     optimizer_name = Column(String(64), nullable=False)   # reflect_agent|gepa|mipro|opro
     dimension_name = Column(String(255), nullable=False)
     status = Column(String(32), default="pending")        # pending|running|completed|failed
@@ -248,7 +250,7 @@ class ReflectMemoryVersion(Base):
     version = Column(Integer, nullable=False)
     rules_json = Column(JSON, default=list)
     new_rules_count = Column(Integer, default=0)
-    source_optimizer_run_id = Column(Integer, ForeignKey("optimizer_runs.id"), nullable=True)
+    source_optimizer_run_id = Column(Integer, ForeignKey("optimizer_runs.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
 
@@ -258,7 +260,7 @@ class CalibrationRun(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     job_id = Column(Integer, ForeignKey("annotation_jobs.id", ondelete="CASCADE"), nullable=False)
-    gold_dataset_id = Column(Integer, ForeignKey("datasets.id"), nullable=False)
+    gold_dataset_id = Column(Integer, ForeignKey("datasets.id", ondelete="CASCADE"), nullable=False)
     metrics_json = Column(JSON, default=dict)
     error_patterns = Column(JSON, default=list)
     rules_generated = Column(JSON, default=list)

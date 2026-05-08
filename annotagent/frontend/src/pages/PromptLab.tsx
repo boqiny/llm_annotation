@@ -56,6 +56,7 @@ export default function PromptLab() {
   const [selectedRun, setSelectedRun] = useState<OptimizerRun | null>(null)
   const [launchError, setLaunchError] = useState<string>('')
   const [goldLabelKeys, setGoldLabelKeys] = useState<Set<string>>(new Set())
+  const [goldLabelCounts, setGoldLabelCounts] = useState<Record<string, number>>({})
 
   // Auto-generated annotation prompt (PR #1's LLM-driven path). Cached per
   // (project, codebook) so it doesn't refire on every visit and burn tokens.
@@ -85,8 +86,10 @@ export default function PromptLab() {
       if (cbs.length > 0 && cbs[cbs.length - 1].dimensions[0]) {
         setSelectedDim(cbs[cbs.length - 1].dimensions[0].name)
       }
-      const gold = dss.find(d => d.is_gold)
-      if (gold) setSelectedGold(gold.id)
+      // Default-select an is_gold dataset if any (most reliable for the loop);
+      // fall back to whatever's loaded so user lands on something usable.
+      const def = dss.find(d => d.is_gold) ?? dss[0]
+      if (def) setSelectedGold(def.id)
     })
   }, [projectId])
 
@@ -127,7 +130,7 @@ export default function PromptLab() {
   // Peek at the gold dataset to learn which dimensions actually have labels —
   // so we can warn the user BEFORE launching with a dim that has zero gold coverage.
   useEffect(() => {
-    if (!selectedGold) { setGoldLabelKeys(new Set()); return }
+    if (!selectedGold) { setGoldLabelKeys(new Set()); setGoldLabelCounts({}); return }
     (async () => {
       try {
         const resp = await api.get(`/projects/${projectId}/datasets/${selectedGold}`, {
@@ -135,21 +138,46 @@ export default function PromptLab() {
         })
         const items: any[] = resp.data?.items || []
         const keys = new Set<string>()
+        const counts: Record<string, number> = {}
         for (const it of items) {
           const g = it.gold_labels || {}
           for (const k of Object.keys(g)) {
-            if (g[k] != null && g[k] !== '') keys.add(k)
+            if (g[k] != null && g[k] !== '') {
+              keys.add(k)
+              counts[k] = (counts[k] || 0) + 1
+            }
           }
         }
         setGoldLabelKeys(keys)
+        setGoldLabelCounts(counts)
       } catch {
         setGoldLabelKeys(new Set())
+        setGoldLabelCounts({})
       }
     })()
   }, [selectedGold, projectId])
 
+  // Replicate backend split logic so the UI preview matches what
+  // _execute_run will actually do (api/optimizers.py:268–298).
+  const computeSplit = (n: number, trainPctV: number, valPctV: number, testPctV: number) => {
+    if (n <= 0) return { n_train: 0, n_val: 0, n_test: 0 }
+    let n_train = Math.max(5, Math.round((trainPctV / 100) * n))
+    let n_val   = Math.max(5, Math.round((valPctV   / 100) * n))
+    let n_test  = Math.max(0, n - n_train - n_val)
+    if (n_test < 3 && n_train > 5) {
+      const steal = Math.min(3 - n_test, n_train - 5)
+      n_train -= steal
+      n_test  += steal
+    }
+    return { n_train, n_val, n_test }
+  }
+
   const activeCb = codebooks[codebooks.length - 1]
-  const goldDatasets = datasets.filter(d => d.is_gold)
+  // All datasets are eligible as "labeled examples" — Fiona / Chang seeds
+  // carry an annotator's labels even though only the intersection is flagged
+  // is_gold. The pre-flight + per-dim availability counter rejects rows that
+  // don't have labels for the picked dimension.
+  const goldDatasets = datasets
 
   // Auto-prompt cache key. Stored in localStorage so the LLM call only fires
   // once per (project, codebook); the user explicitly re-runs via the button.
@@ -201,7 +229,7 @@ export default function PromptLab() {
   const splitTotal = trainPct + valPct + testPct
   const preflightIssues: string[] = []
   if (!activeCb) preflightIssues.push('No codebook loaded. Go to Setup.')
-  if (goldDatasets.length === 0) preflightIssues.push('No gold dataset loaded. Load an Agreed seed on Setup.')
+  if (goldDatasets.length === 0) preflightIssues.push('No labeled dataset loaded. Load one on Setup.')
   if (!selectedDim) preflightIssues.push('Pick a dimension.')
   if (!selectedGold) preflightIssues.push('Pick a gold dataset.')
   if (selectedDim && goldLabelKeys.size > 0 && !goldLabelKeys.has(selectedDim)) {
@@ -464,13 +492,53 @@ export default function PromptLab() {
           )}
         </div>
 
-        {!researcherMode && (
-          <p className="mt-6 text-sm text-stone-600 leading-relaxed max-w-2xl">
-            We split your labeled examples three ways: a small slice to learn from,
-            a slice to verify each new piece of guidance, and a held-out slice to
-            score the final result honestly. Held-out examples never enter the prompt.
-          </p>
-        )}
+        {/* Per-dimension sample availability + split preview.
+            Counts come from the gold dataset peek; split percentages match
+            what the backend will actually use (researcher mode = current
+            sliders, default mode = 15/42/43). */}
+        {selectedGold && selectedDim && (() => {
+          const n = goldLabelCounts[selectedDim] ?? 0
+          const tp = researcherMode ? trainPct : 15
+          const vp = researcherMode ? valPct   : 42
+          const xp = researcherMode ? testPct  : 43
+          const split = computeSplit(n, tp, vp, xp)
+          return (
+            <div className="mt-6 border border-seam bg-paper/40 p-4 max-w-3xl">
+              <div className="flex items-baseline justify-between gap-4 mb-3">
+                <div className="font-mono-editorial text-stone-500">
+                  Sample availability for "{selectedDim}"
+                </div>
+                <div className="font-mono text-sm text-ink">{n.toLocaleString()} labeled</div>
+              </div>
+              {n < 15 ? (
+                <div className="font-mono-editorial text-amber-700">
+                  Need at least 15 labeled items for this dimension; gold has {n}. Optimizer will refuse to start.
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-3">
+                    <SplitTile
+                      label="train" count={split.n_train} pct={tp}
+                      hint="failures → rules (the optimizer reads these)"
+                    />
+                    <SplitTile
+                      label="val" count={split.n_val} pct={vp}
+                      hint="governor signal · accept/rollback each round"
+                    />
+                    <SplitTile
+                      label="test" count={split.n_test} pct={xp}
+                      hint="held out · scored once at the end · never seen by optimizer"
+                      accent
+                    />
+                  </div>
+                  <p className="mt-3 font-mono-editorial text-stone-500 leading-relaxed">
+                    Train + val are used during optimization. Test is held out — it gives the honest "Before / After" number on the run results.
+                  </p>
+                </>
+              )}
+            </div>
+          )
+        })()}
 
         {/* 3-way split — Researcher mode only */}
         {researcherMode && (
@@ -774,6 +842,21 @@ function ResearcherToggle({ on, onChange }: { on: boolean; onChange: (v: boolean
 }
 
 /* ---------- Primitives (shared with ProjectSetup) ---------- */
+
+function SplitTile({
+  label, count, pct, hint, accent = false,
+}: { label: string; count: number; pct: number; hint: string; accent?: boolean }) {
+  return (
+    <div className={`p-3 bg-white border ${accent ? 'border-ink' : 'border-seam'}`}>
+      <div className="flex items-baseline justify-between mb-1">
+        <span className={`text-sm font-medium ${accent ? 'text-ink' : 'text-stone-800'}`}>{label}</span>
+        <span className="font-mono-editorial text-stone-400">{pct}%</span>
+      </div>
+      <div className="font-mono text-2xl font-medium text-ink">{count}</div>
+      <div className="font-mono-editorial text-stone-500 mt-1 leading-relaxed">{hint}</div>
+    </div>
+  )
+}
 
 function Section({ num, title, hint, children }: { num: string; title: string; hint?: string; children: React.ReactNode }) {
   return (

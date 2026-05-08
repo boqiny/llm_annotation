@@ -1,19 +1,23 @@
 """FastAPI application entry point."""
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import update
 
 from app.config import settings
-from app.database import engine
-from app.models.tables import Base
+from app.database import async_session, engine
+from app.models.tables import AnnotationJob, Base, JobStatus, OptimizerRun
 from app.api import (
     projects, codebooks, codebook_drafts, datasets, pipelines, jobs,
     results, calibration, ws,
     optimizers as optimizers_api, config as config_api,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -21,6 +25,28 @@ async def lifespan(app: FastAPI):
     # Create tables on startup
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Reap stale in-flight rows. The asyncio.Task registry is process-local
+    # and doesn't survive restart, so anything still ``running``/``pending``
+    # in the DB is orphaned — its task no longer exists. Mark cancelled so
+    # the UI clears and users can delete the rows.
+    async with async_session() as session:
+        opt_res = await session.execute(
+            update(OptimizerRun)
+            .where(OptimizerRun.status.in_(["running", "pending"]))
+            .values(status="cancelled", error="server restarted before completion")
+        )
+        job_res = await session.execute(
+            update(AnnotationJob)
+            .where(AnnotationJob.status.in_([JobStatus.RUNNING, JobStatus.PENDING, JobStatus.PAUSED]))
+            .values(status=JobStatus.CANCELLED)
+        )
+        await session.commit()
+        if opt_res.rowcount or job_res.rowcount:
+            logger.info(
+                f"Reaped stale rows on startup: optimizer_runs={opt_res.rowcount} "
+                f"annotation_jobs={job_res.rowcount}"
+            )
     yield
     await engine.dispose()
 
