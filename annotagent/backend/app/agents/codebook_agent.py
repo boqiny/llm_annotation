@@ -19,6 +19,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.agents.codebook_orchestrator import FileExplorer, run_orchestrator
 from app.engine.codebook_parser import parse_codebook, validate_codebook
 from app.engine.format_parsers import IngestResult, parse_file
 from app.engine.llm_client import call_llm
@@ -112,10 +113,7 @@ async def run_codebook_agent(
             error_message="Input too short for schema extraction.",
         )
 
-    # ─── Drafter: LLM with strict-JSON + schema-validation retry loop ───
-    draft_json: dict[str, Any] = {}
-    drafter_error: str = ""
-
+    # ─── Drafter ───
     if not api_key:
         return DraftResult(
             warnings=warnings,
@@ -126,53 +124,90 @@ async def run_codebook_agent(
             analysis_rows=analysis_rows,
         )
 
-    user_msg = _build_drafter_user_message(ingest)
-    last_err = ""
+    draft_json: dict[str, Any] = {}
+    drafter_error: str = ""
 
-    for attempt in range(DRAFTER_MAX_RETRIES):
+    if (provider or "").lower() == "openai":
+        # Tool-calling orchestrator: agent inspects the file directly via
+        # list_sheets / read_sheet_range / column_unique_values / search_text
+        # / read_text and submits the codebook via propose_codebook.
         try:
-            resp = await call_llm(
-                messages=[
-                    {"role": "system", "content": _DRAFTER_SYSTEM},
-                    {"role": "user", "content": user_msg + last_err},
-                ],
-                provider=provider, model=model, api_key=api_key,
-                max_tokens=DRAFTER_MAX_TOKENS,
+            explorer = FileExplorer(
+                filename=filename or "uploaded",
+                file_bytes=file_bytes,
+                pasted_text=pasted_text,
             )
         except Exception as e:
-            logger.warning(f"Drafter LLM call failed (attempt {attempt + 1}): {e}")
-            drafter_error = f"LLM call failed: {type(e).__name__}: {e}"
-            continue
+            logger.warning(f"FileExplorer init failed: {e}", exc_info=True)
+            explorer = None
 
-        parsed = _extract_json(resp.text)
-        if parsed is None:
-            last_err = (
-                "\n\nREMINDER: your previous response was not valid JSON. "
-                "Return ONLY a JSON object — no markdown fences, no prose."
+        if explorer is not None:
+            initial_hint = ""
+            if ingest.tables:
+                initial_hint = f"Sheet hints: {[t.name for t in ingest.tables]}"
+            orch = await run_orchestrator(
+                explorer=explorer,
+                api_key=api_key, model=model,
+                initial_hint=initial_hint,
             )
-            drafter_error = "LLM returned non-JSON."
-            continue
+            if orch.ok:
+                draft_json = orch.codebook
+                logger.info(
+                    f"Orchestrator OK: {orch.iterations} iterations, "
+                    f"{orch.tool_calls} tool calls"
+                )
+            else:
+                drafter_error = orch.error
+                logger.warning(f"Orchestrator failed: {orch.error}")
 
-        errors = validate_codebook(parsed)
-        if errors:
-            last_err = (
-                "\n\nREMINDER: your previous JSON failed schema validation with these errors:\n- "
-                + "\n- ".join(errors)
-                + "\nFix these and return STRICT JSON only."
-            )
-            drafter_error = f"Schema validation: {errors[:2]}"
-            continue
+    if not draft_json:
+        # Fallback path: single-shot Drafter (also used for non-OpenAI providers
+        # since native tool-calling shapes differ across vendors).
+        user_msg = _build_drafter_user_message(ingest)
+        last_err = ""
+        for attempt in range(DRAFTER_MAX_RETRIES):
+            try:
+                resp = await call_llm(
+                    messages=[
+                        {"role": "system", "content": _DRAFTER_SYSTEM},
+                        {"role": "user", "content": user_msg + last_err},
+                    ],
+                    provider=provider, model=model, api_key=api_key,
+                    max_tokens=DRAFTER_MAX_TOKENS,
+                )
+            except Exception as e:
+                logger.warning(f"Drafter LLM call failed (attempt {attempt + 1}): {e}")
+                drafter_error = f"LLM call failed: {type(e).__name__}: {e}"
+                continue
 
-        # Success
-        draft_json = parsed
-        drafter_error = ""
-        break
+            parsed = _extract_json(resp.text)
+            if parsed is None:
+                last_err = (
+                    "\n\nREMINDER: your previous response was not valid JSON. "
+                    "Return ONLY a JSON object — no markdown fences, no prose."
+                )
+                drafter_error = "LLM returned non-JSON."
+                continue
+
+            errors = validate_codebook(parsed)
+            if errors:
+                last_err = (
+                    "\n\nREMINDER: your previous JSON failed schema validation with these errors:\n- "
+                    + "\n- ".join(errors)
+                    + "\nFix these and return STRICT JSON only."
+                )
+                drafter_error = f"Schema validation: {errors[:2]}"
+                continue
+
+            draft_json = parsed
+            drafter_error = ""
+            break
 
     if not draft_json:
         return DraftResult(
             warnings=warnings,
             critic_flags=[{"severity": "error", "dim": "", "message":
-                           f"Drafter failed after {DRAFTER_MAX_RETRIES} attempts: {drafter_error}"}],
+                           f"Drafter failed: {drafter_error}"}],
             error_message=drafter_error,
             analysis_rows=analysis_rows,
             drafter_model=model,
