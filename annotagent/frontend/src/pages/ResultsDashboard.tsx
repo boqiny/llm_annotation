@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { getJob, getMetrics, getConfusionMatrix, exportResults, listDatasets, listCalibrations, runCalibration } from '../lib/api'
+import { getJob, getMetrics, getConfusionMatrix, exportResults } from '../lib/api'
 import { formatTokens, formatPercent } from '../lib/utils'
-import type { Job, DimensionMetrics, Dataset, CalibrationRun } from '../types'
+import type { Job, DimensionMetrics } from '../types'
 
 export default function ResultsDashboard() {
   const { id, jobId } = useParams<{ id: string; jobId: string }>()
@@ -14,9 +14,6 @@ export default function ResultsDashboard() {
   const [metrics, setMetrics] = useState<DimensionMetrics[]>([])
   const [confusionDim, setConfusionDim] = useState<string>('')
   const [confusionData, setConfusionData] = useState<{ classes: string[]; matrix: Record<string, Record<string, number>> } | null>(null)
-  const [datasets, setDatasets] = useState<Dataset[]>([])
-  const [calibrations, setCalibrations] = useState<CalibrationRun[]>([])
-  const [calLoading, setCalLoading] = useState(false)
 
   useEffect(() => {
     getJob(projectId, jid).then(setJob)
@@ -24,8 +21,6 @@ export default function ResultsDashboard() {
       setMetrics(m)
       if (m.length > 0) setConfusionDim(m[0].dimension)
     })
-    listDatasets(projectId).then(setDatasets)
-    listCalibrations(projectId, jid).then(setCalibrations)
   }, [projectId, jid])
 
   useEffect(() => {
@@ -51,21 +46,6 @@ export default function ResultsDashboard() {
       a.click()
     }
   }
-
-  const handleCalibration = async () => {
-    const goldDs = datasets.find(d => d.is_gold)
-    if (!goldDs) return
-    setCalLoading(true)
-    try {
-      await runCalibration(projectId, jid, goldDs.id)
-      const cals = await listCalibrations(projectId, jid)
-      setCalibrations(cals)
-    } finally {
-      setCalLoading(false)
-    }
-  }
-
-  const goldDataset = datasets.find(d => d.is_gold)
 
   const chartData = metrics.map(m => ({
     dimension: m.dimension.length > 15 ? m.dimension.substring(0, 15) + '...' : m.dimension,
@@ -216,120 +196,6 @@ export default function ResultsDashboard() {
         </section>
       )}
 
-      {/* Calibration */}
-      <section className="border-t border-seam pt-8">
-        <div className="font-mono-editorial text-stone-500 mb-3">Calibration loop</div>
-        <h3 className="text-2xl font-medium tracking-tight mb-4">Distil agreed-subset errors into rules.</h3>
-        {goldDataset ? (
-          <div>
-            <button
-              onClick={handleCalibration}
-              disabled={calLoading}
-              className="group inline-flex items-center gap-3 px-5 py-2.5 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-50 transition-colors"
-            >
-              <span>{calLoading ? 'Running calibration…' : 'Run calibration'}</span>
-              <span className="transition-transform group-enabled:group-hover:translate-x-1">→</span>
-            </button>
-            {calibrations.length > 0 && (
-              <div className="mt-8 space-y-8">
-                {calibrations.map(cal => {
-                  const m = cal.metrics_json as {
-                    before?: Record<string, { accuracy?: number; macro_f1?: number }>
-                    after?: Record<string, { accuracy?: number; macro_f1?: number }>
-                    delta?: Record<string, { accuracy_delta?: number; macro_f1_delta?: number }>
-                  }
-                  const dims = Object.keys(m.before ?? {})
-                  const hasAfter = m.after && Object.keys(m.after).length > 0
-                  return (
-                    <div key={cal.id} className="border border-seam bg-white">
-                      <div className="px-5 py-3 border-b border-seam flex items-baseline gap-3">
-                        <div className="font-mono-editorial text-stone-500">
-                          Run · {cal.id.toString().padStart(3, '0')}
-                        </div>
-                        {hasAfter ? (
-                          <span className="font-mono-editorial text-emerald-700">re-annotated</span>
-                        ) : (
-                          <span className="font-mono-editorial text-amber-700">rules only</span>
-                        )}
-                      </div>
-
-                      {dims.length > 0 && (
-                        <div className="overflow-auto">
-                          <table className="w-full text-xs">
-                            <thead>
-                              <tr className="border-b border-seam">
-                                <th className="px-4 py-3 text-left font-mono-editorial text-stone-500">Dimension</th>
-                                <th className="px-4 py-3 text-right font-mono-editorial text-stone-500">Before acc</th>
-                                <th className="px-4 py-3 text-right font-mono-editorial text-stone-500">After acc</th>
-                                <th className="px-4 py-3 text-right font-mono-editorial text-stone-500">Δ acc</th>
-                                <th className="px-4 py-3 text-right font-mono-editorial text-stone-500">Before F1</th>
-                                <th className="px-4 py-3 text-right font-mono-editorial text-stone-500">After F1</th>
-                                <th className="px-4 py-3 text-right font-mono-editorial text-stone-500">Δ F1</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-seam">
-                              {dims.map(dim => {
-                                const b = m.before?.[dim] ?? {}
-                                const a = m.after?.[dim] ?? {}
-                                const d = m.delta?.[dim] ?? {}
-                                const fmt = (v?: number) => v !== undefined ? (v * 100).toFixed(1) + '%' : '—'
-                                const fmtD = (v?: number) => {
-                                  if (v === undefined) return '—'
-                                  const pct = (v * 100).toFixed(1)
-                                  const cls = v > 0 ? 'text-emerald-700' : v < 0 ? 'text-red-600' : 'text-stone-500'
-                                  return <span className={cls}>{v > 0 ? '+' : ''}{pct}pp</span>
-                                }
-                                return (
-                                  <tr key={dim} className="hover:bg-paper/40">
-                                    <td className="px-4 py-3 font-medium">{dim}</td>
-                                    <td className="px-4 py-3 text-right font-mono text-stone-600">{fmt(b.accuracy)}</td>
-                                    <td className="px-4 py-3 text-right font-mono">{hasAfter ? fmt(a.accuracy) : '—'}</td>
-                                    <td className="px-4 py-3 text-right font-mono">{hasAfter ? fmtD(d.accuracy_delta) : '—'}</td>
-                                    <td className="px-4 py-3 text-right font-mono text-stone-600">{fmt(b.macro_f1)}</td>
-                                    <td className="px-4 py-3 text-right font-mono">{hasAfter ? fmt(a.macro_f1) : '—'}</td>
-                                    <td className="px-4 py-3 text-right font-mono">{hasAfter ? fmtD(d.macro_f1_delta) : '—'}</td>
-                                  </tr>
-                                )
-                              })}
-                            </tbody>
-                          </table>
-                          {!hasAfter && (
-                            <p className="px-5 py-3 border-t border-seam text-xs text-stone-500">
-                              No re-annotation pass ran. The rule library was updated; run calibration again with a larger gold subset to re-score.
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {cal.rules_generated.length > 0 && (
-                        <div className="border-t border-seam p-5">
-                          <div className="font-mono-editorial text-stone-500 mb-2">Generated calibration rules</div>
-                          <pre className="bg-paper/50 border border-seam p-3 font-mono text-[11px] leading-relaxed max-h-40 overflow-auto text-stone-700">
-                            {JSON.stringify(cal.rules_generated, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                      {cal.error_patterns.length > 0 && (
-                        <div className="border-t border-seam p-5">
-                          <div className="font-mono-editorial text-stone-500 mb-2">Mined error patterns</div>
-                          <pre className="bg-paper/50 border border-seam p-3 font-mono text-[11px] leading-relaxed max-h-40 overflow-auto text-stone-700">
-                            {JSON.stringify(cal.error_patterns, null, 2)}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="border border-dashed border-seam bg-paper/40 py-10 text-center">
-            <div className="font-mono-editorial text-stone-500 mb-1">No gold dataset</div>
-            <p className="text-sm text-stone-600">Upload a gold standard dataset in Setup to enable calibration.</p>
-          </div>
-        )}
-      </section>
     </div>
   )
 }

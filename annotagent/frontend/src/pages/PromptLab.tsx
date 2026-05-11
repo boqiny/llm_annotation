@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend,
@@ -11,6 +11,8 @@ import api, {
 } from '../lib/api'
 import type { Codebook, Dataset } from '../types'
 
+type Tab = 'prompts' | 'improve' | 'runs' | 'memory'
+
 function fmtError(e: any): string {
   const d = e?.response?.data?.detail
   if (typeof d === 'string') return d
@@ -19,60 +21,33 @@ function fmtError(e: any): string {
   return e?.message || 'Unknown error'
 }
 
-// Toggling Researcher mode flips ALL technical surface (optimizer dropdown,
-// split sliders, budget knob, algorithmic labels) at once. Default is off so a
-// non-CS user sees one button. Persisted across reloads so reviewers don't
-// have to re-toggle every visit.
-const RESEARCHER_KEY = 'annotagent.researcher_mode'
-
-export default function PromptLab() {
+export default function PromptLabV2() {
   const { id } = useParams<{ id: string }>()
   const projectId = Number(id)
 
-  const [researcherMode, setResearcherMode] = useState<boolean>(() => {
-    try { return localStorage.getItem(RESEARCHER_KEY) === '1' } catch { return false }
-  })
-  useEffect(() => {
-    try { localStorage.setItem(RESEARCHER_KEY, researcherMode ? '1' : '0') } catch {}
-  }, [researcherMode])
-
-  const [optimizers, setOptimizers] = useState<OptimizerInfo[]>([])
+  const [tab, setTab] = useState<Tab>('runs')
   const [codebooks, setCodebooks] = useState<Codebook[]>([])
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [runs, setRuns] = useState<OptimizerRun[]>([])
+  const [optimizers, setOptimizers] = useState<OptimizerInfo[]>([])
+  const [memory, setMemory] = useState<MemoryVersion[]>([])
 
-  // form
-  const [selectedOpt, setSelectedOpt] = useState<string>('reflect_agent')
-  const [selectedDim, setSelectedDim] = useState<string>('')
-  const [selectedGold, setSelectedGold] = useState<number | null>(null)
-  const [budget, setBudget] = useState<number>(5)
-  // 3-way split as integer percentages (easier for humans). Defaults per design:
-  // small train, large val, large held-out test. Sum must equal 100.
-  const [trainPct, setTrainPct] = useState<number>(15)
-  const [valPct, setValPct]     = useState<number>(42)
-  const [testPct, setTestPct]   = useState<number>(43)
-  const [launching, setLaunching] = useState(false)
-  const [selectedRunId, setSelectedRunId] = useState<number | null>(null)
-  const [selectedRun, setSelectedRun] = useState<OptimizerRun | null>(null)
-  const [launchError, setLaunchError] = useState<string>('')
-  const [goldLabelKeys, setGoldLabelKeys] = useState<Set<string>>(new Set())
-  const [goldLabelCounts, setGoldLabelCounts] = useState<Record<string, number>>({})
-  // Per-(dim, class) counts for the stratified-split preview.
-  const [goldClassCounts, setGoldClassCounts] = useState<Record<string, Record<string, number>>>({})
-
-  // Auto-generated annotation prompt (PR #1's LLM-driven path). Cached per
-  // (project, codebook) so it doesn't refire on every visit and burn tokens.
   const [autoPrompt, setAutoPrompt] = useState<AutoPromptResponse | null>(null)
   const [autoPromptLoading, setAutoPromptLoading] = useState(false)
-  const [autoPromptError, setAutoPromptError] = useState<string>('')
+  const [autoPromptError, setAutoPromptError] = useState('')
 
-  // Cross-session reflection memory (cumulative rule library, versioned per
-  // (project, dimension)). Re-fetched whenever runs list updates so a freshly
-  // completed reflect_agent run pulls in its new memory version.
-  const [memory, setMemory] = useState<MemoryVersion[]>([])
-  useEffect(() => {
-    listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))
-  }, [projectId, runs.length, runs.map(r => r.status).join(',')])
+  // Improve tab state
+  const [selectedDim, setSelectedDim] = useState('')
+  const [selectedGold, setSelectedGold] = useState<number | null>(null)
+  const [budget, setBudget] = useState(5)
+  const [launching, setLaunching] = useState(false)
+  const [launchError, setLaunchError] = useState('')
+
+  // Runs master-detail
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null)
+  const [selectedRun, setSelectedRun] = useState<OptimizerRun | null>(null)
+
+  const activeCb = codebooks[codebooks.length - 1]
 
   useEffect(() => {
     Promise.all([
@@ -81,1465 +56,1032 @@ export default function PromptLab() {
       listDatasets(projectId),
       listOptimizerRuns(projectId),
     ]).then(([opts, cbs, dss, rs]) => {
-      setOptimizers(opts)
-      setCodebooks(cbs)
-      setDatasets(dss)
-      setRuns(rs)
+      setOptimizers(opts); setCodebooks(cbs); setDatasets(dss); setRuns(rs)
       if (cbs.length > 0 && cbs[cbs.length - 1].dimensions[0]) {
         setSelectedDim(cbs[cbs.length - 1].dimensions[0].name)
       }
-      // Default-select an is_gold dataset if any (most reliable for the loop);
-      // fall back to whatever's loaded so user lands on something usable.
       const def = dss.find(d => d.is_gold) ?? dss[0]
       if (def) setSelectedGold(def.id)
     })
   }, [projectId])
 
-  // Poll in-flight runs for status
+  // Poll in-flight runs
   useEffect(() => {
-    const hasInFlight = runs.some(r => r.status === 'running' || r.status === 'pending')
-    if (!hasInFlight) return
-    const iv = setInterval(() => {
-      listOptimizerRuns(projectId).then(setRuns)
-    }, 3000)
+    const inFlight = runs.some(r => r.status === 'running' || r.status === 'pending')
+    if (!inFlight) return
+    const iv = setInterval(() => listOptimizerRuns(projectId).then(setRuns), 3000)
     return () => clearInterval(iv)
   }, [runs, projectId])
 
+  // Selected run polling
   useEffect(() => {
-    if (selectedRunId) {
-      getOptimizerRun(projectId, selectedRunId).then(setSelectedRun)
-    } else {
-      setSelectedRun(null)
-    }
-  }, [selectedRunId, projectId])
-
-  // Live-poll the selected run while it's still in flight so the user watches
-  // the trajectory grow round by round instead of staring at a spinner.
-  useEffect(() => {
-    if (!selectedRunId) return
+    if (!selectedRunId) { setSelectedRun(null); return }
+    getOptimizerRun(projectId, selectedRunId).then(setSelectedRun)
     const status = selectedRun?.status
     if (status !== 'running' && status !== 'pending') return
     const iv = setInterval(() => {
       getOptimizerRun(projectId, selectedRunId).then(r => {
         setSelectedRun(r)
-        // Keep the list row in sync too so status badge flips when done
         setRuns(prev => prev.map(x => x.id === r.id ? r : x))
-      }).catch(() => { /* swallow transient errors */ })
+      }).catch(() => {})
     }, 2000)
     return () => clearInterval(iv)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRunId, selectedRun?.status, projectId])
 
-  // Peek at the gold dataset to learn which dimensions actually have labels —
-  // so we can warn the user BEFORE launching with a dim that has zero gold coverage.
+  // Memory refresh
   useEffect(() => {
-    if (!selectedGold) {
-      setGoldLabelKeys(new Set()); setGoldLabelCounts({}); setGoldClassCounts({}); return
-    }
-    (async () => {
-      try {
-        const resp = await api.get(`/projects/${projectId}/datasets/${selectedGold}`, {
-          params: { limit: 500, offset: 0 },
-        })
-        const items: any[] = resp.data?.items || []
-        const keys = new Set<string>()
-        const counts: Record<string, number> = {}
-        const classCounts: Record<string, Record<string, number>> = {}
-        for (const it of items) {
-          const g = it.gold_labels || {}
-          for (const k of Object.keys(g)) {
-            const v = g[k]
-            if (v == null || v === '') continue
-            keys.add(k)
-            counts[k] = (counts[k] || 0) + 1
-            // Multi-label cells can be lists; tally each.
-            const labels = Array.isArray(v) ? v.map(String) : [String(v)]
-            if (!classCounts[k]) classCounts[k] = {}
-            for (const lbl of labels) {
-              classCounts[k][lbl] = (classCounts[k][lbl] || 0) + 1
-            }
-          }
-        }
-        setGoldLabelKeys(keys)
-        setGoldLabelCounts(counts)
-        setGoldClassCounts(classCounts)
-      } catch {
-        setGoldLabelKeys(new Set())
-        setGoldLabelCounts({})
-        setGoldClassCounts({})
-      }
-    })()
-  }, [selectedGold, projectId])
+    listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))
+  }, [projectId, runs.length, runs.map(r => r.status).join(',')])
 
-  // Replicate backend stratified-split logic for the preview tiles. Mirrors
-  // api/optimizers.py::_stratified_split — proportional per class, tiny
-  // classes (<3) all to train.
-  type ClassSplit = { n: number; train: number; val: number; test: number }
-  const computeStratifiedSplit = (
-    classCounts: Record<string, number>,
-    trainPctV: number, valPctV: number,
-  ) => {
-    const tf = trainPctV / 100, vf = valPctV / 100
-    const perClass: Record<string, ClassSplit> = {}
-    let n_train = 0, n_val = 0, n_test = 0
-    for (const cls of Object.keys(classCounts).sort()) {
-      const n = classCounts[cls]
-      if (n < 3) {
-        perClass[cls] = { n, train: n, val: 0, test: 0 }
-        n_train += n
-        continue
-      }
-      const nt = Math.max(1, Math.round(tf * n))
-      let nv = Math.max(1, Math.round(vf * n))
-      if (nt + nv > n - 1) nv = Math.max(1, n - nt - 1)
-      const nx = n - nt - nv
-      perClass[cls] = { n, train: nt, val: nv, test: nx }
-      n_train += nt; n_val += nv; n_test += nx
-    }
-    return { n_train, n_val, n_test, perClass }
-  }
-
-  const activeCb = codebooks[codebooks.length - 1]
-  // All datasets are eligible as "labeled examples" — Fiona / Chang seeds
-  // carry an annotator's labels even though only the intersection is flagged
-  // is_gold. The pre-flight + per-dim availability counter rejects rows that
-  // don't have labels for the picked dimension.
-  const goldDatasets = datasets
-
-  // Auto-prompt cache key. Stored in localStorage so the LLM call only fires
-  // once per (project, codebook); the user explicitly re-runs via the button.
+  // Auto-prompt cache
   const autoPromptCacheKey = activeCb ? `annotagent.autoPrompt.${projectId}.${activeCb.id}` : null
-
   useEffect(() => {
-    if (!activeCb || !autoPromptCacheKey) return
-    if (autoPrompt) return
+    if (!activeCb || !autoPromptCacheKey || autoPrompt) return
     try {
       const cached = localStorage.getItem(autoPromptCacheKey)
       if (cached) {
         const parsed = JSON.parse(cached)
-        // Validate shape — old single-prompt cache should be discarded so the
-        // user gets the new per-dimension result on the next visit.
-        if (parsed && Array.isArray(parsed.prompts)) {
-          setAutoPrompt(parsed); return
-        }
-        localStorage.removeItem(autoPromptCacheKey)
+        if (parsed && Array.isArray(parsed.prompts)) { setAutoPrompt(parsed); return }
       }
-    } catch { /* ignore */ }
-    // Fire once per (project, codebook). User can force a re-run via the button.
+    } catch {}
     setAutoPromptLoading(true)
-    setAutoPromptError('')
     autoGeneratePrompt(projectId, activeCb.id)
-      .then(resp => {
-        setAutoPrompt(resp)
-        try { localStorage.setItem(autoPromptCacheKey, JSON.stringify(resp)) } catch { /* ignore */ }
+      .then(r => {
+        setAutoPrompt(r)
+        try { localStorage.setItem(autoPromptCacheKey, JSON.stringify(r)) } catch {}
       })
       .catch(e => setAutoPromptError(fmtError(e)))
       .finally(() => setAutoPromptLoading(false))
   }, [activeCb, autoPromptCacheKey, autoPrompt, projectId])
 
-  const handleRegeneratePrompt = async () => {
-    if (!activeCb || !autoPromptCacheKey) return
-    setAutoPromptLoading(true)
-    setAutoPromptError('')
-    try {
-      const resp = await autoGeneratePrompt(projectId, activeCb.id)
-      setAutoPrompt(resp)
-      try { localStorage.setItem(autoPromptCacheKey, JSON.stringify(resp)) } catch { /* ignore */ }
-    } catch (e: any) {
-      setAutoPromptError(fmtError(e))
-    } finally {
-      setAutoPromptLoading(false)
-    }
-  }
-
-  // Pre-flight validation — tell the user WHY before they launch
-  const splitTotal = trainPct + valPct + testPct
-  const preflightIssues: string[] = []
-  if (!activeCb) preflightIssues.push('No codebook loaded. Go to Setup.')
-  if (goldDatasets.length === 0) preflightIssues.push('No labeled dataset loaded. Load one on Setup.')
-  if (!selectedDim) preflightIssues.push('Pick a dimension.')
-  if (!selectedGold) preflightIssues.push('Pick a gold dataset.')
-  if (selectedDim && goldLabelKeys.size > 0 && !goldLabelKeys.has(selectedDim)) {
-    preflightIssues.push(
-      `The selected gold dataset has no labels for "${selectedDim}". ` +
-      `Available dimensions in this gold set: ${[...goldLabelKeys].join(', ') || '(none)'}.`
-    )
-  }
-  if (researcherMode) {
-    if (splitTotal !== 100) {
-      preflightIssues.push(`Train + Val + Test must sum to 100 (current: ${splitTotal}).`)
-    }
-    if (trainPct < 5)  preflightIssues.push('Train < 5% is unstable. Bump it up.')
-    if (testPct < 10)  preflightIssues.push('Test < 10% gives a noisy held-out score. Bump it up.')
-  }
-
-  const canLaunch = preflightIssues.length === 0 && !launching
-
-  const handleLaunch = async () => {
-    if (!selectedGold) return
-    setLaunching(true)
-    setLaunchError('')
-    // In default mode the user never sees optimizer/split/budget knobs, so
-    // launch with safe defaults regardless of any state a previous Researcher-
-    // mode session might have left behind.
-    const launchOpt    = researcherMode ? selectedOpt : 'reflect_agent'
-    const launchBudget = researcherMode ? budget      : 5
-    const launchTrain  = researcherMode ? trainPct    : 15
-    const launchVal    = researcherMode ? valPct      : 42
-    const launchTest   = researcherMode ? testPct     : 43
-    try {
-      const run = await startOptimizerRun(projectId, {
-        optimizer_name: launchOpt,
-        dimension_name: selectedDim,
-        gold_dataset_id: selectedGold,
-        budget: launchBudget,
-        train_frac: launchTrain / 100,
-        val_frac:   launchVal   / 100,
-        test_frac:  launchTest  / 100,
-      })
-      setRuns([run, ...runs])
-      setSelectedRunId(run.id)
-    } catch (e: any) {
-      setLaunchError(fmtError(e))
-    } finally {
-      setLaunching(false)
-    }
-  }
-
-  const method = optimizers.find(o => o.role === 'method')
-  const baselines = optimizers.filter(o => o.role === 'baseline')
-
   return (
-    <div className="space-y-12">
-      {/* Masthead */}
-      <header className="border-b border-seam pb-6">
-        <div className="flex items-start justify-between gap-6">
-          <div>
-            <div className="font-mono-editorial text-stone-500 mb-2">
-              {researcherMode ? 'Prompt optimization workbench' : 'Improve from examples'}
-            </div>
-            {researcherMode ? (
-              <>
-                <h1 className="text-4xl sm:text-5xl font-medium tracking-tight leading-[1.05]">
-                  Distil a prompt.<br />
-                  Compare optimizers head-to-head.
-                </h1>
-                <p className="mt-5 max-w-2xl text-stone-600 leading-relaxed">
-                  Pick any optimizer, target one codebook dimension, and the gold subset you've loaded. Runs execute in the background. ReflectAgent is our method; the other three are post-2023 SOTA baselines.
-                </p>
-              </>
-            ) : (
-              <>
-                <h1 className="text-4xl sm:text-5xl font-medium tracking-tight leading-[1.05]">
-                  Find and fix annotation<br />
-                  mistakes from your examples.
-                </h1>
-                <p className="mt-5 max-w-2xl text-stone-600 leading-relaxed">
-                  Pick the dimension you want to improve and the labeled examples to learn from.
-                  We review the cases the system gets wrong, write plain-English guidance,
-                  double-check on examples it hasn't seen, and quietly roll back any guidance
-                  that hurts accuracy.
-                </p>
-              </>
-            )}
-          </div>
-          <ResearcherToggle on={researcherMode} onChange={setResearcherMode} />
+    <div className="space-y-6">
+      <header className="flex items-baseline justify-between gap-4 border-b border-seam pb-4">
+        <div>
+          <div className="font-mono-editorial text-stone-500 mb-1">Improve</div>
+          <h1 className="text-2xl font-medium tracking-tight">Find and fix annotation mistakes from your examples.</h1>
+        </div>
+        <div className="font-mono-editorial text-stone-400">
+          {runs.length} run{runs.length !== 1 ? 's' : ''}
         </div>
       </header>
 
-      {/* Section 00 — Current prompt per dimension (optimized if one exists,
-          otherwise the LLM-drafted starting prompt).
-          Each dimension gets its own LLM-written prompt so the optimizer can
-          tune them independently. Generation is parallel across dimensions. */}
-      <Section
-        num="00"
-        title="Current prompts"
-        hint="The active annotation prompt per dimension. Defaults to the optimized version when one exists; toggle to see the original LLM-drafted starting prompt for comparison."
-      >
-        {!activeCb ? (
-          <div className="font-mono-editorial text-stone-400">
-            Load a codebook on the Setup page first.
-          </div>
-        ) : autoPromptLoading && !autoPrompt ? (
-          <div className="border border-seam bg-paper/40 px-5 py-8 text-center">
-            <div className="font-mono-editorial text-stone-500 mb-1">Generating…</div>
-            <p className="text-sm text-stone-600">
-              Drafting a prompt for each of the {activeCb.dimensions.length} dimensions in parallel.
-            </p>
-          </div>
-        ) : autoPromptError ? (
-          <div className="border border-red-200 bg-red-50/60 px-5 py-4 text-sm">
-            <div className="font-mono-editorial text-red-700 mb-1">Generation failed</div>
-            <p className="text-stone-700">{autoPromptError}</p>
-            <button
-              onClick={handleRegeneratePrompt}
-              className="mt-3 px-3 py-1.5 text-xs font-medium text-ink border border-ink hover:bg-ink hover:text-cream"
-            >
-              Try again
-            </button>
-          </div>
-        ) : autoPrompt && autoPrompt.prompts.length > 0 ? (
-          <div>
-            <div className="flex items-baseline justify-between gap-4 mb-3">
-              <div className="font-mono-editorial text-stone-500">
-                {autoPrompt.prompts.length} prompts · generated from {activeCb.name}
-              </div>
-              <button
-                onClick={handleRegeneratePrompt}
-                disabled={autoPromptLoading}
-                className="font-mono-editorial text-stone-500 hover:text-ink disabled:opacity-50"
-              >
-                {autoPromptLoading ? 're-generating…' : 're-generate all'}
-              </button>
-            </div>
-            <div className="space-y-3">
-              {autoPrompt.prompts.map(p => {
-                // Latest completed reflect_agent run for this dim, if any.
-                const completed = runs
-                  .filter(r => r.dimension_name === p.dimension_name
-                    && r.optimizer_name === 'reflect_agent'
-                    && r.status === 'completed')
-                  .sort((a, b) => b.id - a.id)[0]
-                return (
-                  <DimensionPromptCard
-                    key={p.dimension_name}
-                    dp={p}
-                    optimizedRun={completed}
-                    onJumpToRun={completed ? () => {
-                      setSelectedRunId(completed.id)
-                      // Scroll into view after the detail mounts.
-                      setTimeout(() => {
-                        const el = document.getElementById('section-runs')
-                        el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                      }, 50)
-                    } : undefined}
-                  />
-                )
-              })}
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={handleRegeneratePrompt}
-            className="px-4 py-2 text-sm font-medium text-ink border border-ink hover:bg-ink hover:text-cream"
-          >
-            Generate prompts
-          </button>
-        )}
-      </Section>
+      <Tabs value={tab} onChange={setTab} items={[
+        { id: 'prompts', label: 'Prompts',  count: autoPrompt?.prompts.length },
+        { id: 'improve', label: 'Improve',                                     },
+        { id: 'runs',    label: 'Runs',     count: runs.length                 },
+        { id: 'memory',  label: 'Memory',   count: memory.length               },
+      ]} />
 
-      {/* Section 01 — Pick an optimizer (Researcher mode only) */}
-      {researcherMode && (
-        <Section num="01" title="Optimizer" hint="ReflectAgent is our method. The three baselines are the current SOTA we compare against.">
-          {optimizers.length === 0 ? (
-            <div className="font-mono-editorial text-stone-400">Loading…</div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {method && (
-                <OptimizerCard
-                  opt={method}
-                  selected={selectedOpt === method.name}
-                  onSelect={() => setSelectedOpt(method.name)}
-                  emphasized
-                />
-              )}
-              {baselines.map(opt => (
-                <OptimizerCard
-                  key={opt.name}
-                  opt={opt}
-                  selected={selectedOpt === opt.name}
-                  onSelect={() => setSelectedOpt(opt.name)}
-                />
-              ))}
-            </div>
-          )}
-        </Section>
+      {tab === 'prompts' && (
+        <PromptsTab
+          activeCb={activeCb}
+          autoPrompt={autoPrompt}
+          loading={autoPromptLoading}
+          error={autoPromptError}
+          runs={runs}
+          onRegenerate={async () => {
+            if (!activeCb || !autoPromptCacheKey) return
+            setAutoPromptLoading(true); setAutoPromptError('')
+            try {
+              const r = await autoGeneratePrompt(projectId, activeCb.id)
+              setAutoPrompt(r)
+              try { localStorage.setItem(autoPromptCacheKey, JSON.stringify(r)) } catch {}
+            } catch (e: any) { setAutoPromptError(fmtError(e)) }
+            finally { setAutoPromptLoading(false) }
+          }}
+          onJumpToRun={(id) => { setSelectedRunId(id); setTab('runs') }}
+        />
       )}
 
-      {/* Section 02 — Target */}
-      <Section
-        num={researcherMode ? '02' : '01'}
-        title={researcherMode ? 'Target' : 'What to improve'}
-        hint={
-          researcherMode
-            ? 'Which codebook dimension to optimize, and which gold subset to score against.'
-            : 'Pick the dimension you want to improve and the labeled examples to learn from.'
-        }
-      >
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          <div className={researcherMode ? 'md:col-span-5' : 'md:col-span-6'}>
-            <Field label="Dimension">
-              {activeCb ? (
-                <select
-                  value={selectedDim}
-                  onChange={e => setSelectedDim(e.target.value)}
-                  className="w-full px-0 py-2 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-medium"
-                >
-                  {activeCb.dimensions.map(d => (
-                    <option key={d.id} value={d.name}>
-                      {researcherMode
-                        ? `${d.name} (${d.labels.length} labels · ${d.dim_type})`
-                        : `${d.name} (${d.labels.length} labels)`}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <p className="text-sm text-stone-500">No codebook loaded. Go to Setup.</p>
-              )}
-            </Field>
-          </div>
-          <div className={researcherMode ? 'md:col-span-5' : 'md:col-span-6'}>
-            <Field label={researcherMode ? 'Gold dataset' : 'Labeled examples'}>
-              {goldDatasets.length > 0 ? (
-                <select
-                  value={selectedGold ?? ''}
-                  onChange={e => setSelectedGold(Number(e.target.value))}
-                  className="w-full px-0 py-2 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-medium"
-                >
-                  {goldDatasets.map(d => (
-                    <option key={d.id} value={d.id}>{d.name} ({d.total_items} items)</option>
-                  ))}
-                </select>
-              ) : (
-                <p className="text-sm text-stone-500">No labeled examples loaded. Go to Setup.</p>
-              )}
-            </Field>
-          </div>
-          {researcherMode && (
-            <div className="md:col-span-2">
-              <Field label="Budget · rounds">
-                <input
-                  type="number" min={1} max={20}
-                  value={budget}
-                  onChange={e => setBudget(Math.max(1, Math.min(20, Number(e.target.value) || 5)))}
-                  className="w-full px-0 py-2 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-mono text-sm"
-                />
-              </Field>
-            </div>
-          )}
-        </div>
-
-        {/* Per-dimension sample availability + split preview.
-            Counts come from the gold dataset peek; split percentages match
-            what the backend will actually use (researcher mode = current
-            sliders, default mode = 15/42/43). */}
-        {selectedGold && selectedDim && (() => {
-          const n = goldLabelCounts[selectedDim] ?? 0
-          const classes = goldClassCounts[selectedDim] ?? {}
-          const tp = researcherMode ? trainPct : 15
-          const vp = researcherMode ? valPct   : 42
-          const xp = researcherMode ? testPct  : 43
-          const split = computeStratifiedSplit(classes, tp, vp)
-          const sortedClasses = Object.keys(classes).sort((a, b) => classes[b] - classes[a])
-          const tinyClasses = sortedClasses.filter(c => classes[c] < 3)
-          return (
-            <div className="mt-6 border border-seam bg-paper/40 p-4 max-w-3xl">
-              <div className="flex items-baseline justify-between gap-4 mb-3">
-                <div className="font-mono-editorial text-stone-500">
-                  Sample availability for "{selectedDim}"
-                </div>
-                <div className="font-mono text-sm text-ink">{n.toLocaleString()} labeled</div>
-              </div>
-              {n < 15 ? (
-                <div className="font-mono-editorial text-amber-700">
-                  Need at least 15 labeled items for this dimension; gold has {n}. Optimizer will refuse to start.
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-3 gap-3">
-                    <SplitTile
-                      label="train" count={split.n_train} pct={tp}
-                      hint="failures → rules (the optimizer reads these)"
-                    />
-                    <SplitTile
-                      label="val" count={split.n_val} pct={vp}
-                      hint="governor signal · accept/rollback each round"
-                    />
-                    <SplitTile
-                      label="test" count={split.n_test} pct={xp}
-                      hint="held out · scored once at the end · never seen by optimizer"
-                      accent
-                    />
-                  </div>
-
-                  {/* Per-class breakdown — stratified split mirrors backend. */}
-                  {sortedClasses.length > 0 && (
-                    <div className="mt-4">
-                      <div className="font-mono-editorial text-stone-500 mb-1.5">
-                        Per-class breakdown · stratified
-                      </div>
-                      <table className="w-full text-xs font-mono">
-                        <thead>
-                          <tr className="border-b border-seam text-stone-500">
-                            <th className="text-left py-1.5 font-mono-editorial">label</th>
-                            <th className="text-right py-1.5 font-mono-editorial">total</th>
-                            <th className="text-right py-1.5 font-mono-editorial">train</th>
-                            <th className="text-right py-1.5 font-mono-editorial">val</th>
-                            <th className="text-right py-1.5 font-mono-editorial">test</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-seam">
-                          {sortedClasses.map(cls => {
-                            const s = split.perClass[cls]
-                            const tiny = (s?.n ?? 0) < 3
-                            return (
-                              <tr key={cls}>
-                                <td className="py-1.5 text-stone-800 truncate max-w-[260px]" title={cls}>{cls}</td>
-                                <td className="py-1.5 text-right text-stone-700">{s?.n ?? 0}</td>
-                                <td className="py-1.5 text-right text-stone-700">{s?.train ?? 0}</td>
-                                <td className={`py-1.5 text-right ${tiny ? 'text-amber-700' : 'text-stone-700'}`}>{s?.val ?? 0}</td>
-                                <td className={`py-1.5 text-right ${tiny ? 'text-amber-700' : 'text-stone-700'}`}>{s?.test ?? 0}</td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                      {tinyClasses.length > 0 && (
-                        <p className="mt-2 font-mono-editorial text-amber-700">
-                          {tinyClasses.length} class{tinyClasses.length > 1 ? 'es' : ''} with &lt;3 items go entirely to train (no val/test slot). Add more labels for {tinyClasses.join(', ')} to score them on the held-out set.
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  <p className="mt-3 font-mono-editorial text-stone-500 leading-relaxed">
-                    Train + val are used during optimization. Test is held out — it gives the honest "Before / After" number on the run results.
-                  </p>
-                </>
-              )}
-            </div>
-          )
-        })()}
-
-        {/* 3-way split — Researcher mode only */}
-        {researcherMode && (
-        <div className="mt-8 border border-seam bg-paper/40 p-5">
-          <div className="flex items-baseline justify-between mb-4">
-            <div>
-              <div className="font-mono-editorial text-stone-500 mb-1">Gold subset split</div>
-              <div className="text-sm text-stone-700">
-                Optimizer sees <span className="font-medium">train + val</span> only.
-                The <span className="font-medium">test set is held out</span> — we score the final prompt on it after optimization ends, which is the honest number reported.
-              </div>
-            </div>
-            <div className={`font-mono text-sm ${splitTotal === 100 ? 'text-emerald-700' : 'text-red-700'}`}>
-              {trainPct} / {valPct} / {testPct} = {splitTotal}%
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <SplitField label="Train" hint="failure cases → rules" value={trainPct} onChange={setTrainPct} range="10–20%" />
-            <SplitField label="Val" hint="governor signal" value={valPct} onChange={setValPct} range="40–45%" />
-            <SplitField label="Test" hint="held out · honest score" value={testPct} onChange={setTestPct} range="40–45%" accent />
-          </div>
-          <div className="mt-3 flex items-center justify-between gap-4 text-xs">
-            <span className="font-mono-editorial text-stone-500">Leakage guard · dev and test items never enter the prompt</span>
-            <button
-              onClick={() => { setTrainPct(15); setValPct(42); setTestPct(43) }}
-              className="font-mono-editorial text-stone-500 hover:text-ink"
-            >
-              reset defaults
-            </button>
-          </div>
-        </div>
-        )}
-
-        {/* Pre-flight + error banner */}
-        {(preflightIssues.length > 0 || launchError) && (
-          <div className="mt-8 space-y-3">
-            {launchError && (
-              <div className="border border-red-200 bg-red-50/60 text-red-800 p-4 text-sm">
-                <div className="font-mono-editorial text-red-700 mb-1">Launch failed</div>
-                <div className="whitespace-pre-wrap">{launchError}</div>
-              </div>
-            )}
-            {preflightIssues.length > 0 && (
-              <div className="border border-amber-200 bg-amber-50/50 text-amber-900 p-4 text-sm">
-                <div className="font-mono-editorial text-amber-800 mb-2">Ready check</div>
-                <ul className="space-y-1">
-                  {preflightIssues.map((msg, i) => (
-                    <li key={i} className="leading-relaxed">· {msg}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="mt-8 flex items-end justify-between gap-6 flex-wrap">
-          <p className="text-xs text-stone-500 max-w-md leading-relaxed">
-            {researcherMode
-              ? `Optimizer runs in background on train + val; held-out test is scored after. Expect a few minutes with ${budget} rounds.`
-              : 'Runs in the background. Expect a few minutes — you can leave this page and come back.'}
-          </p>
-          <button
-            onClick={handleLaunch}
-            disabled={!canLaunch}
-            title={!canLaunch && preflightIssues.length > 0 ? preflightIssues.join(' · ') : ''}
-            className="group inline-flex items-center gap-3 px-6 py-3 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <span>
-              {launching
-                ? (researcherMode ? 'Launching…' : 'Starting…')
-                : (researcherMode ? 'Launch optimizer run' : 'Improve from examples')}
-            </span>
-            <span className="transition-transform group-enabled:group-hover:translate-x-1">→</span>
-          </button>
-        </div>
-      </Section>
-
-      {/* Section 03 — Runs */}
-      <div id="section-runs" className="scroll-mt-20" />
-      <Section
-        num={researcherMode ? '03' : '02'}
-        title={researcherMode ? 'Runs' : 'Recent improvements'}
-        hint={
-          researcherMode
-            ? 'Select a run to inspect its trajectory, final prompt, and rule library (ReflectAgent only).'
-            : 'Click any improvement to see what changed and how the accuracy moved.'
-        }
-      >
-        {runs.length === 0 ? (
-          <div className="border border-dashed border-seam bg-paper/40 py-10 text-center">
-            <div className="font-mono-editorial text-stone-500 mb-1">
-              {researcherMode ? 'No runs yet' : 'Nothing here yet'}
-            </div>
-            <p className="text-sm text-stone-600">
-              {researcherMode ? 'Launch the first one above.' : 'Try the button above.'}
-            </p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-seam border-y border-seam">
-            {runs.map(r => (
-              <RunRow
-                key={r.id}
-                run={r}
-                isSelected={r.id === selectedRunId}
-                onSelect={() => setSelectedRunId(r.id === selectedRunId ? null : r.id)}
-                onDelete={async () => {
-                  try {
-                    await deleteOptimizerRun(projectId, r.id)
-                    setRuns(prev => prev.filter(x => x.id !== r.id))
-                    if (selectedRunId === r.id) setSelectedRunId(null)
-                  } catch (e: any) {
-                    alert(`Delete failed: ${fmtError(e)}`)
-                  }
-                }}
-                onCancel={async () => {
-                  try {
-                    await cancelOptimizerRun(projectId, r.id)
-                    // Status flips to 'cancelled' once the worker observes the
-                    // cancellation; the polling loop will pick that up.
-                  } catch (e: any) {
-                    alert(`Cancel failed: ${fmtError(e)}`)
-                  }
-                }}
-                researcherMode={researcherMode}
-              />
-            ))}
-          </ul>
-        )}
-
-        {selectedRun && (
-          <div className="mt-10">
-            <RunDetail
-              run={selectedRun}
-              researcherMode={researcherMode}
-              onUpdate={(updated) => {
-                setSelectedRun(updated)
-                setRuns(prev => prev.map(x => x.id === updated.id ? updated : x))
-              }}
-              projectId={projectId}
-            />
-          </div>
-        )}
-      </Section>
-
-      {/* Section 04 — Memory (cross-session reflect_agent rule library).
-          Only meaningful for ReflectAgent runs; other optimizers don't
-          produce a rule library. The next run on the same dimension seeds
-          from the latest version listed here. */}
-      <Section
-        num={researcherMode ? '04' : '03'}
-        title="Memory"
-        hint="Rules learned across reflect_agent runs accumulate here, versioned per dimension. The next run on a dimension seeds from its latest version, so this is what carries between sessions."
-      >
-        <MemoryPanel memory={memory} onRefresh={() =>
-          listMemoryVersions(projectId).then(setMemory).catch(() => {})
-        } />
-      </Section>
-    </div>
-  )
-}
-
-/* ─── Memory panel ──────────────────────────────────────────── */
-
-function MemoryPanel({
-  memory, onRefresh,
-}: { memory: MemoryVersion[]; onRefresh: () => void }) {
-  if (memory.length === 0) {
-    return (
-      <div className="border border-dashed border-seam bg-paper/40 py-10 text-center">
-        <div className="font-mono-editorial text-stone-500 mb-1">No memory yet</div>
-        <p className="text-sm text-stone-600 max-w-md mx-auto">
-          Memory is written when a reflect_agent run completes. Run one above and the rule library will appear here, ready to seed the next run on the same dimension.
-        </p>
-      </div>
-    )
-  }
-
-  // Group by dimension. Versions arrive ordered (dim, version DESC) from the API.
-  const byDim: Record<string, MemoryVersion[]> = {}
-  for (const v of memory) {
-    if (!byDim[v.dimension_name]) byDim[v.dimension_name] = []
-    byDim[v.dimension_name].push(v)
-  }
-  const dims = Object.keys(byDim).sort()
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-3 font-mono-editorial text-stone-500">
-        <span>{memory.length} version{memory.length === 1 ? '' : 's'} across {dims.length} dimension{dims.length === 1 ? '' : 's'}</span>
-        <button onClick={onRefresh} className="hover:text-ink">refresh</button>
-      </div>
-      <div className="space-y-6">
-        {dims.map(d => (
-          <DimensionMemory key={d} dimension={d} versions={byDim[d]} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function DimensionMemory({
-  dimension, versions,
-}: { dimension: string; versions: MemoryVersion[] }) {
-  const latest = versions[0]
-  return (
-    <div>
-      <div className="flex items-baseline justify-between gap-3 pb-2 border-b border-seam mb-2">
-        <h3 className="text-lg font-medium tracking-tight">{dimension}</h3>
-        <div className="font-mono-editorial text-stone-500">
-          latest · v{String(latest.version).padStart(3, '0')} · {latest.n_rules} rules
-        </div>
-      </div>
-      <ul className="divide-y divide-seam">
-        {versions.map(v => <MemoryVersionRow key={v.id} v={v} />)}
-      </ul>
-    </div>
-  )
-}
-
-function MemoryVersionRow({ v }: { v: MemoryVersion }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <li>
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full grid grid-cols-12 gap-3 py-2.5 px-1 text-left hover:bg-paper/60"
-      >
-        <span className="col-span-1 font-mono-editorial text-stone-400">{open ? '−' : '+'}</span>
-        <span className="col-span-2 font-mono text-sm">v{String(v.version).padStart(3, '0')}</span>
-        <span className="col-span-2 font-mono text-sm text-stone-700">{v.n_rules} rules</span>
-        <span className="col-span-2 font-mono-editorial text-stone-500">
-          {v.new_rules_count > 0 ? `+${v.new_rules_count} new` : 'no new'}
-        </span>
-        <span className="col-span-3 font-mono-editorial text-stone-500">
-          {v.source_optimizer_run_id !== null ? `from run ${String(v.source_optimizer_run_id).padStart(4, '0')}` : 'manual'}
-        </span>
-        <span className="col-span-2 font-mono-editorial text-stone-400 text-right">
-          {v.created_at ? new Date(v.created_at).toLocaleDateString() : '—'}
-        </span>
-      </button>
-      {open && (
-        <div className="px-1 pb-4 space-y-3">
-          {v.rules.length === 0 ? (
-            <div className="font-mono-editorial text-stone-400 text-sm">no rules</div>
-          ) : (
-            v.rules.map((r, i) => (
-              <div key={i} className="pl-4 border-l-2 border-violet-300">
-                <div className="font-mono-editorial text-stone-400 mb-0.5">
-                  {(i + 1).toString().padStart(2, '0')} · {r.id || 'unnamed'}
-                  {r.target_labels?.length ? ` · ${r.target_labels.join(' / ')}` : ''}
-                </div>
-                <div className="text-sm font-medium">{r.boundary || r.rule || '(no boundary)'}</div>
-                {r.rule && r.boundary && r.rule !== r.boundary && (
-                  <div className="text-sm text-stone-600 mt-0.5 leading-relaxed">{r.rule}</div>
-                )}
-                {(r.positive_cues?.length || r.negative_cues?.length) ? (
-                  <div className="mt-1.5 flex flex-wrap gap-x-6 gap-y-1 text-xs">
-                    {r.positive_cues && r.positive_cues.length > 0 && (
-                      <span>
-                        <span className="font-mono-editorial text-emerald-700 mr-2">+ cues</span>
-                        <span className="text-stone-700">{r.positive_cues.map(c => `"${c}"`).join(', ')}</span>
-                      </span>
-                    )}
-                    {r.negative_cues && r.negative_cues.length > 0 && (
-                      <span>
-                        <span className="font-mono-editorial text-red-700 mr-2">− cues</span>
-                        <span className="text-stone-700">{r.negative_cues.map(c => `"${c}"`).join(', ')}</span>
-                      </span>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            ))
-          )}
-        </div>
+      {tab === 'improve' && (
+        <ImproveTab
+          codebooks={codebooks}
+          datasets={datasets}
+          selectedDim={selectedDim} setSelectedDim={setSelectedDim}
+          selectedGold={selectedGold} setSelectedGold={setSelectedGold}
+          budget={budget} setBudget={setBudget}
+          launching={launching} launchError={launchError}
+          projectId={projectId}
+          onLaunched={(run) => {
+            setRuns([run, ...runs])
+            setSelectedRunId(run.id)
+            setTab('runs')
+          }}
+          setLaunching={setLaunching} setLaunchError={setLaunchError}
+        />
       )}
-    </li>
-  )
-}
 
-function ResearcherToggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!on)}
-      title={on
-        ? 'Researcher mode on — exposes optimizer choice (ReflectAgent / GEPA / MIPROv2 / OPRO), 3-way split sliders, and round budget.'
-        : 'Default mode — one button, no jargon. Click to switch to Researcher mode for optimizer choice and split controls.'}
-      className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 border text-xs font-medium transition-colors ${
-        on
-          ? 'border-ink bg-ink text-cream hover:bg-stone-800'
-          : 'border-seam text-stone-600 hover:border-stone-400 hover:text-ink'
-      }`}
-    >
-      <span className={`inline-block w-2 h-2 rounded-full ${on ? 'bg-cream' : 'bg-stone-400'}`} />
-      <span>Researcher mode</span>
-      <span className="font-mono-editorial">{on ? 'on' : 'off'}</span>
-    </button>
-  )
-}
+      {tab === 'runs' && (
+        <RunsTab
+          runs={runs}
+          selectedRunId={selectedRunId}
+          selectedRun={selectedRun}
+          onSelect={setSelectedRunId}
+          onUpdate={(r) => {
+            setSelectedRun(r)
+            setRuns(prev => prev.map(x => x.id === r.id ? r : x))
+          }}
+          onDelete={async (r) => {
+            if (!window.confirm(`Delete run ${String(r.id).padStart(4, '0')} (${r.dimension_name})?`)) return
+            try {
+              await deleteOptimizerRun(projectId, r.id)
+              setRuns(prev => prev.filter(x => x.id !== r.id))
+              if (selectedRunId === r.id) setSelectedRunId(null)
+            } catch (e: any) { alert(`Delete failed: ${fmtError(e)}`) }
+          }}
+          onCancel={async (r) => {
+            if (!window.confirm(`Stop run ${String(r.id).padStart(4, '0')}?`)) return
+            try { await cancelOptimizerRun(projectId, r.id) }
+            catch (e: any) { alert(`Cancel failed: ${fmtError(e)}`) }
+          }}
+          projectId={projectId}
+        />
+      )}
 
-/* ---------- Primitives (shared with ProjectSetup) ---------- */
-
-function SplitTile({
-  label, count, pct, hint, accent = false,
-}: { label: string; count: number; pct: number; hint: string; accent?: boolean }) {
-  return (
-    <div className={`p-3 bg-white border ${accent ? 'border-ink' : 'border-seam'}`}>
-      <div className="flex items-baseline justify-between mb-1">
-        <span className={`text-sm font-medium ${accent ? 'text-ink' : 'text-stone-800'}`}>{label}</span>
-        <span className="font-mono-editorial text-stone-400">{pct}%</span>
-      </div>
-      <div className="font-mono text-2xl font-medium text-ink">{count}</div>
-      <div className="font-mono-editorial text-stone-500 mt-1 leading-relaxed">{hint}</div>
+      {tab === 'memory' && <MemoryTab memory={memory} />}
     </div>
   )
 }
 
-function Section({ num, title, hint, children }: { num: string; title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <section className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-      <header className="lg:col-span-3 lg:border-r lg:border-seam lg:pr-6">
-        <div className="font-mono-editorial text-stone-400 mb-2">№ {num}</div>
-        <h2 className="text-2xl font-medium tracking-tight">{title}</h2>
-        {hint && <p className="text-sm text-stone-500 mt-3 leading-relaxed">{hint}</p>}
-      </header>
-      <div className="lg:col-span-9">{children}</div>
-    </section>
-  )
-}
+/* ─── Tabs primitive ───────────────────────────────────────── */
 
-function SplitField({
-  label, hint, value, onChange, range, accent = false,
+function Tabs<T extends string>({
+  value, onChange, items,
 }: {
-  label: string
-  hint: string
-  value: number
-  onChange: (v: number) => void
-  range: string
-  accent?: boolean
+  value: T
+  onChange: (v: T) => void
+  items: { id: T; label: string; count?: number }[]
 }) {
   return (
-    <label className={`block border p-3 bg-white ${accent ? 'border-ink' : 'border-seam'}`}>
-      <div className="flex items-baseline justify-between mb-1">
-        <span className={`text-sm font-medium ${accent ? 'text-ink' : 'text-stone-800'}`}>
-          {label}
-        </span>
-        <span className="font-mono-editorial text-stone-400">{range}</span>
-      </div>
-      <div className="flex items-baseline gap-1">
-        <input
-          type="number" min={0} max={100}
-          value={value}
-          onChange={e => onChange(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
-          className="w-full px-0 py-0.5 bg-transparent border-0 font-mono text-2xl font-medium focus:outline-none"
-        />
-        <span className="font-mono text-sm text-stone-500">%</span>
-      </div>
-      <div className="font-mono-editorial text-stone-500 mt-1">{hint}</div>
-    </label>
+    <div className="flex border-b border-seam">
+      {items.map(it => {
+        const active = it.id === value
+        return (
+          <button
+            key={it.id}
+            onClick={() => onChange(it.id)}
+            className={`px-4 py-2 -mb-px border-b-2 text-sm font-medium transition-colors ${
+              active ? 'border-ink text-ink' : 'border-transparent text-stone-500 hover:text-ink'
+            }`}
+          >
+            {it.label}
+            {typeof it.count === 'number' && (
+              <span className={`ml-1.5 font-mono-editorial ${active ? 'text-stone-500' : 'text-stone-400'}`}>
+                {it.count}
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
-function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+/* ─── Prompts tab ──────────────────────────────────────────── */
+
+function PromptsTab({
+  activeCb, autoPrompt, loading, error, runs, onRegenerate, onJumpToRun,
+}: {
+  activeCb?: Codebook
+  autoPrompt: AutoPromptResponse | null
+  loading: boolean
+  error: string
+  runs: OptimizerRun[]
+  onRegenerate: () => void
+  onJumpToRun: (runId: number) => void
+}) {
+  if (!activeCb) {
+    return <Empty>Load a codebook on Setup first.</Empty>
+  }
+  if (loading && !autoPrompt) {
+    return <Empty>Drafting prompts for {activeCb.dimensions.length} dimensions…</Empty>
+  }
+  if (error) {
+    return (
+      <div className="border border-red-200 bg-red-50/60 p-4 text-sm">
+        <div className="font-mono-editorial text-red-700 mb-1">Generation failed</div>
+        <p className="text-stone-700">{error}</p>
+        <button onClick={onRegenerate} className="mt-3 px-3 py-1.5 text-xs font-medium border border-ink hover:bg-ink hover:text-cream">
+          Try again
+        </button>
+      </div>
+    )
+  }
+  if (!autoPrompt) {
+    return (
+      <button onClick={onRegenerate} className="px-4 py-2 text-sm font-medium border border-ink hover:bg-ink hover:text-cream">
+        Generate prompts
+      </button>
+    )
+  }
   return (
-    <label className="block">
-      <span className="font-mono-editorial text-stone-500 block mb-1">{label}</span>
-      {children}
-    </label>
+    <div>
+      <div className="flex items-baseline justify-between mb-3">
+        <div className="font-mono-editorial text-stone-500">
+          {autoPrompt.prompts.length} prompts · {activeCb.name}
+        </div>
+        <button onClick={onRegenerate} disabled={loading}
+                className="font-mono-editorial text-stone-500 hover:text-ink disabled:opacity-50">
+          {loading ? 're-generating…' : 're-generate all'}
+        </button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {autoPrompt.prompts.map(p => {
+          const optimized = runs.filter(r => r.dimension_name === p.dimension_name
+            && r.optimizer_name === 'reflect_agent' && r.status === 'completed')
+            .sort((a, b) => b.id - a.id)[0]
+          return <PromptCard key={p.dimension_name} dp={p} optimizedRun={optimized} onJumpToRun={onJumpToRun} />
+        })}
+      </div>
+    </div>
   )
 }
 
-function DimensionPromptCard({
+function PromptCard({
   dp, optimizedRun, onJumpToRun,
 }: {
   dp: { dimension_name: string; prompt: string; version: string; path: string; error: string | null }
   optimizedRun?: OptimizerRun
-  onJumpToRun?: () => void
+  onJumpToRun: (runId: number) => void
 }) {
   const [open, setOpen] = useState(false)
-  // When an optimized version exists, two views are available: the original
-  // LLM draft and the optimizer's rule-augmented version. Default to the
-  // optimized (best) version when available — that's what the user actually
-  // ships; the starting prompt is reference only.
   const [view, setView] = useState<'starting' | 'optimized'>(optimizedRun ? 'optimized' : 'starting')
   const test = (optimizedRun?.artifact as any)?.test as { final_score?: number } | undefined
   const score = test?.final_score ?? optimizedRun?.final_score
-  const optimizedPrompt = optimizedRun?.optimized_prompt || ''
-
-  return (
-    <div className="border border-seam bg-paper/40">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between gap-3 px-5 py-3 hover:bg-paper text-left"
-      >
-        <div className="flex items-baseline gap-3">
-          <span className="font-mono-editorial text-stone-400">{open ? '−' : '+'}</span>
-          <span className="font-medium">{dp.dimension_name}</span>
-          <span className={`font-mono-editorial ${optimizedRun ? 'text-violet-700' : 'text-stone-400'}`}>
-            {optimizedRun
-              ? `optimized · run ${optimizedRun.id.toString().padStart(4, '0')}${typeof score === 'number' ? ` · ${(score * 100).toFixed(1)}%` : ''}`
-              : dp.version}
-          </span>
-        </div>
-        <div className="flex items-baseline gap-3">
-          {dp.error
-            ? <span className="font-mono-editorial text-red-700">failed</span>
-            : <span className="font-mono-editorial text-stone-500">
-                {(optimizedRun ? optimizedPrompt.length : dp.prompt.length).toLocaleString()} chars
-              </span>
-          }
-        </div>
-      </button>
-      {open && (
-        dp.error ? (
-          <div className="px-5 py-4 text-sm text-red-700 border-t border-seam">{dp.error}</div>
-        ) : (
-          <div className="border-t border-seam">
-            {optimizedRun && (
-              <div className="px-5 py-2 flex items-center gap-3 border-b border-seam bg-paper/60">
-                <button
-                  type="button"
-                  onClick={() => setView('starting')}
-                  className={`font-mono-editorial text-xs ${view === 'starting' ? 'text-ink underline' : 'text-stone-500 hover:text-ink'}`}
-                >
-                  starting
-                </button>
-                <span className="text-stone-300">·</span>
-                <button
-                  type="button"
-                  onClick={() => setView('optimized')}
-                  className={`font-mono-editorial text-xs ${view === 'optimized' ? 'text-violet-700 underline' : 'text-stone-500 hover:text-ink'}`}
-                >
-                  optimized
-                </button>
-                {onJumpToRun && (
-                  <button
-                    type="button"
-                    onClick={onJumpToRun}
-                    className="ml-auto font-mono-editorial text-xs text-stone-500 hover:text-ink"
-                  >
-                    open run →
-                  </button>
-                )}
-              </div>
-            )}
-            <pre className="px-5 py-4 text-xs text-stone-800 whitespace-pre-wrap font-mono leading-relaxed max-h-[420px] overflow-auto">
-              {view === 'optimized' ? optimizedPrompt : dp.prompt}
-            </pre>
-          </div>
-        )
-      )}
-    </div>
-  )
-}
-
-function OptimizerCard({
-  opt, selected, onSelect, emphasized = false,
-}: {
-  opt: OptimizerInfo
-  selected: boolean
-  onSelect: () => void
-  emphasized?: boolean
-}) {
-  const ringCls = selected ? 'border-ink shadow-[4px_4px_0_0_rgba(11,11,10,0.08)]' : 'border-seam hover:border-stone-400'
-  const roleTone = opt.role === 'method' ? 'text-violet-800' : 'text-stone-500'
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`text-left p-5 bg-white border transition-all ${ringCls} ${emphasized ? 'md:col-span-2' : ''}`}
-    >
-      <div className="flex items-baseline justify-between gap-2 mb-2">
-        <div className="font-mono-editorial text-stone-400">
-          {opt.name}
-        </div>
-        <div className={`font-mono-editorial ${roleTone}`}>
-          {opt.role}
-        </div>
-      </div>
-      <div className="text-lg font-medium tracking-tight mb-1">{opt.label}</div>
-      <p className="text-sm text-stone-600 leading-relaxed">{opt.description}</p>
-    </button>
-  )
-}
-
-function RunRow({
-  run, isSelected, onSelect, onDelete, onCancel, researcherMode,
-}: {
-  run: OptimizerRun
-  isSelected: boolean
-  onSelect: () => void
-  onDelete: () => void
-  onCancel: () => void
-  researcherMode: boolean
-}) {
-  const canDelete = run.status !== 'running' && run.status !== 'pending'
-  const canCancel = run.status === 'running' || run.status === 'pending'
-  const statusTone =
-    run.status === 'completed' ? 'text-emerald-700' :
-    run.status === 'running' ? 'text-blue-700' :
-    run.status === 'failed' ? 'text-red-700' :
-    'text-stone-500'
-
-  const friendlyStatus =
-    run.status === 'completed' ? 'done' :
-    run.status === 'running'   ? 'in progress' :
-    run.status === 'pending'   ? 'queued' :
-    run.status === 'failed'    ? 'failed' :
-    run.status
-
-  // Held-out test score is the user-meaningful number. Fall back to val score
-  // for in-flight runs that haven't reached the test eval yet.
-  const test = (run.artifact as any)?.test as { final_score?: number; delta?: number } | undefined
-  const showScore = run.status === 'completed'
-    ? (test?.final_score ?? run.final_score)
-    : null
-  const showDelta = run.status === 'completed'
-    ? (test?.delta ?? (run.final_score - run.initial_score))
-    : null
-
-  return (
-    <li
-      onClick={onSelect}
-      className={`group grid grid-cols-12 gap-4 py-4 items-baseline cursor-pointer transition-colors ${isSelected ? 'bg-paper' : 'hover:bg-paper/60'}`}
-    >
-      <div className="col-span-1 font-mono text-xs text-stone-400">
-        {run.id.toString().padStart(4, '0')}
-      </div>
-      <div className="col-span-3">
-        <div className="font-medium">
-          {researcherMode ? run.optimizer_name : run.dimension_name}
-        </div>
-        <div className="font-mono-editorial text-stone-400 mt-0.5">
-          {researcherMode ? run.dimension_name : 'improve from examples'}
-        </div>
-      </div>
-      <div className="col-span-2">
-        <div className={`font-mono-editorial ${statusTone}`}>
-          {researcherMode ? run.status : friendlyStatus}
-        </div>
-      </div>
-      <div className="col-span-2 text-right">
-        <div className="font-mono text-sm">
-          {showScore !== null ? `${(showScore * 100).toFixed(1)}%` : '—'}
-        </div>
-        {showDelta !== null && (
-          <div className={`font-mono-editorial ${showDelta >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
-            {showDelta >= 0 ? '+' : ''}{(showDelta * 100).toFixed(1)}pp
-          </div>
-        )}
-      </div>
-      <div className="col-span-2 text-right font-mono text-xs text-stone-600">
-        {researcherMode ? `$${run.total_cost.toFixed(4)}` : ''}
-      </div>
-      <div className="col-span-2 flex items-center justify-end gap-3 text-stone-400">
-        {canCancel && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              if (window.confirm(`Stop run ${run.id.toString().padStart(4, '0')} (${run.dimension_name})? Partial progress will be discarded.`)) {
-                onCancel()
-              }
-            }}
-            className="opacity-0 group-hover:opacity-100 hover:opacity-100 font-mono-editorial text-stone-400 hover:text-amber-700 text-xs transition-opacity"
-            title="Cancel this run"
-          >
-            stop
-          </button>
-        )}
-        {canDelete && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              if (window.confirm(`Delete run ${run.id.toString().padStart(4, '0')} (${run.dimension_name})? This cannot be undone.`)) {
-                onDelete()
-              }
-            }}
-            className="opacity-0 group-hover:opacity-100 hover:opacity-100 font-mono-editorial text-stone-400 hover:text-red-600 text-xs transition-opacity"
-            title="Delete this run"
-          >
-            delete
-          </button>
-        )}
-        <span>{isSelected ? '↑' : '↓'}</span>
-      </div>
-    </li>
-  )
-}
-
-function RunDetail({
-  run, researcherMode, onUpdate, projectId,
-}: {
-  run: OptimizerRun
-  researcherMode: boolean
-  onUpdate: (updated: OptimizerRun) => void
-  projectId: number
-}) {
-  const ruleLib: any[] = Array.isArray(run.artifact?.rule_library) ? run.artifact.rule_library : []
-  const delta = run.final_score - run.initial_score
-
-  // Held-out test info (set after optimization finishes on a set the optimizer never saw)
-  const test = (run.artifact as any)?.test as
-    | { initial_score: number; final_score: number; delta: number; n: number; cost_usd: number }
-    | undefined
-  const splits = (run.artifact as any)?.splits as
-    | { n_train: number; n_val: number; n_test: number; seed?: number }
-    | undefined
-
-  const isRunning = run.status === 'running' || run.status === 'pending'
-  const budget = run.budget || 1
-  // Find the highest explicit round number seen in the trajectory so the
-  // progress bar reflects what the optimizer has actually done.
-  let currentRound = 0
-  for (const t of (run.trajectory || [])) {
-    const r = (t as any)?.round
-    if (typeof r === 'number' && r > currentRound) currentRound = r
-  }
-  const progressPct = isRunning
-    ? Math.max(4, Math.min(100, (currentRound / budget) * 100))
-    : 100
-
-  const statusTone =
-    run.status === 'completed' ? 'text-emerald-700 border-emerald-400' :
-    run.status === 'running'   ? 'text-blue-700    border-blue-400'    :
-    run.status === 'pending'   ? 'text-stone-600   border-stone-400'   :
-    run.status === 'failed'    ? 'text-red-700     border-red-400'     :
-                                 'text-stone-600   border-stone-300'
+  const text = view === 'optimized' && optimizedRun ? optimizedRun.optimized_prompt : dp.prompt
 
   return (
     <div className="border border-seam bg-white">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 px-6 py-4 border-b border-seam">
-        <div>
-          <div className="font-mono-editorial text-stone-500 mb-1 flex items-baseline gap-3">
-            <span title={researcherMode ? '' : `optimizer: ${run.optimizer_name}`}>
-              {researcherMode
-                ? `Run № ${run.id.toString().padStart(4, '0')} · ${run.optimizer_name}`
-                : `Improvement № ${run.id.toString().padStart(4, '0')}`}
-            </span>
-            <span className={`font-mono-editorial px-2 py-0.5 border ${statusTone}`}>
-              {run.status}{isRunning ? ' · live' : ''}
-            </span>
-          </div>
-          <h3 className="text-xl font-medium tracking-tight">{run.dimension_name}</h3>
+      <button onClick={() => setOpen(o => !o)} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-paper/40">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className="font-mono-editorial text-stone-400 w-3">{open ? '−' : '+'}</span>
+          <span className="font-medium truncate">{dp.dimension_name}</span>
         </div>
-        <div className="flex gap-6 text-right items-start">
-          {test ? (
-            researcherMode ? (
-              <>
-                <Metric label="Test · initial" value={`${(test.initial_score * 100).toFixed(1)}%`} />
-                <Metric
-                  label="Test · final (held-out)"
-                  value={`${(test.final_score * 100).toFixed(1)}%`}
-                  tone={test.delta >= 0 ? 'text-emerald-700' : 'text-red-700'}
-                />
-                <Metric
-                  label="Test · Δ"
-                  value={`${test.delta >= 0 ? '+' : ''}${(test.delta * 100).toFixed(1)}pp`}
-                  tone={test.delta > 0 ? 'text-emerald-700' : test.delta < 0 ? 'text-red-700' : 'text-stone-500'}
-                />
-                <Metric label="Val · final (dev)" value={`${(run.final_score * 100).toFixed(1)}%`} tone="text-stone-500" />
-                <Metric label="Cost" value={`$${run.total_cost.toFixed(4)}`} />
-              </>
-            ) : (
-              <>
-                <Metric label="Before" value={`${(test.initial_score * 100).toFixed(1)}%`} />
-                <Metric
-                  label="After"
-                  value={`${(test.final_score * 100).toFixed(1)}%`}
-                  tone={test.delta >= 0 ? 'text-emerald-700' : 'text-red-700'}
-                />
-                <Metric
-                  label="Change"
-                  value={`${test.delta >= 0 ? '+' : ''}${(test.delta * 100).toFixed(1)}pp`}
-                  tone={test.delta > 0 ? 'text-emerald-700' : test.delta < 0 ? 'text-red-700' : 'text-stone-500'}
-                />
-              </>
-            )
-          ) : (
-            researcherMode ? (
-              <>
-                <Metric label="Val · initial" value={`${(run.initial_score * 100).toFixed(1)}%`} />
-                <Metric label="Val · final (dev)" value={`${(run.final_score * 100).toFixed(1)}%`}
-                        tone={delta >= 0 ? 'text-emerald-700' : 'text-red-700'} />
-                <Metric label="Δ" value={`${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}pp`}
-                        tone={delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-red-700' : 'text-stone-500'} />
-                <Metric label="Cost" value={`$${run.total_cost.toFixed(4)}`} />
-              </>
-            ) : (
-              <>
-                <Metric label="Before" value={`${(run.initial_score * 100).toFixed(1)}%`} />
-                <Metric label="So far" value={`${(run.final_score * 100).toFixed(1)}%`}
-                        tone={delta >= 0 ? 'text-emerald-700' : 'text-red-700'} />
-                <Metric label="Change" value={`${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}pp`}
-                        tone={delta > 0 ? 'text-emerald-700' : delta < 0 ? 'text-red-700' : 'text-stone-500'} />
-              </>
-            )
+        <div className="font-mono-editorial text-xs">
+          {optimizedRun
+            ? <span className="text-violet-700">run {String(optimizedRun.id).padStart(4, '0')}{typeof score === 'number' ? ` · ${(score * 100).toFixed(0)}%` : ''}</span>
+            : <span className="text-stone-400">{dp.version}</span>
+          }
+        </div>
+      </button>
+      {open && !dp.error && (
+        <div className="border-t border-seam">
+          {optimizedRun && (
+            <div className="px-4 py-1.5 flex items-center gap-3 border-b border-seam bg-paper/40">
+              <button onClick={() => setView('starting')} className={`text-xs font-mono-editorial ${view === 'starting' ? 'text-ink underline' : 'text-stone-500 hover:text-ink'}`}>starting</button>
+              <span className="text-stone-300">·</span>
+              <button onClick={() => setView('optimized')} className={`text-xs font-mono-editorial ${view === 'optimized' ? 'text-violet-700 underline' : 'text-stone-500 hover:text-ink'}`}>optimized</button>
+              <button onClick={() => onJumpToRun(optimizedRun.id)} className="ml-auto text-xs font-mono-editorial text-stone-500 hover:text-ink">open run →</button>
+            </div>
           )}
+          <pre className="px-4 py-3 text-xs text-stone-800 whitespace-pre-wrap font-mono leading-relaxed max-h-[360px] overflow-auto">{text}</pre>
         </div>
+      )}
+      {open && dp.error && <div className="border-t border-seam px-4 py-3 text-xs text-red-700">{dp.error}</div>}
+    </div>
+  )
+}
+
+/* ─── Improve tab ──────────────────────────────────────────── */
+
+function ImproveTab({
+  codebooks, datasets, selectedDim, setSelectedDim, selectedGold, setSelectedGold,
+  budget, setBudget, launching, launchError, projectId, onLaunched,
+  setLaunching, setLaunchError,
+}: {
+  codebooks: Codebook[]
+  datasets: Dataset[]
+  selectedDim: string
+  setSelectedDim: (v: string) => void
+  selectedGold: number | null
+  setSelectedGold: (v: number) => void
+  budget: number
+  setBudget: (v: number) => void
+  launching: boolean
+  launchError: string
+  projectId: number
+  onLaunched: (run: OptimizerRun) => void
+  setLaunching: (v: boolean) => void
+  setLaunchError: (v: string) => void
+}) {
+  const activeCb = codebooks[codebooks.length - 1]
+
+  // Per-class peek
+  const [classCounts, setClassCounts] = useState<Record<string, Record<string, number>>>({})
+  useEffect(() => {
+    if (!selectedGold) { setClassCounts({}); return }
+    api.get(`/projects/${projectId}/datasets/${selectedGold}`, { params: { limit: 500, offset: 0 } })
+      .then(r => {
+        const items: any[] = r.data?.items || []
+        const cc: Record<string, Record<string, number>> = {}
+        for (const it of items) {
+          const g = it.gold_labels || {}
+          for (const k of Object.keys(g)) {
+            const v = g[k]; if (v == null || v === '') continue
+            if (!cc[k]) cc[k] = {}
+            const labels = Array.isArray(v) ? v.map(String) : [String(v)]
+            for (const lbl of labels) cc[k][lbl] = (cc[k][lbl] || 0) + 1
+          }
+        }
+        setClassCounts(cc)
+      })
+      .catch(() => setClassCounts({}))
+  }, [selectedGold, projectId])
+
+  const classes = classCounts[selectedDim] ?? {}
+  const total = Object.values(classes).reduce((a, b) => a + b, 0)
+  const split = useMemo(() => stratifiedPreview(classes, 15, 42), [classes])
+  const sorted = Object.keys(classes).sort((a, b) => classes[b] - classes[a])
+  const tooFew = total > 0 && total < 15
+  const noLabels = total === 0
+
+  const handleLaunch = async () => {
+    if (!selectedGold || noLabels || tooFew) return
+    setLaunching(true); setLaunchError('')
+    try {
+      const run = await startOptimizerRun(projectId, {
+        optimizer_name: 'reflect_agent',
+        dimension_name: selectedDim,
+        gold_dataset_id: selectedGold,
+        budget,
+        train_frac: 0.15, val_frac: 0.42, test_frac: 0.43,
+      })
+      onLaunched(run)
+    } catch (e: any) { setLaunchError(fmtError(e)) }
+    finally { setLaunching(false) }
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Left: pickers */}
+      <div className="lg:col-span-1 space-y-4">
+        <div>
+          <Label>Dimension</Label>
+          <select value={selectedDim} onChange={e => setSelectedDim(e.target.value)}
+                  className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-medium">
+            {activeCb?.dimensions.map(d => (
+              <option key={d.id} value={d.name}>{d.name} ({d.labels.length})</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <Label>Labeled examples</Label>
+          {datasets.length === 0
+            ? <p className="text-sm text-stone-500">None loaded.</p>
+            : (
+              <select value={selectedGold ?? ''} onChange={e => setSelectedGold(Number(e.target.value))}
+                      className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-medium">
+                {datasets.map(d => (
+                  <option key={d.id} value={d.id}>{d.name} ({d.total_items})</option>
+                ))}
+              </select>
+            )}
+        </div>
+        <div>
+          <Label>Rounds</Label>
+          <input type="number" min={1} max={20} value={budget}
+                 onChange={e => setBudget(Math.max(1, Math.min(20, Number(e.target.value) || 5)))}
+                 className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-mono text-sm" />
+        </div>
+        <button onClick={handleLaunch} disabled={launching || noLabels || tooFew}
+                className="w-full py-2.5 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40">
+          {launching ? 'Starting…' : 'Improve from examples →'}
+        </button>
+        {launchError && <div className="text-xs text-red-700">{launchError}</div>}
+      </div>
+
+      {/* Right: split preview */}
+      <div className="lg:col-span-2">
+        {noLabels ? (
+          <div className="border border-amber-200 bg-amber-50/50 p-4 text-sm text-amber-800">
+            <div className="font-mono-editorial text-amber-700 mb-1">No labels for "{selectedDim}"</div>
+            Available: {Object.keys(classCounts).filter(k => Object.keys(classCounts[k]).length > 0).join(', ') || '—'}.
+          </div>
+        ) : tooFew ? (
+          <div className="border border-amber-200 bg-amber-50/50 p-4 text-sm text-amber-800">
+            Need ≥15 labeled items; gold has {total}.
+          </div>
+        ) : (
+          <div className="border border-seam bg-paper/40 p-4">
+            <div className="flex items-baseline justify-between mb-3">
+              <div className="font-mono-editorial text-stone-500">
+                {total} labeled · stratified
+              </div>
+              <div className="font-mono text-xs text-stone-500">
+                {split.n_train} train · {split.n_val} val · {split.n_test} test
+              </div>
+            </div>
+            <table className="w-full text-xs font-mono">
+              <thead>
+                <tr className="border-b border-seam font-mono-editorial text-stone-500">
+                  <th className="text-left py-1.5">label</th>
+                  <th className="text-right py-1.5">total</th>
+                  <th className="text-right py-1.5">train</th>
+                  <th className="text-right py-1.5">val</th>
+                  <th className="text-right py-1.5">test</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-seam">
+                {sorted.map(c => {
+                  const s = split.perClass[c]
+                  const tiny = (s?.n ?? 0) < 3
+                  return (
+                    <tr key={c}>
+                      <td className="py-1.5 truncate max-w-[260px]" title={c}>{c}</td>
+                      <td className="py-1.5 text-right text-stone-700">{s?.n ?? 0}</td>
+                      <td className="py-1.5 text-right text-stone-700">{s?.train ?? 0}</td>
+                      <td className={`py-1.5 text-right ${tiny ? 'text-amber-700' : 'text-stone-700'}`}>{s?.val ?? 0}</td>
+                      <td className={`py-1.5 text-right ${tiny ? 'text-amber-700' : 'text-stone-700'}`}>{s?.test ?? 0}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function stratifiedPreview(classes: Record<string, number>, trainPct: number, valPct: number) {
+  const tf = trainPct / 100, vf = valPct / 100
+  const perClass: Record<string, { n: number; train: number; val: number; test: number }> = {}
+  let n_train = 0, n_val = 0, n_test = 0
+  for (const c of Object.keys(classes).sort()) {
+    const n = classes[c]
+    if (n < 3) { perClass[c] = { n, train: n, val: 0, test: 0 }; n_train += n; continue }
+    const nt = Math.max(1, Math.round(tf * n))
+    let nv = Math.max(1, Math.round(vf * n))
+    if (nt + nv > n - 1) nv = Math.max(1, n - nt - 1)
+    const nx = n - nt - nv
+    perClass[c] = { n, train: nt, val: nv, test: nx }
+    n_train += nt; n_val += nv; n_test += nx
+  }
+  return { n_train, n_val, n_test, perClass }
+}
+
+/* ─── Runs tab (master-detail) ─────────────────────────────── */
+
+function RunsTab({
+  runs, selectedRunId, selectedRun, onSelect, onUpdate, onDelete, onCancel, projectId,
+}: {
+  runs: OptimizerRun[]
+  selectedRunId: number | null
+  selectedRun: OptimizerRun | null
+  onSelect: (id: number | null) => void
+  onUpdate: (r: OptimizerRun) => void
+  onDelete: (r: OptimizerRun) => void
+  onCancel: (r: OptimizerRun) => void
+  projectId: number
+}) {
+  if (runs.length === 0) {
+    return <Empty>No runs yet. Launch one from <em>Improve</em>.</Empty>
+  }
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      {/* Master: list */}
+      <div className="lg:col-span-4 border border-seam bg-white max-h-[78vh] overflow-auto">
+        {runs.map(r => {
+          const test = (r.artifact as any)?.test as { final_score?: number; delta?: number } | undefined
+          const score = test?.final_score ?? r.final_score
+          const delta = test?.delta ?? (r.final_score - r.initial_score)
+          const sel = r.id === selectedRunId
+          const tone = r.status === 'completed' ? 'text-emerald-700'
+                     : r.status === 'running'   ? 'text-blue-700'
+                     : r.status === 'failed'    ? 'text-red-700'
+                     : 'text-stone-500'
+          return (
+            <div key={r.id}
+                 onClick={() => onSelect(sel ? null : r.id)}
+                 className={`px-4 py-3 border-b border-seam cursor-pointer transition-colors group ${
+                   sel ? 'bg-paper' : 'hover:bg-paper/60'
+                 }`}>
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="font-mono text-xs text-stone-400">{String(r.id).padStart(4, '0')}</span>
+                <span className={`font-mono-editorial ${tone}`}>{r.status}</span>
+              </div>
+              <div className="mt-0.5 font-medium truncate">{r.dimension_name}</div>
+              <div className="mt-1 flex items-baseline justify-between gap-2 text-xs font-mono">
+                <span className="text-stone-700">
+                  {r.status === 'completed' ? `${(score * 100).toFixed(1)}%` : '—'}
+                </span>
+                {r.status === 'completed' && (
+                  <span className={delta >= 0 ? 'text-emerald-700' : 'text-red-700'}>
+                    {delta >= 0 ? '+' : ''}{(delta * 100).toFixed(1)}pp
+                  </span>
+                )}
+                <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                  {(r.status === 'running' || r.status === 'pending') && (
+                    <button onClick={e => { e.stopPropagation(); onCancel(r) }} className="font-mono-editorial text-stone-400 hover:text-amber-700">stop</button>
+                  )}
+                  {(r.status !== 'running' && r.status !== 'pending') && (
+                    <button onClick={e => { e.stopPropagation(); onDelete(r) }} className="font-mono-editorial text-stone-400 hover:text-red-600">delete</button>
+                  )}
+                </span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Detail */}
+      <div className="lg:col-span-8 border border-seam bg-white max-h-[78vh] overflow-auto">
+        {selectedRun
+          ? <RunDetailV2 run={selectedRun} projectId={projectId} onUpdate={onUpdate} />
+          : <Empty>Pick a run on the left.</Empty>
+        }
+      </div>
+    </div>
+  )
+}
+
+function RunDetailV2({
+  run, projectId, onUpdate,
+}: { run: OptimizerRun; projectId: number; onUpdate: (r: OptimizerRun) => void }) {
+  const test = (run.artifact as any)?.test as
+    | { initial_score: number; final_score: number; delta: number; n: number; initial_metrics?: any; final_metrics?: any }
+    | undefined
+  const splits = (run.artifact as any)?.splits as
+    | { n_train: number; n_val: number; n_test: number; per_class?: Record<string, any> }
+    | undefined
+  const ruleLib: any[] = Array.isArray(run.artifact?.rule_library) ? run.artifact.rule_library : []
+  const score = test?.final_score ?? run.final_score
+  const delta = test?.delta ?? (run.final_score - run.initial_score)
+
+  const isRunning = run.status === 'running' || run.status === 'pending'
+  const traj = (run.trajectory || []) as any[]
+  const currentRound = traj.reduce((m, t) => Math.max(m, t?.round ?? 0), 0)
+  const budget = run.budget || 1
+  const progressPct = isRunning ? Math.max(4, Math.min(100, (currentRound / budget) * 100)) : 100
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-seam">
+        <div className="flex items-baseline justify-between">
+          <div>
+            <div className="font-mono-editorial text-stone-500 mb-0.5 flex items-center gap-2">
+              <span>Run {String(run.id).padStart(4, '0')} · {run.optimizer_name}</span>
+              {isRunning && <LivePulse />}
+            </div>
+            <h3 className="text-xl font-medium tracking-tight">{run.dimension_name}</h3>
+          </div>
+          <div className="flex gap-5 text-right">
+            <Stat label="Before" value={
+              isRunning && (test?.initial_score ?? run.initial_score) === 0 ? '—'
+              : `${((test?.initial_score ?? run.initial_score) * 100).toFixed(1)}%`
+            } />
+            <Stat label="After"  value={
+              isRunning ? '—'
+              : `${(score * 100).toFixed(1)}%`
+            } tone={!isRunning && delta >= 0 ? 'text-emerald-700' : !isRunning ? 'text-red-700' : 'text-stone-500'} />
+            <Stat label="Δ"      value={
+              isRunning ? '—'
+              : `${delta >= 0 ? '+' : ''}${(delta * 100).toFixed(1)}pp`
+            } tone={!isRunning && delta > 0 ? 'text-emerald-700' : !isRunning && delta < 0 ? 'text-red-700' : 'text-stone-500'} />
+          </div>
+        </div>
+        {splits && (
+          <div className="mt-2 font-mono-editorial text-stone-500 text-xs">
+            {splits.n_train} train · {splits.n_val} val · {splits.n_test} test
+          </div>
+        )}
+        <AuditBadge run={run} />
       </div>
 
       {/* Live progress strip */}
-      <div className="px-6 py-3 border-b border-seam bg-paper/30">
-        <div className="flex items-center justify-between font-mono-editorial text-stone-500 mb-1.5">
-          <span>
-            {isRunning ? 'Live · round' : 'Done · round'} {currentRound} / {budget}
-          </span>
-          {researcherMode && (
-            <span>
-              {(run.trajectory?.length || 0)} trajectory entries · {run.total_tokens.toLocaleString()} tokens
-            </span>
-          )}
-        </div>
-        <div className="w-full h-[3px] bg-seam overflow-hidden">
-          <div
-            className={`h-full transition-all duration-500 ${isRunning ? 'bg-blue-600' : 'bg-ink'}`}
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-        {splits && researcherMode && (
-          <div className="mt-2 flex items-center justify-between font-mono-editorial text-stone-500">
-            <span>
-              Split · train {splits.n_train} · val {splits.n_val} · test {splits.n_test}
-              {splits.seed !== undefined && <span className="ml-3">seed {splits.seed}</span>}
-            </span>
-            <span className="text-emerald-700">test held out (not seen by optimizer)</span>
-          </div>
-        )}
-        {splits && !researcherMode && (
-          <div className="mt-2 font-mono-editorial text-stone-500">
-            <span>
-              {splits.n_train} examples to learn from · {splits.n_val} to verify · {splits.n_test} held out for the honest score
-            </span>
-          </div>
-        )}
+      {isRunning && (
+        <LiveStrip run={run} budget={budget} progressPct={progressPct}
+                   currentRound={currentRound} traj={traj} />
+      )}
+
+      {/* Cards row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
+        <Card title="Trajectory">
+          {traj.length >= 1 ? (
+            <div className="space-y-3">
+              <div style={{ width: '100%', height: 200 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={traj.map((t: any) => ({
+                      round: t.round,
+                      acc: typeof t.val_acc === 'number' ? t.val_acc * 100 : null,
+                      f1:  typeof t.val_macro_f1 === 'number' ? t.val_macro_f1 * 100 : null,
+                    }))}
+                    margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
+                  >
+                    <CartesianGrid strokeDasharray="2 4" stroke="#E5E2D9" />
+                    <XAxis dataKey="round" type="number" domain={[0, 'dataMax']} tick={{ fontSize: 10, fill: '#9A968F' }} stroke="#D6D2C8" allowDecimals={false} />
+                    <YAxis
+                      domain={zoomedYDomain(traj)}
+                      tick={{ fontSize: 10, fill: '#9A968F' }}
+                      stroke="#D6D2C8"
+                      tickFormatter={(v) => `${v}%`}
+                      width={42}
+                    />
+                    <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any) => typeof v === 'number' ? `${v.toFixed(1)}%` : '—'} />
+                    <Legend wrapperStyle={{ fontSize: 10 }} />
+                    <Line type="monotone" dataKey="acc" name="Val acc"  stroke="#0B0B0A" strokeWidth={2} dot={{ r: 2 }} connectNulls isAnimationActive={!isRunning} />
+                    <Line type="monotone" dataKey="f1"  name="Val F1"   stroke="#6E4FBE" strokeWidth={2} strokeDasharray="4 3" dot={{ r: 2 }} connectNulls isAnimationActive={!isRunning} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              {/* Compact round-by-round list — shows every action including
+                  val_consolidation and demos_appended after the run finishes. */}
+              <ul className="text-xs font-mono divide-y divide-seam border-t border-seam max-h-40 overflow-auto">
+                {traj.map((t: any, i: number) => (
+                  <li key={i} className="flex items-baseline gap-2 px-1 py-1">
+                    <span className="font-mono-editorial text-stone-400 w-10 shrink-0">r{t.round}</span>
+                    <span className={
+                      t.action === 'accept' || t.action === 'baseline' || t.action === 'baseline_seeded' || t.action === 'converged'
+                        ? 'text-emerald-700'
+                      : t.action === 'rollback' ? 'text-amber-700'
+                      : t.action === 'val_consolidation' || t.action === 'demos_appended' ? 'text-violet-700'
+                      : 'text-stone-600'
+                    }>
+                      {humanAction(t.action)}
+                    </span>
+                    <span className="ml-auto text-stone-500 flex gap-3">
+                      {typeof t.val_acc === 'number' && <span>{(t.val_acc * 100).toFixed(1)}%</span>}
+                      {typeof t.n_rules === 'number' && <span>· {t.n_rules} rules</span>}
+                      {typeof t.n_failures === 'number' && <span>· {t.n_failures} fails</span>}
+                      {typeof t.n_demos === 'number' && t.n_demos > 0 && <span>· {t.n_demos} demos</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : isRunning
+            ? <SkeletonChart label="Scoring baseline on val…" />
+            : <Empty>Not enough rounds.</Empty>}
+        </Card>
+
+        <Card title="Per-class · test">
+          {test?.final_metrics
+            ? <PerClassMini initial={test.initial_metrics} final={test.final_metrics} />
+            : isRunning
+              ? <SkeletonTable label={`Held-out test scored once after round ${budget}.`} />
+              : <Empty>{test ? 'Old run — no per-class.' : 'Test eval pending.'}</Empty>}
+        </Card>
+
+        <Card title={`Rule library · ${ruleLib.length}`} className="md:col-span-2">
+          {ruleLib.length === 0
+            ? isRunning
+              ? <SkeletonRules label="Rules accumulate as the optimizer mines failures from train each round." />
+              : <Empty>No rules yet.</Empty>
+            : <div className="space-y-2 max-h-56 overflow-auto pr-2">
+                {ruleLib.map((r: any, i: number) => (
+                  <div key={i} className="pl-3 border-l-2 border-violet-300">
+                    <div className="font-mono-editorial text-stone-400 text-[11px]">
+                      {String(i + 1).padStart(2, '0')} · {r.id || 'unnamed'}
+                      {r.target_labels?.length ? ` · ${r.target_labels.join(' / ')}` : ''}
+                    </div>
+                    <div className="text-sm">{r.boundary || r.rule || '(no boundary)'}</div>
+                  </div>
+                ))}
+              </div>
+          }
+        </Card>
       </div>
 
-      {run.error && (
-        <div className="px-6 py-4 border-b border-seam bg-red-50/50 text-sm text-red-800">
-          <div className="font-mono-editorial text-red-700 mb-1">Error</div>
-          <pre className="whitespace-pre-wrap font-mono text-xs">{run.error}</pre>
-        </div>
-      )}
-
-      {/* Trajectory · per-round progress log */}
-      {run.trajectory?.length > 0 && (
-        <div className="px-6 py-4 border-b border-seam">
-          <div className="font-mono-editorial text-stone-500 mb-3">
-            {researcherMode ? 'Trajectory' : 'Round-by-round progress'}
-          </div>
-          <table className="w-full text-xs font-mono">
-            <thead>
-              <tr className="border-b border-seam">
-                <th className="px-2 py-2 text-left text-stone-500">Round</th>
-                <th className="px-2 py-2 text-right text-stone-500">
-                  {researcherMode ? 'Val acc' : 'Accuracy'}
-                </th>
-                <th className="px-2 py-2 text-left text-stone-500">
-                  {researcherMode ? 'Action' : 'Outcome'}
-                </th>
-                <th className="px-2 py-2 text-right text-stone-500">
-                  {researcherMode ? 'Rules' : 'Notes'}
-                </th>
-                <th className="px-2 py-2 text-right text-stone-500">
-                  {researcherMode ? 'Failures' : 'Mistakes'}
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-seam">
-              {run.trajectory.map((t: any, i: number) => (
-                <tr key={i}>
-                  <td className="px-2 py-2 text-stone-700">{t.round ?? i}</td>
-                  <td className="px-2 py-2 text-right">
-                    {typeof t.val_acc === 'number' ? (t.val_acc * 100).toFixed(1) + '%' : '—'}
-                  </td>
-                  <td className="px-2 py-2">
-                    <span
-                      title={researcherMode ? '' : `internal action: ${t.action ?? '—'}`}
-                      className={
-                        t.action === 'accept' ? 'text-emerald-700' :
-                        t.action === 'rollback' ? 'text-amber-700' :
-                        t.action === 'improve' ? 'text-emerald-700' :
-                        t.action === 'reject' ? 'text-stone-500' :
-                        'text-stone-700'
-                      }
-                    >
-                      {researcherMode
-                        ? (t.action ?? '—')
-                        : ({ accept: 'kept', rollback: 'rolled back', improve: 'kept',
-                             reject: 'discarded', skipped: 'no change' } as Record<string, string>)[t.action] ?? (t.action ?? '—')}
-                    </span>
-                  </td>
-                  <td className="px-2 py-2 text-right text-stone-600">{t.n_rules ?? '—'}</td>
-                  <td className="px-2 py-2 text-right text-stone-600">{t.n_failures ?? '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Trajectory chart — visual companion to the table above */}
-      {(run.trajectory?.length || 0) > 1 && (
-        <div className="px-6 py-4 border-b border-seam">
-          <div className="font-mono-editorial text-stone-500 mb-3">
-            {researcherMode ? 'Validation accuracy & macro F1 by round' : 'Accuracy & F1 by round'}
-          </div>
-          <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={(run.trajectory || []).map((t: any) => ({
-                  round: t.round,
-                  acc: typeof t.val_acc === 'number' ? t.val_acc * 100 : null,
-                  f1:  typeof t.val_macro_f1 === 'number' ? t.val_macro_f1 * 100 : null,
-                }))}
-                margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
-              >
-                <CartesianGrid strokeDasharray="2 4" stroke="#E5E2D9" />
-                <XAxis dataKey="round" tick={{ fontSize: 11, fill: '#9A968F' }} stroke="#D6D2C8" />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#9A968F' }} stroke="#D6D2C8"
-                       tickFormatter={(v) => `${v}%`} />
-                <Tooltip
-                  contentStyle={{ fontSize: 12, background: '#FAF7F0', border: '1px solid #E5E2D9' }}
-                  formatter={(v: any) => typeof v === 'number' ? `${v.toFixed(1)}%` : '—'}
-                />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Line type="monotone" dataKey="acc" name="Val accuracy" stroke="#0B0B0A" strokeWidth={2}
-                      dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
-                <Line type="monotone" dataKey="f1"  name="Val macro F1" stroke="#6E4FBE" strokeWidth={2}
-                      strokeDasharray="4 3" dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* Per-class metrics — only present when test eval finished */}
-      {test && (test as any).final_metrics && (
-        <PerClassMetricsBlock
-          initial={(test as any).initial_metrics}
-          final={(test as any).final_metrics}
-          researcherMode={researcherMode}
-        />
-      )}
-
-      {/* Rule library (ReflectAgent only) — shown as "Guidance notes" in default mode */}
-      {ruleLib.length > 0 && (
-        <div className="px-6 py-4 border-b border-seam">
-          <div className="flex items-baseline gap-3 mb-4">
-            <div
-              className="font-mono-editorial text-stone-500"
-              title={researcherMode ? '' : 'Rule library — the editable, versioned ReflectAgent artifact.'}
-            >
-              {researcherMode ? 'Rule library' : 'Guidance notes'}
-            </div>
-            <div className="font-mono-editorial text-violet-700">
-              {researcherMode
-                ? `${ruleLib.length} rules · ReflectAgent artifact`
-                : `${ruleLib.length} ${ruleLib.length === 1 ? 'note' : 'notes'} learned from your examples`}
-            </div>
-          </div>
-          <ul className="space-y-4">
-            {ruleLib.map((r: any, i: number) => (
-              <li key={i} className="pl-4 border-l-2 border-violet-300">
-                <div className="font-mono-editorial text-stone-400 mb-1">
-                  {(i + 1).toString().padStart(2, '0')} · {r.id || 'unnamed'}
-                  {r.target_labels?.length ? ` · ${r.target_labels.join(' / ')}` : ''}
-                </div>
-                <div className="text-sm font-medium">{r.boundary}</div>
-                {r.rule && r.rule !== r.boundary && (
-                  <div className="text-sm text-stone-600 mt-1 leading-relaxed">{r.rule}</div>
-                )}
-                {(r.positive_cues?.length || r.negative_cues?.length) ? (
-                  <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-xs">
-                    {r.positive_cues?.length > 0 && (
-                      <span>
-                        <span className="font-mono-editorial text-emerald-700 mr-2">+ cues</span>
-                        <span className="text-stone-700">{r.positive_cues.map((c: string) => `"${c}"`).join(', ')}</span>
-                      </span>
-                    )}
-                    {r.negative_cues?.length > 0 && (
-                      <span>
-                        <span className="font-mono-editorial text-red-700 mr-2">− cues</span>
-                        <span className="text-stone-700">{r.negative_cues.map((c: string) => `"${c}"`).join(', ')}</span>
-                      </span>
-                    )}
-                  </div>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Final prompt — editable when the run has finished */}
+      {/* Editable prompt */}
       {run.optimized_prompt && (
-        <EditablePromptBlock
-          run={run}
-          researcherMode={researcherMode}
-          projectId={projectId}
-          onUpdate={onUpdate}
-        />
+        <EditablePromptV2 run={run} projectId={projectId} onUpdate={onUpdate} />
       )}
     </div>
   )
 }
 
-function EditablePromptBlock({
-  run, researcherMode, projectId, onUpdate,
+function LivePulse() {
+  return (
+    <span className="inline-flex items-center gap-1.5 px-1.5 py-0.5 border border-blue-300 bg-blue-50 text-blue-700 text-[10px] font-mono tracking-wider uppercase">
+      <span className="relative inline-flex w-1.5 h-1.5">
+        <span className="absolute inline-flex w-full h-full rounded-full bg-blue-500 opacity-75 animate-ping" />
+        <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-blue-600" />
+      </span>
+      live
+    </span>
+  )
+}
+
+function Spinner() {
+  return (
+    <span className="inline-block w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+  )
+}
+
+/** Phase texts that cycle while the optimizer is working a round.
+    Picked based on the LATEST trajectory action so the message tracks
+    where we actually are in the loop. */
+function phasesForRound(currentRound: number, budget: number, lastAction?: string): string[] {
+  if (lastAction === 'val_consolidation') {
+    return [
+      'picking worked examples from train + val',
+      'evaluating final prompt on held-out test',
+      'computing per-class metrics',
+      'almost done',
+    ]
+  }
+  if (currentRound >= budget) {
+    return [
+      'mining val failures (consolidation pass)',
+      'distilling val rules',
+      'preparing held-out test eval',
+    ]
+  }
+  if (currentRound === 0 || lastAction === undefined) {
+    return [
+      'scoring baseline on val',
+      'measuring initial accuracy',
+    ]
+  }
+  // Most likely sequence inside an in-flight round (after round currentRound completed).
+  return [
+    `annotating ${currentRound === 0 ? 'train' : `train for round ${currentRound + 1}`}`,
+    'identifying failure cases',
+    'distilling rules from failures',
+    'deduping near-duplicate rules',
+    'evaluating candidate prompt on val',
+    'governor deciding accept / rollback',
+  ]
+}
+
+function LiveStrip({
+  run, budget, progressPct, currentRound, traj,
 }: {
   run: OptimizerRun
-  researcherMode: boolean
-  projectId: number
-  onUpdate: (updated: OptimizerRun) => void
+  budget: number
+  progressPct: number
+  currentRound: number
+  traj: any[]
 }) {
+  const lastAction = traj[traj.length - 1]?.action as string | undefined
+  const phases = phasesForRound(currentRound, budget, lastAction)
+  const [phaseIdx, setPhaseIdx] = useState(0)
+  const [tick, setTick] = useState(0)
+  const startTime = useRef(Date.now())
+  const lastRoundRef = useRef(currentRound)
+
+  // Reset phase when a new round lands.
+  useEffect(() => {
+    if (lastRoundRef.current !== currentRound) {
+      lastRoundRef.current = currentRound
+      setPhaseIdx(0)
+      startTime.current = Date.now()
+    }
+  }, [currentRound])
+
+  // Cycle through phases every 2.4s for that "thinking…" feel.
+  useEffect(() => {
+    const i = setInterval(() => setPhaseIdx(p => (p + 1) % phases.length), 2400)
+    return () => clearInterval(i)
+  }, [phases.length])
+
+  // Tick once per second so elapsed-time text updates.
+  useEffect(() => {
+    const i = setInterval(() => setTick(t => t + 1), 1000)
+    return () => clearInterval(i)
+  }, [])
+
+  const elapsed = Math.floor((Date.now() - startTime.current) / 1000)
+  const elapsedStr = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`
+
+  return (
+    <div className="px-5 py-3 border-b border-seam bg-gradient-to-b from-blue-50/60 to-transparent">
+      {/* Action line — spinner + animated phase text */}
+      <div className="flex items-center gap-3 mb-2">
+        <Spinner />
+        <PhaseLine text={phases[phaseIdx]} />
+        <span className="ml-auto font-mono-editorial text-stone-500 text-xs">
+          {elapsedStr} elapsed · {(run.total_tokens || 0).toLocaleString()} tokens · ${(run.total_cost || 0).toFixed(4)}
+        </span>
+      </div>
+
+      {/* Round counter + progress bar */}
+      <div className="flex items-center justify-between mb-1.5 text-xs font-mono-editorial">
+        <span className="text-blue-700">Round {currentRound} / {budget}</span>
+        <span className="text-stone-500">{Math.round(progressPct)}%</span>
+      </div>
+      <div className="w-full h-[3px] bg-seam overflow-hidden relative">
+        <div
+          className="h-full bg-blue-600 transition-all duration-700 relative"
+          style={{ width: `${progressPct}%` }}
+        >
+          {/* Shimmer at the leading edge of the bar */}
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-r from-transparent to-blue-300 animate-pulse" />
+        </div>
+      </div>
+
+      {/* Streaming trajectory rows */}
+      {traj.length > 0 && (
+        <ul className="mt-3 space-y-0.5 text-xs font-mono">
+          {traj.slice(-4).map((t: any, i: number) => (
+            <li
+              key={`${t.round}-${i}`}
+              className="flex items-baseline gap-2 animate-[fadeIn_300ms_ease-out]"
+              style={{ animationDelay: `${i * 30}ms` }}
+            >
+              <span className="font-mono-editorial text-stone-400 w-12 shrink-0">r{t.round}</span>
+              <span className={
+                t.action === 'accept' || t.action === 'baseline' || t.action === 'baseline_seeded'
+                  ? 'text-emerald-700'
+                : t.action === 'rollback' ? 'text-amber-700'
+                : t.action === 'demos_appended' ? 'text-violet-700'
+                : t.action === 'val_consolidation' ? 'text-violet-700'
+                : 'text-stone-600'
+              }>
+                {humanAction(t.action)}
+              </span>
+              <span className="text-stone-500 ml-auto">
+                {typeof t.val_acc === 'number' ? `${(t.val_acc * 100).toFixed(1)}%` : '…'}
+                {typeof t.n_rules === 'number' && <span className="ml-2">· {t.n_rules} rules</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/** Animated phase text — fades + slides between values. */
+function PhaseLine({ text }: { text: string }) {
+  return (
+    <span
+      key={text}
+      className="text-sm font-medium text-blue-900 animate-[fadeSlide_400ms_ease-out]"
+    >
+      {text}…
+    </span>
+  )
+}
+
+function SkeletonChart({ label }: { label: string }) {
+  return (
+    <div className="relative w-full" style={{ height: 200 }}>
+      <div className="absolute inset-0 flex flex-col justify-end gap-1 p-2">
+        {[60, 40, 75, 35, 55].map((w, i) => (
+          <div key={i} className="h-1.5 bg-stone-200 rounded animate-pulse" style={{ width: `${w}%`, animationDelay: `${i * 100}ms` }} />
+        ))}
+      </div>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="font-mono-editorial text-stone-500 text-xs flex items-center gap-2">
+          <span className="inline-block w-1 h-1 rounded-full bg-blue-500 animate-pulse" />
+          {label}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SkeletonTable({ label }: { label: string }) {
+  return (
+    <div className="space-y-2">
+      {[80, 60, 70, 55].map((w, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <div className="h-2 w-12 bg-stone-200 rounded animate-pulse" style={{ animationDelay: `${i * 80}ms` }} />
+          <div className="h-2 bg-stone-200 rounded animate-pulse" style={{ width: `${w}%`, animationDelay: `${i * 80 + 40}ms` }} />
+        </div>
+      ))}
+      <div className="pt-2 font-mono-editorial text-stone-500 text-xs">{label}</div>
+    </div>
+  )
+}
+
+function SkeletonRules({ label }: { label: string }) {
+  return (
+    <div className="space-y-3">
+      {[0, 1].map(i => (
+        <div key={i} className="pl-3 border-l-2 border-stone-200 space-y-1.5">
+          <div className="h-2 w-32 bg-stone-200 rounded animate-pulse" style={{ animationDelay: `${i * 120}ms` }} />
+          <div className="h-2 bg-stone-200 rounded animate-pulse" style={{ width: '85%', animationDelay: `${i * 120 + 60}ms` }} />
+          <div className="h-2 bg-stone-200 rounded animate-pulse" style={{ width: '70%', animationDelay: `${i * 120 + 120}ms` }} />
+        </div>
+      ))}
+      <p className="pt-1 text-xs text-stone-500 leading-relaxed">{label}</p>
+    </div>
+  )
+}
+
+/** Tight y-domain for the trajectory chart so small per-round deltas are
+    visible. Pads +/- 4pp around the data range, with a 12pp minimum span,
+    and clamps to [0, 100]. Returns ['auto', 'auto'] if the trajectory is
+    empty. */
+function zoomedYDomain(traj: any[]): [number, number] | ['auto', 'auto'] {
+  const vals: number[] = []
+  for (const t of traj) {
+    if (typeof t?.val_acc === 'number') vals.push(t.val_acc * 100)
+    if (typeof t?.val_macro_f1 === 'number') vals.push(t.val_macro_f1 * 100)
+  }
+  if (vals.length === 0) return ['auto', 'auto']
+  const lo = Math.min(...vals)
+  const hi = Math.max(...vals)
+  const span = hi - lo
+  const pad = Math.max(4, span * 0.15)
+  const minSpan = 12
+  let yLo = Math.max(0, lo - pad)
+  let yHi = Math.min(100, hi + pad)
+  if (yHi - yLo < minSpan) {
+    const mid = (yHi + yLo) / 2
+    yLo = Math.max(0, mid - minSpan / 2)
+    yHi = Math.min(100, mid + minSpan / 2)
+  }
+  // Snap to nearest 5 for clean tick labels.
+  yLo = Math.max(0, Math.floor(yLo / 5) * 5)
+  yHi = Math.min(100, Math.ceil(yHi / 5) * 5)
+  return [yLo, yHi]
+}
+
+function humanAction(action: string | undefined): string {
+  switch (action) {
+    case 'baseline':           return 'baseline scored'
+    case 'baseline_seeded':    return 'seeded from memory'
+    case 'accept':             return 'rule accepted'
+    case 'rollback':           return 'rolled back'
+    case 'no_new_rules':       return 'no new rules'
+    case 'converged':          return 'converged · no failures'
+    case 'val_consolidation':  return 'val consolidated into rules'
+    case 'demos_appended':     return 'worked examples added'
+    default:                   return action || '—'
+  }
+}
+
+function AuditBadge({ run }: { run: OptimizerRun }) {
+  const a = (run.artifact as any)?.audit as
+    | { clean?: boolean; val_leak_count?: number; test_leak_count?: number; checked_val?: number; checked_test?: number; val_samples?: string[]; test_samples?: string[] }
+    | undefined
+  if (!a) return null
+  if (a.clean) {
+    return (
+      <div className="mt-2 inline-flex items-center gap-2 text-[11px] font-mono-editorial text-emerald-700">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        leakage audit · clean · checked {a.checked_val} val + {a.checked_test} test
+      </div>
+    )
+  }
+  return (
+    <details className="mt-2 border border-red-200 bg-red-50/60 px-3 py-1.5 text-xs">
+      <summary className="font-mono-editorial text-red-700 cursor-pointer">
+        leakage audit · FAILED · {a.val_leak_count} val + {a.test_leak_count} test sentences appear in prompt
+      </summary>
+      <div className="mt-2 space-y-1 text-stone-700">
+        {(a.val_samples || []).map((s, i) => <div key={`v${i}`}><span className="font-mono-editorial text-red-700 mr-1">val:</span>{s}</div>)}
+        {(a.test_samples || []).map((s, i) => <div key={`t${i}`}><span className="font-mono-editorial text-red-700 mr-1">test:</span>{s}</div>)}
+      </div>
+    </details>
+  )
+}
+
+function PerClassMini({ initial, final }: { initial: any; final: any }) {
+  const labels: string[] = (final?.classes ?? Object.keys(final?.per_class || {})).slice().sort()
+  return (
+    <div className="text-xs font-mono">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-2">
+        <Stat label="Macro F1" value={`${(initial.macro_f1 * 100).toFixed(0)}% → ${(final.macro_f1 * 100).toFixed(0)}%`} />
+        <Stat label="Weighted F1" value={`${(initial.weighted_f1 * 100).toFixed(0)}% → ${(final.weighted_f1 * 100).toFixed(0)}%`} />
+      </div>
+      <table className="w-full">
+        <thead><tr className="border-b border-seam text-stone-500 font-mono-editorial">
+          <th className="text-left py-1">label</th>
+          <th className="text-right py-1">supp</th>
+          <th className="text-right py-1">F1 i→f</th>
+        </tr></thead>
+        <tbody className="divide-y divide-seam">
+          {labels.map(l => {
+            const i = initial?.per_class?.[l], f = final?.per_class?.[l]
+            const d = (f?.f1 ?? 0) - (i?.f1 ?? 0)
+            return (
+              <tr key={l}>
+                <td className="py-1 truncate max-w-[140px]" title={l}>{l}</td>
+                <td className="py-1 text-right text-stone-600">{f?.support ?? 0}</td>
+                <td className="py-1 text-right">
+                  <span className="text-stone-600">{((i?.f1 ?? 0) * 100).toFixed(0)}</span>
+                  <span className="text-stone-300 mx-1">→</span>
+                  <span className={d > 0 ? 'text-emerald-700' : d < 0 ? 'text-red-600' : 'text-stone-700'}>
+                    {((f?.f1 ?? 0) * 100).toFixed(0)}
+                  </span>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function EditablePromptV2({
+  run, projectId, onUpdate,
+}: { run: OptimizerRun; projectId: number; onUpdate: (r: OptimizerRun) => void }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(run.optimized_prompt)
   const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState<string>('')
-
-  // If the parent loads a different run, reset the local draft.
-  const [trackedRunId, setTrackedRunId] = useState(run.id)
-  if (trackedRunId !== run.id) {
-    setTrackedRunId(run.id)
-    setDraft(run.optimized_prompt)
-    setEditing(false); setErr('')
-  }
-
+  const [err, setErr] = useState('')
+  const [tracked, setTracked] = useState(run.id)
+  if (tracked !== run.id) { setTracked(run.id); setDraft(run.optimized_prompt); setEditing(false); setErr('') }
   const dirty = draft !== run.optimized_prompt
   const editable = run.status === 'completed' || run.status === 'failed'
 
@@ -1547,153 +1089,125 @@ function EditablePromptBlock({
     setSaving(true); setErr('')
     try {
       const updated = await patchOptimizerRun(projectId, run.id, { optimized_prompt: draft })
-      onUpdate(updated)
-      setEditing(false)
-    } catch (e: any) {
-      setErr(e?.response?.data?.detail || e?.message || 'Save failed')
-    } finally {
-      setSaving(false)
-    }
+      onUpdate(updated); setEditing(false)
+    } catch (e: any) { setErr(e?.response?.data?.detail || e?.message || 'Save failed') }
+    finally { setSaving(false) }
   }
 
   return (
-    <div className="px-6 py-4">
-      <div className="flex items-baseline justify-between gap-3 mb-2">
-        <div className="font-mono-editorial text-stone-500">
-          {researcherMode ? 'Optimized prompt' : 'Updated instructions'}
-          {dirty && <span className="ml-2 text-amber-700">unsaved edits</span>}
-        </div>
-        <div className="flex items-center gap-3">
-          {!editing && editable && (
-            <button
-              onClick={() => setEditing(true)}
-              className="font-mono-editorial text-stone-500 hover:text-ink"
-            >
-              edit
-            </button>
-          )}
+    <div className="px-3 pb-3">
+      <Card title="Updated prompt" rightSlot={
+        <div className="flex items-center gap-2">
+          {dirty && <span className="font-mono-editorial text-amber-700 text-[11px]">unsaved</span>}
+          {!editing && editable && <button onClick={() => setEditing(true)} className="font-mono-editorial text-stone-500 hover:text-ink">edit</button>}
           {editing && (
             <>
-              <button
-                onClick={() => { setDraft(run.optimized_prompt); setEditing(false); setErr('') }}
-                disabled={saving}
-                className="font-mono-editorial text-stone-500 hover:text-ink"
-              >
-                cancel
-              </button>
-              <button
-                onClick={save}
-                disabled={saving || !dirty}
-                className="px-3 py-1 text-xs font-medium bg-ink text-cream hover:bg-stone-800 disabled:opacity-40"
-              >
-                {saving ? 'Saving…' : 'Save'}
-              </button>
+              <button onClick={() => { setDraft(run.optimized_prompt); setEditing(false); setErr('') }} disabled={saving} className="font-mono-editorial text-stone-500 hover:text-ink">cancel</button>
+              <button onClick={save} disabled={saving || !dirty} className="px-2 py-0.5 text-xs bg-ink text-cream disabled:opacity-40">{saving ? 'saving…' : 'save'}</button>
             </>
           )}
         </div>
-      </div>
-      {editing ? (
-        <textarea
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          rows={Math.min(28, Math.max(10, draft.split('\n').length + 1))}
-          className="w-full bg-white border border-seam focus:border-ink focus:outline-none p-4 font-mono text-xs leading-relaxed text-stone-800 resize-y"
-        />
-      ) : (
-        <pre className="bg-paper/50 border border-seam p-4 font-mono text-xs leading-relaxed max-h-80 overflow-auto whitespace-pre-wrap text-stone-800">
-          {run.optimized_prompt}
-        </pre>
-      )}
-      {err && (
-        <div className="mt-2 text-xs text-red-700">{err}</div>
-      )}
+      }>
+        {editing ? (
+          <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={Math.min(28, Math.max(10, draft.split('\n').length + 1))}
+                    className="w-full bg-white border border-seam focus:border-ink focus:outline-none p-3 font-mono text-xs leading-relaxed resize-y" />
+        ) : (
+          <pre className="bg-paper/50 border border-seam p-3 font-mono text-xs leading-relaxed max-h-72 overflow-auto whitespace-pre-wrap">{run.optimized_prompt}</pre>
+        )}
+        {err && <div className="mt-2 text-xs text-red-700">{err}</div>}
+      </Card>
     </div>
   )
 }
 
-function PerClassMetricsBlock({
-  initial, final, researcherMode,
-}: { initial: any; final: any; researcherMode: boolean }) {
-  const labels: string[] = (final?.classes ?? Object.keys(final?.per_class || {})).slice().sort()
-  const headerLine = (
-    <div className="flex items-baseline gap-6 flex-wrap font-mono text-xs">
-      <span><span className="font-mono-editorial text-stone-500 mr-1.5">Macro F1</span>
-            <span className="text-stone-700">{(initial.macro_f1 * 100).toFixed(1)}%</span>
-            <span className="text-stone-400 mx-1">→</span>
-            <span className={final.macro_f1 >= initial.macro_f1 ? 'text-emerald-700' : 'text-red-600'}>
-              {(final.macro_f1 * 100).toFixed(1)}%
-            </span></span>
-      <span><span className="font-mono-editorial text-stone-500 mr-1.5">Weighted F1</span>
-            <span className="text-stone-700">{(initial.weighted_f1 * 100).toFixed(1)}%</span>
-            <span className="text-stone-400 mx-1">→</span>
-            <span className={final.weighted_f1 >= initial.weighted_f1 ? 'text-emerald-700' : 'text-red-600'}>
-              {(final.weighted_f1 * 100).toFixed(1)}%
-            </span></span>
-      <span><span className="font-mono-editorial text-stone-500 mr-1.5">Macro precision</span>
-            <span className="text-stone-700">{(initial.macro_precision * 100).toFixed(1)}%</span>
-            <span className="text-stone-400 mx-1">→</span>
-            <span className="text-stone-700">{(final.macro_precision * 100).toFixed(1)}%</span></span>
-      <span><span className="font-mono-editorial text-stone-500 mr-1.5">Macro recall</span>
-            <span className="text-stone-700">{(initial.macro_recall * 100).toFixed(1)}%</span>
-            <span className="text-stone-400 mx-1">→</span>
-            <span className="text-stone-700">{(final.macro_recall * 100).toFixed(1)}%</span></span>
-    </div>
-  )
+/* ─── Memory tab ────────────────────────────────────────────── */
 
+function MemoryTab({ memory }: { memory: MemoryVersion[] }) {
+  if (memory.length === 0) {
+    return <Empty>Memory accumulates after each successful run.</Empty>
+  }
+  const byDim: Record<string, MemoryVersion[]> = {}
+  for (const v of memory) {
+    if (!byDim[v.dimension_name]) byDim[v.dimension_name] = []
+    byDim[v.dimension_name].push(v)
+  }
   return (
-    <div className="px-6 py-4 border-b border-seam">
-      <div className="font-mono-editorial text-stone-500 mb-3">
-        {researcherMode ? 'Held-out test metrics · per-class' : 'Per-label scores on the held-out set'}
-      </div>
-      <div className="mb-4">{headerLine}</div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs font-mono">
-          <thead>
-            <tr className="border-b border-seam">
-              <th className="px-2 py-2 text-left text-stone-500">Label</th>
-              <th className="px-2 py-2 text-right text-stone-500">Support</th>
-              <th className="px-2 py-2 text-right text-stone-500">Precision</th>
-              <th className="px-2 py-2 text-right text-stone-500">Recall</th>
-              <th className="px-2 py-2 text-right text-stone-500">F1 (initial → final)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-seam">
-            {labels.map(lbl => {
-              const i = initial?.per_class?.[lbl]
-              const f = final?.per_class?.[lbl]
-              const f1Delta = (f?.f1 ?? 0) - (i?.f1 ?? 0)
-              return (
-                <tr key={lbl}>
-                  <td className="px-2 py-2 text-stone-800">{lbl}</td>
-                  <td className="px-2 py-2 text-right text-stone-600">{f?.support ?? 0}</td>
-                  <td className="px-2 py-2 text-right text-stone-600">
-                    {f != null ? `${(f.precision * 100).toFixed(1)}%` : '—'}
-                  </td>
-                  <td className="px-2 py-2 text-right text-stone-600">
-                    {f != null ? `${(f.recall * 100).toFixed(1)}%` : '—'}
-                  </td>
-                  <td className="px-2 py-2 text-right text-stone-700">
-                    {i != null ? `${(i.f1 * 100).toFixed(1)}%` : '—'}
-                    <span className="text-stone-400 mx-1">→</span>
-                    <span className={f1Delta > 0 ? 'text-emerald-700' : f1Delta < 0 ? 'text-red-600' : 'text-stone-700'}>
-                      {f != null ? `${(f.f1 * 100).toFixed(1)}%` : '—'}
-                    </span>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+    <div className="space-y-5">
+      {Object.keys(byDim).sort().map(d => (
+        <div key={d}>
+          <div className="flex items-baseline justify-between border-b border-seam pb-1.5 mb-2">
+            <h3 className="text-base font-medium">{d}</h3>
+            <span className="font-mono-editorial text-stone-500">latest v{String(byDim[d][0].version).padStart(3, '0')} · {byDim[d][0].n_rules} rules</span>
+          </div>
+          <ul className="divide-y divide-seam">
+            {byDim[d].map(v => <MemRow key={v.id} v={v} />)}
+          </ul>
+        </div>
+      ))}
     </div>
   )
 }
 
-function Metric({ label, value, tone = 'text-ink' }: { label: string; value: string; tone?: string }) {
+function MemRow({ v }: { v: MemoryVersion }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <li>
+      <button onClick={() => setOpen(o => !o)}
+              className="w-full grid grid-cols-12 gap-3 py-2 px-1 text-left hover:bg-paper/40 text-xs font-mono">
+        <span className="col-span-1 text-stone-400">{open ? '−' : '+'}</span>
+        <span className="col-span-2">v{String(v.version).padStart(3, '0')}</span>
+        <span className="col-span-2 text-stone-700">{v.n_rules} rules</span>
+        <span className="col-span-2 text-stone-500">{v.new_rules_count > 0 ? `+${v.new_rules_count}` : '—'}</span>
+        <span className="col-span-3 text-stone-500">{v.source_optimizer_run_id !== null ? `run ${String(v.source_optimizer_run_id).padStart(4, '0')}` : 'manual'}</span>
+        <span className="col-span-2 text-right text-stone-400">{v.created_at ? new Date(v.created_at).toLocaleDateString() : '—'}</span>
+      </button>
+      {open && (
+        <div className="px-1 pb-3 space-y-2">
+          {v.rules.map((r, i) => (
+            <div key={i} className="pl-3 border-l-2 border-violet-300 text-xs">
+              <div className="font-mono-editorial text-stone-400">{String(i + 1).padStart(2, '0')} · {r.id || 'unnamed'}</div>
+              <div>{r.boundary || r.rule || '(no boundary)'}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </li>
+  )
+}
+
+/* ─── Tiny primitives ───────────────────────────────────────── */
+
+function Card({
+  title, children, rightSlot, className = '',
+}: { title: string; children: React.ReactNode; rightSlot?: React.ReactNode; className?: string }) {
+  return (
+    <div className={`border border-seam bg-paper/30 ${className}`}>
+      <div className="flex items-baseline justify-between px-3 py-2 border-b border-seam">
+        <span className="font-mono-editorial text-stone-500 text-xs">{title}</span>
+        {rightSlot}
+      </div>
+      <div className="p-3">{children}</div>
+    </div>
+  )
+}
+
+function Stat({ label, value, tone = 'text-ink' }: { label: string; value: string; tone?: string }) {
   return (
     <div>
-      <div className="font-mono-editorial text-stone-500">{label}</div>
+      <div className="font-mono-editorial text-stone-500 text-[11px]">{label}</div>
       <div className={`font-mono text-sm mt-0.5 ${tone}`}>{value}</div>
+    </div>
+  )
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return <span className="font-mono-editorial text-stone-500 block mb-1 text-xs">{children}</span>
+}
+
+function Empty({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="border border-dashed border-seam bg-paper/30 p-6 text-center text-sm text-stone-500">
+      {children}
     </div>
   )
 }

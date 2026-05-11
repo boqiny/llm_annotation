@@ -197,25 +197,6 @@ class DimensionMetrics(BaseModel):
     metrics: MetricsOut
 
 
-# ---------- Calibration ----------
-
-class CalibrationRequest(BaseModel):
-    gold_dataset_id: int
-
-
-class CalibrationOut(BaseModel):
-    id: int
-    project_id: int
-    job_id: int
-    gold_dataset_id: int
-    metrics_json: dict[str, Any]
-    error_patterns: list[Any]
-    rules_generated: list[Any]
-    created_at: Optional[datetime.datetime] = None
-
-    model_config = {"from_attributes": True}
-
-
 # ---------- Misc ----------
 
 class PresetInfo(BaseModel):

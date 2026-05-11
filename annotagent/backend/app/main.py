@@ -13,7 +13,7 @@ from app.database import async_session, engine
 from app.models.tables import AnnotationJob, Base, JobStatus, OptimizerRun
 from app.api import (
     projects, codebooks, codebook_drafts, datasets, pipelines, jobs,
-    results, calibration, ws,
+    results, ws,
     optimizers as optimizers_api, config as config_api,
 )
 
@@ -74,7 +74,6 @@ app.include_router(datasets.router)
 app.include_router(pipelines.router)
 app.include_router(jobs.router)
 app.include_router(results.router)
-app.include_router(calibration.router)
 app.include_router(optimizers_api.router)
 app.include_router(optimizers_api.memory_router)
 app.include_router(ws.router)
