@@ -18,6 +18,7 @@ from app.engine.prompt_generator import generate_dimension_prompt
 from app.utils.storage import next_version, project_paths, save_text, save_yaml, utc_now_iso
 from app.models.tables import Codebook, DataItem, Dataset, OptimizerRun, Project, ReflectMemoryVersion
 from app.optimizers import Example, evaluate_prompt, get_optimizer, list_optimizers
+from app.optimizers.base import audit_prompt_for_leakage
 from app.schemas.schemas import OptimizerInfo, OptimizerRunCreate, OptimizerRunOut
 
 logger = logging.getLogger(__name__)
@@ -257,6 +258,49 @@ async def cancel_run(project_id: int, run_id: int, db: AsyncSession = Depends(ge
     return {"status": "cancelling"}
 
 
+def _stratified_split(
+    examples: list[Example], *, train_frac: float, val_frac: float, seed: int,
+) -> tuple[list[Example], list[Example], list[Example], dict[str, dict[str, int]]]:
+    """Group by gold label, deterministic-shuffle each group, slice proportionally.
+
+    Returns (train, val, test, per_class) where per_class maps each label to
+    {n, train, val, test} counts. Tiny classes (<3 items) all go to train so
+    the optimizer can see them in failure mining; they won't appear in val/test.
+    """
+    by_class: dict[str, list[Example]] = {}
+    for ex in examples:
+        by_class.setdefault(ex.gold, []).append(ex)
+
+    rng = random.Random(seed)
+    train: list[Example] = []
+    val: list[Example] = []
+    test: list[Example] = []
+    per_class: dict[str, dict[str, int]] = {}
+
+    for cls in sorted(by_class):                 # sorted for determinism
+        items = list(by_class[cls])
+        rng.shuffle(items)
+        n = len(items)
+        if n < 3:
+            train.extend(items)
+            per_class[cls] = {"n": n, "train": n, "val": 0, "test": 0}
+            continue
+        nt = max(1, int(round(train_frac * n)))
+        nv = max(1, int(round(val_frac * n)))
+        if nt + nv > n - 1:                      # leave at least 1 for test
+            nv = max(1, n - nt - 1)
+        nx = n - nt - nv
+        train.extend(items[:nt])
+        val.extend(items[nt:nt + nv])
+        test.extend(items[nt + nv:])
+        per_class[cls] = {"n": n, "train": nt, "val": nv, "test": nx}
+
+    rng.shuffle(train)                            # mix classes within each split
+    rng.shuffle(val)
+    rng.shuffle(test)
+    return train, val, test, per_class
+
+
 async def _execute_run(run_id: int, project_id: int, provider: str, model: str, api_key: str):
     """Background task: load gold subset, invoke optimizer, persist result."""
     try:
@@ -307,9 +351,8 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
                 await session.commit()
             return
 
-        # Deterministic shuffle — same (gold_dataset_id, dim) always produces the same split.
+        # Deterministic seed — same (gold_dataset_id, dim) always produces the same split.
         rng_seed = hash((run.gold_dataset_id, run.dimension_name)) & 0xFFFF_FFFF
-        random.Random(rng_seed).shuffle(examples)
 
         # Read requested splits from artifact (set at create time); fall back to defaults.
         splits = (run.artifact or {}).get("requested_splits", {})
@@ -317,20 +360,28 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
         val_frac = splits.get("val_frac", 0.42)
         test_frac = splits.get("test_frac", max(0.0, 1.0 - train_frac - val_frac))
 
+        # ─── Stratified split: proportional per gold class ───
+        # Guarantees every class has ≥1 item in every split (when class size ≥ 3).
+        # Tiny classes (<3 items) go entirely to train so the optimizer can at
+        # least see them as failure-mining inputs.
+        trainset, valset, testset, per_class = _stratified_split(
+            examples, train_frac=train_frac, val_frac=val_frac,
+            seed=rng_seed,
+        )
+        n_train, n_val, n_test = len(trainset), len(valset), len(testset)
         n_total = len(examples)
-        # Floor counts to respect user's intent, leave test as remainder so splits sum exactly
-        n_train = max(5, int(round(train_frac * n_total)))
-        n_val   = max(5, int(round(val_frac * n_total)))
-        n_test  = max(0, n_total - n_train - n_val)
-        # If test is too small (< 3), steal from train until test has 3
-        if n_test < 3 and n_train > 5:
-            steal = min(3 - n_test, n_train - 5)
-            n_train -= steal
-            n_test  += steal
 
-        trainset = examples[:n_train]
-        valset   = examples[n_train : n_train + n_val]
-        testset  = examples[n_train + n_val : n_train + n_val + n_test]
+        if n_train < 5 or n_val < 5:
+            async with async_session() as session:
+                run = await session.get(OptimizerRun, run_id)
+                run.status = "failed"
+                run.error = (
+                    f"After stratification: train={n_train}, val={n_val}, test={n_test} "
+                    f"(per-class: {per_class}). Need ≥5 train and ≥5 val. "
+                    f"Try a larger gold dataset or fewer/more-balanced classes."
+                )
+                await session.commit()
+            return
 
         # LEAKAGE GUARD: assert sets are disjoint (cheap O(n) sanity check).
         assert len({id(x) for x in trainset} & {id(x) for x in valset}) == 0
@@ -338,8 +389,8 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
         assert len({id(x) for x in trainset} & {id(x) for x in testset}) == 0
 
         logger.info(
-            f"Run {run_id} split: total={n_total} train={n_train} val={n_val} test={n_test} "
-            f"(seed={rng_seed})"
+            f"Run {run_id} stratified split: total={n_total} train={n_train} val={n_val} "
+            f"test={n_test} per_class={per_class} (seed={rng_seed})"
         )
 
         # For reflect_agent: seed rules from the latest memory version on this
@@ -446,6 +497,8 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
             "val_frac":   val_frac,
             "test_frac":  test_frac,
             "seed": rng_seed,
+            "stratified": True,
+            "per_class": per_class,
         }
         enriched_artifact["test"] = {
             "initial_score": round(test_initial_acc, 4),
@@ -459,6 +512,19 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
             "initial_metrics": test_initial_metrics,
             "final_metrics":   test_final_metrics,
         }
+
+        # Audit the final prompt for accidental val/test substring leakage.
+        # Deterministic — checks that no val/test sentence appears verbatim
+        # inside the prompt the model will run. ``clean: true`` means safe.
+        enriched_artifact["audit"] = audit_prompt_for_leakage(
+            result.optimized_prompt, valset, testset,
+        )
+        if not enriched_artifact["audit"]["clean"]:
+            logger.warning(
+                f"Run {run_id} prompt-leakage audit FAILED: "
+                f"val={enriched_artifact['audit']['val_leak_count']} "
+                f"test={enriched_artifact['audit']['test_leak_count']}"
+            )
 
         async with async_session() as session:
             run = await session.get(OptimizerRun, run_id)

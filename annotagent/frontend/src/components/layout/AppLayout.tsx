@@ -41,13 +41,6 @@ export default function AppLayout() {
         </div>
       </main>
 
-      {/* Footer colophon */}
-      <footer className="border-t border-seam mt-16">
-        <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between font-mono-editorial text-stone-400">
-          <span>Open-source research artifact</span>
-          <span>github.com/charles/llm_annotation</span>
-        </div>
-      </footer>
     </div>
   )
 }

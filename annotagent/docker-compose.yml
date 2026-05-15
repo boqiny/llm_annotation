@@ -9,8 +9,14 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - MAX_CONCURRENCY=${MAX_CONCURRENCY:-10}
+      # Bundled seed data lives in the repo at annotagent/assets/data/ but
+      # the backend Dockerfile build context is ./backend only — so we
+      # bind-mount it in instead of baking it into the image, and point
+      # SEED_DATA_DIR at the mount.
+      - SEED_DATA_DIR=/app/assets/data
     volumes:
       - backend-data:/data
+      - ./assets:/app/assets:ro
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\" || exit 1"]
       interval: 10s

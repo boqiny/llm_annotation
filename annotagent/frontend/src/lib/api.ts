@@ -1,7 +1,7 @@
 import axios from 'axios'
 import type {
   Project, Codebook, Dataset, DatasetPreview, Pipeline,
-  Job, AnnotationResult, DimensionMetrics, CalibrationRun, PresetInfo,
+  Job, AnnotationResult, DimensionMetrics, PresetInfo,
 } from '../types'
 
 const api = axios.create({ baseURL: '/api' })
@@ -88,12 +88,6 @@ export const getConfusionMatrix = (projectId: number, jobId: number, dimension: 
   ).then(r => r.data)
 export const exportResults = (projectId: number, jobId: number, format: 'csv' | 'json' = 'csv') =>
   api.get(`/projects/${projectId}/jobs/${jobId}/results/export`, { params: { format }, responseType: format === 'csv' ? 'blob' : 'json' })
-
-// Calibration
-export const runCalibration = (projectId: number, jobId: number, goldDatasetId: number) =>
-  api.post<CalibrationRun>(`/projects/${projectId}/jobs/${jobId}/calibration`, { gold_dataset_id: goldDatasetId }).then(r => r.data)
-export const listCalibrations = (projectId: number, jobId: number) =>
-  api.get<CalibrationRun[]>(`/projects/${projectId}/jobs/${jobId}/calibration`).then(r => r.data)
 
 // Seeds + backend config
 export interface SeedDatasetInfo {

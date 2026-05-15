@@ -1,0 +1,43 @@
+name: Deploy to dev server
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# Cancel an older deploy if a newer push lands while it's still running —
+# avoids two `docker compose up --build` racing on the same server.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Show context
+        run: |
+          echo "host: $(hostname)"
+          echo "user: $(whoami)"
+          echo "commit: $GITHUB_SHA"
+
+      # Update the existing checkout at $REPO_DIR rather than cloning into the
+      # runner's _work/ — keeps a single source of truth on the server.
+      - name: Pull latest
+        env:
+          REPO_DIR: ${{ vars.REPO_DIR || '/home/ubuntu/llm_annotation' }}
+        run: |
+          set -euo pipefail
+          cd "$REPO_DIR"
+          git fetch --prune origin
+          git reset --hard "origin/${GITHUB_REF_NAME}"
+          git rev-parse --short HEAD
+
+      - name: Deploy
+        env:
+          REPO_DIR: ${{ vars.REPO_DIR || '/home/ubuntu/llm_annotation' }}
+        run: |
+          set -euo pipefail
+          cd "$REPO_DIR"
+          bash scripts/deploy.sh

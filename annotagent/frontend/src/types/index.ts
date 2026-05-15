@@ -124,17 +124,6 @@ export interface DimensionMetrics {
   metrics: MetricsData
 }
 
-export interface CalibrationRun {
-  id: number
-  project_id: number
-  job_id: number
-  gold_dataset_id: number
-  metrics_json: Record<string, unknown>
-  error_patterns: unknown[]
-  rules_generated: unknown[]
-  created_at: string | null
-}
-
 export interface PresetInfo {
   name: string
   description: string

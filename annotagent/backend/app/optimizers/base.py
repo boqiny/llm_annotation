@@ -83,6 +83,42 @@ async def _emit(on_progress: Optional[ProgressCB], payload: dict) -> None:
         pass
 
 
+def audit_prompt_for_leakage(
+    prompt: str, valset: list["Example"], testset: list["Example"], *, min_len: int = 40,
+) -> dict:
+    """Substring-scan the final prompt for any val/test sentence. Returns a
+    dict with leak counts and offending samples. Empty findings = clean.
+
+    ``min_len`` filters out very short sentences (a 5-char fragment may match
+    by chance; we want substantive overlap).
+    """
+    p = (prompt or "").lower()
+    val_hits: list[str] = []
+    test_hits: list[str] = []
+    for ex in valset:
+        s = (ex.sentence or "").strip()
+        if len(s) < min_len:
+            continue
+        if s.lower() in p:
+            val_hits.append(s[:120])
+    for ex in testset:
+        s = (ex.sentence or "").strip()
+        if len(s) < min_len:
+            continue
+        if s.lower() in p:
+            test_hits.append(s[:120])
+    return {
+        "val_leak_count": len(val_hits),
+        "test_leak_count": len(test_hits),
+        "val_samples": val_hits[:5],     # first 5 examples for the UI
+        "test_samples": test_hits[:5],
+        "checked_val": len(valset),
+        "checked_test": len(testset),
+        "min_len": min_len,
+        "clean": len(val_hits) + len(test_hits) == 0,
+    }
+
+
 async def evaluate_prompt(
     prompt: str,
     examples: list[Example],
