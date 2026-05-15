@@ -104,3 +104,7 @@ If you add a new optimizer, it MUST honor this contract: don't read test, don't 
   ~12 API modules already; new functionality usually fits in one of them.
 - For UI changes, run the dev server and click through the flow before
   declaring done. Type checks aren't enough.
+
+<!-- BEGIN agent-style v0.3.5 -->
+@.agent-style/claude-code.md
+<!-- END agent-style -->
