@@ -25,3 +25,5 @@ annotagent/backend/workspace/
 # Legacy artifacts that shouldn't be tracked even though they live under legacy/
 legacy/vis/
 reference.md
+
+node_modules/
