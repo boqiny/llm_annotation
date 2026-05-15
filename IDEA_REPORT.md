@@ -1,4 +1,4 @@
-# AnnotAgent — paper plan
+# AnnotAgent
 
 ## Paper Claims
 
@@ -9,6 +9,10 @@ AnnotAgent is a **multi-agent system** for codebook-driven annotation. It covers
 **C2 (built).** A ReflectAgent loop runs failure-driven prompt optimization on a leakage-guarded train/val/test split, distilling failures into interpretable rules and rolling back rule updates that regress held-out validation. Rules persist across sessions in a versioned Memory table: each run on a dimension seeds from the last run's rule library. This is what is built today, and the evaluation tables for self-disclosure annotation will exercise it. We can further integrate prompt optimization techniques like DSPy, GEPA here.
 
 The paper is framed as a system demonstration rather than a controlled study. The evaluation shows the system works on a representative hard case (a low-IAA codebook for AI-companion conversation analysis). It is not a benchmark sweep across optimizers, model backbones, or codebook domains.
+
+The draft figure below shows the system at a glance: the top tier traces the pipeline from user inputs through CodebookAgent, AutoPromptGenerator, the labeling stage, and the ReflectAgent improvement loop; the bottom tier zooms into the labeling stage and lays the three user-facing paths (cold start, disputed items, gold labels) side by side, with the middle column rendering both halves of the proposed C1 contribution.
+
+![AnnotAgent workflow: top tier shows the five-stage pipeline (user inputs → CodebookAgent → AutoPromptGenerator → Labeling → ReflectAgent + Memory); bottom tier zooms into the labeling stage and lays the three paths (A cold start, B disputed items with C1 mechanism and measurement, C gold-label optimization) side by side.](assets/workflow_v1.png)
 
 ---
 
