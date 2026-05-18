@@ -153,6 +153,19 @@ function Step({ n, title, body }: { n: string; title: string; body: string }) {
   )
 }
 
+function formatDate(value: string | null) {
+  if (!value) return '—'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
 function ProjectRow({
   project, index, onOpen, onDelete,
 }: {
@@ -175,7 +188,7 @@ function ProjectRow({
         <div className="col-span-1 font-mono-editorial text-stone-400 pt-1">
           {(index + 1).toString().padStart(2, '0')}
         </div>
-        <div className="col-span-6">
+        <div className="col-span-5">
           <div className="flex items-baseline gap-3">
             <h3 className="text-xl font-medium tracking-tight">{project.name}</h3>
             <span className={`font-mono-editorial ${statusTone}`}>· {project.status}</span>
@@ -184,7 +197,13 @@ function ProjectRow({
             <p className="mt-1 text-sm text-stone-600 leading-relaxed">{project.description}</p>
           )}
         </div>
-        <div className="col-span-3 pt-1">
+        <div className="col-span-2 pt-1">
+          <div className="font-mono-editorial text-stone-500 mb-1">Created</div>
+          <div className="font-mono text-xs text-stone-700">
+            {formatDate(project.created_at)}
+          </div>
+        </div>
+        <div className="col-span-2 pt-1">
           <div className="font-mono-editorial text-stone-500 mb-1">Model</div>
           <div className="font-mono text-xs text-stone-700 truncate">{project.llm_provider} / {project.llm_model}</div>
         </div>
