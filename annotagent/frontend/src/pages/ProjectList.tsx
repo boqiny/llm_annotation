@@ -55,38 +55,13 @@ export default function ProjectList() {
             so the cream page tone shows through any transparent areas. */}
         <figure className="mb-12">
           <img
-            src="/workflow.svg"
+            src="/workflow_0517.png"
             alt="AnnotAgent workflow: Define codebook → Auto-draft prompts → Improve from examples → Annotate dataset"
             className="w-full h-auto"
             onError={(e) => { (e.currentTarget.style.display = 'none') }}
           />
-          <figcaption className="font-mono-editorial text-stone-400 mt-3">
-            workflow · define → draft → improve → annotate
-          </figcaption>
         </figure>
 
-        <ol className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
-          <Step
-            n="01"
-            title="Define"
-            body="Pick a built-in codebook (Self-Disclosure, AI Behavior, Harm) or upload your own JSON. Don't have one? Upload a PDF, doc, or notes — CodebookAgent will draft a structured codebook for you to edit."
-          />
-          <Step
-            n="02"
-            title="Draft"
-            body="The system writes a starting annotation prompt for each dimension automatically, in parallel. You don't write any prompts yourself — you can read and tweak the drafts on the Improve page."
-          />
-          <Step
-            n="03"
-            title="Improve"
-            body="Optional. Upload a small set of labeled examples (gold) and the system tries the draft prompts on them, finds where it's wrong, writes plain-English correction rules, and rolls back any rule that hurts accuracy."
-          />
-          <Step
-            n="04"
-            title="Annotate"
-            body="Run the calibrated prompts over your unlabeled data. Watch progress live. Export results as CSV or JSON. Compare model output against gold — per-dimension accuracy, confusion matrix, mistakes you can scroll through."
-          />
-        </ol>
       </section>
 
       {/* Projects band */}
