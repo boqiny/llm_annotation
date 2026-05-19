@@ -6,7 +6,7 @@ import {
 import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
   listCodebooks, listDatasets, autoGeneratePrompt, patchOptimizerRun,
-  listMemoryVersions, deleteOptimizerRun, cancelOptimizerRun,
+  listMemoryVersions, deleteOptimizerRun, cancelOptimizerRun, submitMemoryFeedback,
   type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion,
 } from '../lib/api'
 import type { Codebook, Dataset } from '../types'
@@ -200,7 +200,14 @@ export default function PromptLabV2() {
         />
       )}
 
-      {tab === 'memory' && <MemoryTab memory={memory} />}
+      {tab === 'memory' && (
+        <MemoryTab
+          memory={memory}
+          projectId={projectId}
+          dimensions={activeCb?.dimensions.map(d => d.name) ?? []}
+          onRefresh={() => listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))}
+        />
+      )}
     </div>
   )
 }
@@ -1122,28 +1129,109 @@ function EditablePromptV2({
 
 /* ─── Memory tab ────────────────────────────────────────────── */
 
-function MemoryTab({ memory }: { memory: MemoryVersion[] }) {
-  if (memory.length === 0) {
-    return <Empty>Memory accumulates after each successful run.</Empty>
-  }
+function MemoryTab({ memory, projectId, dimensions, onRefresh }: {
+  memory: MemoryVersion[]
+  projectId: number
+  dimensions: string[]
+  onRefresh: () => void
+}) {
   const byDim: Record<string, MemoryVersion[]> = {}
   for (const v of memory) {
     if (!byDim[v.dimension_name]) byDim[v.dimension_name] = []
     byDim[v.dimension_name].push(v)
   }
+
+  // All known dimensions: those with memory + those from the codebook that don't yet
+  const allDims = Array.from(new Set([...Object.keys(byDim), ...dimensions])).sort()
+
+  if (allDims.length === 0) {
+    return <Empty>Memory accumulates after each successful run.</Empty>
+  }
+
   return (
     <div className="space-y-5">
-      {Object.keys(byDim).sort().map(d => (
+      {allDims.map(d => (
         <div key={d}>
           <div className="flex items-baseline justify-between border-b border-seam pb-1.5 mb-2">
             <h3 className="text-base font-medium">{d}</h3>
-            <span className="font-mono-editorial text-stone-500">latest v{String(byDim[d][0].version).padStart(3, '0')} · {byDim[d][0].n_rules} rules</span>
+            {byDim[d]
+              ? <span className="font-mono-editorial text-stone-500">latest v{String(byDim[d][0].version).padStart(3, '0')} · {byDim[d][0].n_rules} rules</span>
+              : <span className="font-mono-editorial text-stone-400">no rules yet</span>
+            }
           </div>
-          <ul className="divide-y divide-seam">
-            {byDim[d].map(v => <MemRow key={v.id} v={v} />)}
-          </ul>
+          {byDim[d] && (
+            <ul className="divide-y divide-seam">
+              {byDim[d].map(v => <MemRow key={v.id} v={v} />)}
+            </ul>
+          )}
+          <FeedbackForm projectId={projectId} dimensionName={d} onDone={onRefresh} />
         </div>
       ))}
+    </div>
+  )
+}
+
+function FeedbackForm({ projectId, dimensionName, onDone }: {
+  projectId: number
+  dimensionName: string
+  onDone: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSubmit = async () => {
+    if (!text.trim()) return
+    setLoading(true)
+    setError('')
+    try {
+      await submitMemoryFeedback(projectId, dimensionName, text.trim())
+      setText('')
+      setOpen(false)
+      onDone()
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? 'Request failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="mt-2 font-mono-editorial text-xs text-stone-400 hover:text-ink"
+      >
+        + add correction
+      </button>
+    )
+  }
+
+  return (
+    <div className="mt-3 border border-seam bg-paper/30 p-3 space-y-2">
+      <Label>Describe what the model is getting wrong for <em>{dimensionName}</em></Label>
+      <textarea
+        autoFocus
+        value={text}
+        onChange={e => setText(e.target.value)}
+        rows={3}
+        className="w-full text-sm bg-transparent border border-seam p-2 resize-none focus:outline-none focus:border-ink"
+        placeholder="e.g. the model keeps labelling past-tense experiences as High when they should be Low"
+      />
+      {error && <p className="font-mono-editorial text-xs text-red-600">{error}</p>}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleSubmit}
+          disabled={loading || !text.trim()}
+          className="px-3 py-1.5 bg-ink text-cream text-xs font-medium disabled:opacity-40"
+        >
+          {loading ? 'Applying…' : 'Apply feedback'}
+        </button>
+        <button onClick={() => { setOpen(false); setText(''); setError('') }} className="font-mono-editorial text-xs text-stone-400 hover:text-ink">
+          Cancel
+        </button>
+      </div>
     </div>
   )
 }

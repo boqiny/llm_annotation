@@ -243,5 +243,7 @@ export const listMemoryVersions = (projectId: number, dimension?: string) => {
   const params = dimension ? { dimension } : {}
   return api.get<MemoryVersion[]>(`/projects/${projectId}/memory`, { params }).then(r => r.data)
 }
+export const submitMemoryFeedback = (projectId: number, dimensionName: string, feedback: string) =>
+  api.post<MemoryVersion>(`/projects/${projectId}/memory/feedback`, { dimension_name: dimensionName, feedback }).then(r => r.data)
 
 export default api

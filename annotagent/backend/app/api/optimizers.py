@@ -10,6 +10,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pydantic import BaseModel as _BaseModel
+from app.agents.reflect_memory import apply_human_feedback
 from app.config import resolve_api_key
 from app.database import get_db, async_session
 from app.engine.codebook_parser import parse_codebook
@@ -65,6 +67,84 @@ async def list_memory_versions(
     ]
 
 
+class _FeedbackRequest(_BaseModel):
+    dimension_name: str
+    feedback: str
+
+
+@memory_router.post("/feedback")
+async def apply_feedback(
+    project_id: int,
+    body: _FeedbackRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Convert plain-English human feedback to structured rules and save as a new memory version."""
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    # Load latest memory version for this dimension
+    latest = (await db.execute(
+        select(ReflectMemoryVersion)
+        .where(
+            ReflectMemoryVersion.project_id == project_id,
+            ReflectMemoryVersion.dimension_name == body.dimension_name,
+        )
+        .order_by(ReflectMemoryVersion.version.desc())
+        .limit(1)
+    )).scalars().first()
+    existing_rules: list[dict] = list(latest.rules_json or []) if latest else []
+    last_v: int = latest.version if latest else 0
+
+    # Load label definitions from the latest codebook
+    label_defs = ""
+    codebook = (await db.execute(
+        select(Codebook).where(Codebook.project_id == project_id).order_by(Codebook.id.desc()).limit(1)
+    )).scalars().first()
+    if codebook:
+        try:
+            parsed = parse_codebook(codebook.definition_json)
+            dim_def = next((d for d in parsed.dimensions if d.name == body.dimension_name), None)
+            if dim_def:
+                label_defs = "\n".join(f"- {l.name}: {l.definition}" for l in dim_def.labels)
+        except Exception:
+            pass
+
+    merged_rules = await apply_human_feedback(
+        feedback_text=body.feedback,
+        dimension_name=body.dimension_name,
+        label_defs=label_defs,
+        existing_rules=existing_rules,
+        provider=project.llm_provider,
+        model=project.llm_model,
+        api_key=resolve_api_key(project.llm_provider, project.api_key_encrypted),
+    )
+
+    new_count = max(0, len(merged_rules) - len(existing_rules))
+    row = ReflectMemoryVersion(
+        project_id=project_id,
+        dimension_name=body.dimension_name,
+        version=last_v + 1,
+        rules_json=merged_rules,
+        new_rules_count=new_count,
+        source_optimizer_run_id=None,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+
+    return {
+        "id": row.id,
+        "dimension_name": row.dimension_name,
+        "version": row.version,
+        "n_rules": len(row.rules_json or []),
+        "new_rules_count": row.new_rules_count,
+        "source_optimizer_run_id": row.source_optimizer_run_id,
+        "rules": row.rules_json or [],
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
 @router.get("/available", response_model=list[OptimizerInfo])
 async def get_available_optimizers(project_id: int):
     """List registered optimizers with their role labels."""
@@ -87,9 +167,6 @@ async def get_run(project_id: int, run_id: int, db: AsyncSession = Depends(get_d
     if not run or run.project_id != project_id:
         raise HTTPException(404, "Run not found")
     return run
-
-
-from pydantic import BaseModel as _BaseModel
 
 
 class OptimizerRunPatch(_BaseModel):
