@@ -94,6 +94,70 @@ Return a JSON array of NEW or UPDATED rules that address this feedback."""
         return existing_rules
 
 
+_PROMPT_UPDATE_SYSTEM = """You are improving an annotation prompt by incorporating calibration rules
+learned from human feedback.
+
+INSTRUCTIONS:
+1. Keep the original prompt structure and core instructions intact.
+2. Integrate the rules naturally — weave them into the relevant sections rather than dumping
+   them as a raw list at the end.
+3. If the prompt already has a calibration or notes section, extend it. Otherwise add one.
+4. Do NOT add exemplar sentences verbatim. Rules only.
+5. Return ONLY the updated prompt text — no explanation, no markdown fences."""
+
+
+async def apply_rules_to_prompt(
+    *,
+    base_prompt: str,
+    rules: list[dict[str, Any]],
+    dimension_name: str,
+    provider: str,
+    model: str,
+    api_key: str,
+) -> str:
+    """Rewrite the base annotation prompt to incorporate structured memory rules.
+
+    Returns the updated prompt. Falls back to base_prompt unchanged on any failure.
+    """
+    if not rules:
+        return base_prompt
+
+    rules_block = "\n".join(
+        f"- [{r.get('id', '?')}] {r.get('boundary', r.get('rule', ''))}"
+        + (f"\n  Positive cues: {', '.join(r['positive_cues'])}" if r.get("positive_cues") else "")
+        + (f"\n  Negative cues: {', '.join(r['negative_cues'])}" if r.get("negative_cues") else "")
+        for r in rules
+    )
+    user_msg = f"""Dimension: {dimension_name}
+
+CURRENT PROMPT:
+{base_prompt}
+
+CALIBRATION RULES TO INCORPORATE:
+{rules_block}
+
+Return the updated prompt."""
+
+    try:
+        resp = await call_llm(
+            messages=[
+                {"role": "system", "content": _PROMPT_UPDATE_SYSTEM},
+                {"role": "user", "content": user_msg},
+            ],
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            max_tokens=2048,
+        )
+        updated = resp.text.strip()
+        if updated.startswith("```"):
+            updated = updated.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        return updated or base_prompt
+    except Exception as e:
+        logger.warning(f"apply_rules_to_prompt failed: {e}")
+        return base_prompt
+
+
 def _merge_rules(
     existing: list[dict[str, Any]],
     new: list[dict[str, Any]],

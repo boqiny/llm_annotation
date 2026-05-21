@@ -245,5 +245,13 @@ export const listMemoryVersions = (projectId: number, dimension?: string) => {
 }
 export const submitMemoryFeedback = (projectId: number, dimensionName: string, feedback: string) =>
   api.post<MemoryVersion>(`/projects/${projectId}/memory/feedback`, { dimension_name: dimensionName, feedback }).then(r => r.data)
+export const previewPrompt = (projectId: number, dimensionName: string) =>
+  api.post<{ dimension_name: string; pipeline_id: number; memory_version: number; old_prompt: string; new_prompt: string }>(
+    `/projects/${projectId}/memory/preview-prompt`, { dimension_name: dimensionName }
+  ).then(r => r.data)
+export const commitPrompt = (projectId: number, dimensionName: string, newPrompt: string) =>
+  api.post<{ ok: boolean; pipeline_id: number; dimension_name: string }>(
+    `/projects/${projectId}/memory/commit-prompt`, { dimension_name: dimensionName, new_prompt: newPrompt }
+  ).then(r => r.data)
 
 export default api

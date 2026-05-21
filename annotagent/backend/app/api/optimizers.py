@@ -11,14 +11,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pydantic import BaseModel as _BaseModel
-from app.agents.reflect_memory import apply_human_feedback
+from app.agents.reflect_memory import apply_human_feedback, apply_rules_to_prompt
 from app.config import resolve_api_key
 from app.database import get_db, async_session
 from app.engine.codebook_parser import parse_codebook
 from app.engine.metrics import compute_metrics
 from app.engine.prompt_generator import generate_dimension_prompt
 from app.utils.storage import next_version, project_paths, save_text, save_yaml, utc_now_iso
-from app.models.tables import Codebook, DataItem, Dataset, OptimizerRun, Project, ReflectMemoryVersion
+from app.models.tables import Codebook, DataItem, Dataset, OptimizerRun, Pipeline, Project, ReflectMemoryVersion
 from app.optimizers import Example, evaluate_prompt, get_optimizer, list_optimizers
 from app.optimizers.base import audit_prompt_for_leakage
 from app.schemas.schemas import OptimizerInfo, OptimizerRunCreate, OptimizerRunOut
@@ -143,6 +143,142 @@ async def apply_feedback(
         "rules": row.rules_json or [],
         "created_at": row.created_at.isoformat() if row.created_at else None,
     }
+
+
+class _PreviewRequest(_BaseModel):
+    dimension_name: str
+
+
+class _CommitRequest(_BaseModel):
+    dimension_name: str
+    new_prompt: str
+
+
+def _find_pipeline_step(steps: list[dict], dimension_name: str) -> dict | None:
+    """Return the first step that covers dimension_name."""
+    for step in steps:
+        if dimension_name in step.get("dimensions", []) or step.get("name") == dimension_name:
+            return step
+    return None
+
+
+@memory_router.post("/preview-prompt")
+async def preview_prompt(
+    project_id: int,
+    body: _PreviewRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a preview of the updated prompt with memory rules applied.
+
+    Returns {old_prompt, new_prompt} so the frontend can show a diff.
+    Does NOT persist anything.
+    """
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    # Latest memory version for this dimension
+    latest_mem = (await db.execute(
+        select(ReflectMemoryVersion)
+        .where(
+            ReflectMemoryVersion.project_id == project_id,
+            ReflectMemoryVersion.dimension_name == body.dimension_name,
+        )
+        .order_by(ReflectMemoryVersion.version.desc())
+        .limit(1)
+    )).scalars().first()
+
+    if not latest_mem or not latest_mem.rules_json:
+        raise HTTPException(400, "No memory rules found for this dimension. Add feedback first.")
+
+    # Latest pipeline for this project
+    pipeline = (await db.execute(
+        select(Pipeline)
+        .where(Pipeline.project_id == project_id)
+        .order_by(Pipeline.id.desc())
+        .limit(1)
+    )).scalars().first()
+
+    if not pipeline:
+        raise HTTPException(400, "No pipeline found. Generate a pipeline first.")
+
+    step = _find_pipeline_step(pipeline.steps or [], body.dimension_name)
+    if not step:
+        raise HTTPException(400, f"No pipeline step found for dimension '{body.dimension_name}'.")
+
+    old_prompt = step.get("prompt", "")
+    new_prompt = await apply_rules_to_prompt(
+        base_prompt=old_prompt,
+        rules=list(latest_mem.rules_json),
+        dimension_name=body.dimension_name,
+        provider=project.llm_provider,
+        model=project.llm_model,
+        api_key=resolve_api_key(project.llm_provider, project.api_key_encrypted),
+    )
+
+    return {
+        "dimension_name": body.dimension_name,
+        "pipeline_id": pipeline.id,
+        "memory_version": latest_mem.version,
+        "old_prompt": old_prompt,
+        "new_prompt": new_prompt,
+    }
+
+
+@memory_router.post("/commit-prompt")
+async def commit_prompt(
+    project_id: int,
+    body: _CommitRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Commit a previewed prompt update to Pipeline.steps and the filesystem audit trail.
+
+    Caller provides the new_prompt text (from a prior /preview-prompt call).
+    """
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    pipeline = (await db.execute(
+        select(Pipeline)
+        .where(Pipeline.project_id == project_id)
+        .order_by(Pipeline.id.desc())
+        .limit(1)
+    )).scalars().first()
+
+    if not pipeline:
+        raise HTTPException(400, "No pipeline found.")
+
+    steps = [dict(s) for s in (pipeline.steps or [])]
+    updated = False
+    for step in steps:
+        if body.dimension_name in step.get("dimensions", []) or step.get("name") == body.dimension_name:
+            step["prompt"] = body.new_prompt
+            updated = True
+
+    if not updated:
+        raise HTTPException(400, f"No pipeline step found for dimension '{body.dimension_name}'.")
+
+    pipeline.steps = steps
+    await db.commit()
+
+    # Filesystem audit trail: workspace/project_{id}/prompts/{dimension}/human_memory/vNNN.txt
+    try:
+        paths = project_paths(str(project_id))
+        prompt_dir = paths["prompts"] / body.dimension_name / "human_memory"
+        version = next_version(prompt_dir)
+        save_text(prompt_dir / f"{version}.txt", body.new_prompt)
+        save_yaml(prompt_dir / f"{version}.meta.yaml", {
+            "version": version,
+            "dimension": body.dimension_name,
+            "pipeline_id": pipeline.id,
+            "source": "human_memory",
+            "updated_at": utc_now_iso(),
+        })
+    except Exception:
+        logger.warning("Filesystem prompt version write failed", exc_info=True)
+
+    return {"ok": True, "pipeline_id": pipeline.id, "dimension_name": body.dimension_name}
 
 
 @router.get("/available", response_model=list[OptimizerInfo])

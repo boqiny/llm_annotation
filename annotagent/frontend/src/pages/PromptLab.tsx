@@ -7,6 +7,7 @@ import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
   listCodebooks, listDatasets, autoGeneratePrompt, patchOptimizerRun,
   listMemoryVersions, deleteOptimizerRun, cancelOptimizerRun, submitMemoryFeedback,
+  previewPrompt, commitPrompt,
   type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion,
 } from '../lib/api'
 import type { Codebook, Dataset } from '../types'
@@ -1164,7 +1165,10 @@ function MemoryTab({ memory, projectId, dimensions, onRefresh }: {
               {byDim[d].map(v => <MemRow key={v.id} v={v} />)}
             </ul>
           )}
-          <FeedbackForm projectId={projectId} dimensionName={d} onDone={onRefresh} />
+          <div className="flex items-start gap-4 mt-2">
+            <FeedbackForm projectId={projectId} dimensionName={d} onDone={onRefresh} />
+            <ApplyPanel projectId={projectId} dimensionName={d} hasRules={!!byDim[d]} />
+          </div>
         </div>
       ))}
     </div>
@@ -1229,6 +1233,102 @@ function FeedbackForm({ projectId, dimensionName, onDone }: {
           {loading ? 'Applying…' : 'Apply feedback'}
         </button>
         <button onClick={() => { setOpen(false); setText(''); setError('') }} className="font-mono-editorial text-xs text-stone-400 hover:text-ink">
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+type ApplyState = 'idle' | 'loading' | 'preview' | 'committing' | 'done' | 'error'
+
+function ApplyPanel({ projectId, dimensionName, hasRules }: { projectId: number; dimensionName: string; hasRules: boolean }) {
+  const [state, setState] = useState<ApplyState>('idle')
+  const [oldPrompt, setOldPrompt] = useState('')
+  const [newPrompt, setNewPrompt] = useState('')
+  const [error, setError] = useState('')
+
+  const handlePreview = async () => {
+    setState('loading')
+    setError('')
+    try {
+      const res = await previewPrompt(projectId, dimensionName)
+      setOldPrompt(res.old_prompt)
+      setNewPrompt(res.new_prompt)
+      setState('preview')
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? 'Preview failed')
+      setState('error')
+    }
+  }
+
+  const handleCommit = async () => {
+    setState('committing')
+    try {
+      await commitPrompt(projectId, dimensionName, newPrompt)
+      setState('done')
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? 'Commit failed')
+      setState('error')
+    }
+  }
+
+  const reset = () => { setState('idle'); setOldPrompt(''); setNewPrompt(''); setError('') }
+
+  if (state === 'idle') {
+    return (
+      <button
+        onClick={handlePreview}
+        disabled={!hasRules}
+        title={!hasRules ? 'Add feedback first to build rules' : undefined}
+        className="font-mono-editorial text-xs text-violet-600 hover:text-violet-800 disabled:text-stone-300 disabled:cursor-not-allowed"
+      >
+        ↑ apply to prompt
+      </button>
+    )
+  }
+
+  if (state === 'loading') {
+    return <span className="font-mono-editorial text-xs text-stone-400">Generating preview…</span>
+  }
+
+  if (state === 'done') {
+    return <span className="font-mono-editorial text-xs text-emerald-600">✓ Prompt updated</span>
+  }
+
+  if (state === 'error') {
+    return (
+      <span className="font-mono-editorial text-xs text-red-600">
+        {error} · <button onClick={reset} className="underline">retry</button>
+      </span>
+    )
+  }
+
+  // preview or committing
+  return (
+    <div className="mt-3 w-full border border-violet-200 bg-paper/30 p-3 space-y-3">
+      <div className="font-mono-editorial text-xs text-stone-500 mb-1">
+        Prompt diff for <em>{dimensionName}</em> — review before applying
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className="font-mono-editorial text-[11px] text-stone-400 mb-1">Current prompt</div>
+          <pre className="text-xs whitespace-pre-wrap bg-stone-50 border border-seam p-2 max-h-64 overflow-y-auto">{oldPrompt}</pre>
+        </div>
+        <div>
+          <div className="font-mono-editorial text-[11px] text-violet-600 mb-1">Updated prompt</div>
+          <pre className="text-xs whitespace-pre-wrap bg-violet-50 border border-violet-200 p-2 max-h-64 overflow-y-auto">{newPrompt}</pre>
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleCommit}
+          disabled={state === 'committing'}
+          className="px-3 py-1.5 bg-violet-700 text-white text-xs font-medium disabled:opacity-40"
+        >
+          {state === 'committing' ? 'Saving…' : 'Confirm & apply'}
+        </button>
+        <button onClick={reset} className="font-mono-editorial text-xs text-stone-400 hover:text-ink">
           Cancel
         </button>
       </div>
