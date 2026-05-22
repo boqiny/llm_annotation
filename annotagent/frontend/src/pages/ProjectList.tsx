@@ -57,7 +57,7 @@ export default function ProjectList() {
           <img
             src="/workflow_0517.png"
             alt="AnnotAgent workflow: Define codebook → Auto-draft prompts → Improve from examples → Annotate dataset"
-            className="w-full h-auto"
+            className="w-2/3 h-auto mx-auto block"
             onError={(e) => { (e.currentTarget.style.display = 'none') }}
           />
         </figure>
