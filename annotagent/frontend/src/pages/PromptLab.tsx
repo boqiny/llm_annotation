@@ -1128,6 +1128,68 @@ function EditablePromptV2({
   )
 }
 
+/* ─── Line-diff helpers ─────────────────────────────────────── */
+
+type DiffLine = { type: 'same' | 'add' | 'del'; text: string }
+
+function computeLineDiff(a: string, b: string): DiffLine[] {
+  const al = a.split('\n'), bl = b.split('\n')
+  const m = al.length, n = bl.length
+  // LCS table — prompts are short (< 200 lines) so O(m·n) is fine
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = al[i - 1] === bl[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1])
+  const out: DiffLine[] = []
+  let i = m, j = n
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && al[i - 1] === bl[j - 1]) { out.push({ type: 'same', text: al[i - 1] }); i--; j-- }
+    else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) { out.push({ type: 'add', text: bl[j - 1] }); j-- }
+    else { out.push({ type: 'del', text: al[i - 1] }); i-- }
+  }
+  return out.reverse()
+}
+
+function DiffView({ oldText, newText }: { oldText: string; newText: string }) {
+  const lines = computeLineDiff(oldText, newText)
+  const adds = lines.filter(l => l.type === 'add').length
+  const dels = lines.filter(l => l.type === 'del').length
+  return (
+    <div className="border border-seam overflow-hidden text-xs font-mono">
+      <div className="flex items-center gap-3 px-3 py-1.5 bg-stone-100 border-b border-seam font-mono-editorial text-[11px] select-none">
+        <span className="text-stone-500">unified diff</span>
+        <span className="text-red-600">−{dels} removed</span>
+        <span className="text-green-700">+{adds} added</span>
+      </div>
+      <div className="max-h-96 overflow-y-auto">
+        {lines.map((line, idx) => (
+          <div
+            key={idx}
+            className={
+              line.type === 'add' ? 'flex bg-green-50'
+              : line.type === 'del' ? 'flex bg-red-50'
+              : 'flex'
+            }
+          >
+            <span className={`select-none w-5 shrink-0 text-center leading-5 py-0.5 ${
+              line.type === 'add' ? 'text-green-600 bg-green-100'
+              : line.type === 'del' ? 'text-red-500 bg-red-100'
+              : 'text-stone-300 bg-stone-50'
+            }`}>
+              {line.type === 'add' ? '+' : line.type === 'del' ? '−' : ' '}
+            </span>
+            <pre className={`flex-1 px-3 py-0.5 whitespace-pre-wrap leading-5 break-all ${
+              line.type === 'add' ? 'text-green-900'
+              : line.type === 'del' ? 'text-red-800'
+              : 'text-stone-700'
+            }`}>{line.text}</pre>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /* ─── Memory tab ────────────────────────────────────────────── */
 
 function MemoryTab({ memory, projectId, dimensions, onRefresh }: {
@@ -1341,19 +1403,10 @@ function ApplyPanel({ projectId, dimensionName, hasRules }: { projectId: number;
   // preview or committing
   return (
     <div className="mt-3 w-full border border-violet-200 bg-paper/30 p-3 space-y-3">
-      <div className="font-mono-editorial text-xs text-stone-500 mb-1">
+      <div className="font-mono-editorial text-xs text-stone-500 mb-2">
         Prompt diff for <em>{dimensionName}</em> — review before applying
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <div className="font-mono-editorial text-[11px] text-stone-400 mb-1">Current prompt</div>
-          <pre className="text-xs whitespace-pre-wrap bg-stone-50 border border-seam p-2 max-h-64 overflow-y-auto">{oldPrompt}</pre>
-        </div>
-        <div>
-          <div className="font-mono-editorial text-[11px] text-violet-600 mb-1">Updated prompt</div>
-          <pre className="text-xs whitespace-pre-wrap bg-violet-50 border border-violet-200 p-2 max-h-64 overflow-y-auto">{newPrompt}</pre>
-        </div>
-      </div>
+      <DiffView oldText={oldPrompt} newText={newPrompt} />
       <div className="flex items-center gap-3">
         <button
           onClick={handleCommit}
