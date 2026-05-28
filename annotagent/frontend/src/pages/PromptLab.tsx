@@ -207,6 +207,7 @@ export default function PromptLabV2() {
           projectId={projectId}
           dimensions={activeCb?.dimensions.map(d => d.name) ?? []}
           onRefresh={() => listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))}
+          onPromptCommitted={() => setTab('prompts')}
         />
       )}
     </div>
@@ -1192,11 +1193,12 @@ function DiffView({ oldText, newText }: { oldText: string; newText: string }) {
 
 /* ─── Memory tab ────────────────────────────────────────────── */
 
-function MemoryTab({ memory, projectId, dimensions, onRefresh }: {
+function MemoryTab({ memory, projectId, dimensions, onRefresh, onPromptCommitted }: {
   memory: MemoryVersion[]
   projectId: number
   dimensions: string[]
   onRefresh: () => void
+  onPromptCommitted: () => void
 }) {
   const byDim: Record<string, MemoryVersion[]> = {}
   for (const v of memory) {
@@ -1239,7 +1241,12 @@ function MemoryTab({ memory, projectId, dimensions, onRefresh }: {
           )}
           <div className="flex items-start gap-4 mt-2">
             <FeedbackForm projectId={projectId} dimensionName={d} onDone={onRefresh} />
-            <ApplyPanel projectId={projectId} dimensionName={d} hasRules={!!byDim[d]} />
+            <ApplyPanel
+              projectId={projectId}
+              dimensionName={d}
+              hasRules={!!byDim[d]}
+              onCommitted={onPromptCommitted}
+            />
           </div>
         </div>
       ))}
@@ -1314,7 +1321,14 @@ function FeedbackForm({ projectId, dimensionName, onDone }: {
 
 type ApplyState = 'idle' | 'loading' | 'preview' | 'committing' | 'done' | 'error'
 
-function ApplyPanel({ projectId, dimensionName, hasRules }: { projectId: number; dimensionName: string; hasRules: boolean }) {
+function ApplyPanel({
+  projectId, dimensionName, hasRules, onCommitted,
+}: {
+  projectId: number
+  dimensionName: string
+  hasRules: boolean
+  onCommitted: () => void
+}) {
   const [state, setState] = useState<ApplyState>('idle')
   const [oldPrompt, setOldPrompt] = useState('')
   const [newPrompt, setNewPrompt] = useState('')
@@ -1356,6 +1370,7 @@ function ApplyPanel({ projectId, dimensionName, hasRules }: { projectId: number;
       setSavedPrompt(newPrompt)
       try { localStorage.setItem(savedPromptKey, newPrompt) } catch {}
       setState('done')
+      onCommitted()
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'Commit failed')
       setState('error')
