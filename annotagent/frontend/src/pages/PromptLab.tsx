@@ -132,7 +132,7 @@ export default function PromptLabV2() {
         { id: 'prompts', label: 'Prompts',  count: autoPrompt?.prompts.length },
         { id: 'improve', label: 'Improve',                                     },
         { id: 'runs',    label: 'Runs',     count: runs.length                 },
-        { id: 'memory',  label: 'Memory',   count: memory.length               },
+        { id: 'memory',  label: 'Human feedback', count: memory.length          },
       ]} />
 
       {tab === 'prompts' && (
