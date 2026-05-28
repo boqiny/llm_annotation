@@ -7,7 +7,7 @@ import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
   listCodebooks, listDatasets, autoGeneratePrompt, patchOptimizerRun,
   listMemoryVersions, deleteOptimizerRun, cancelOptimizerRun, submitMemoryFeedback,
-  previewPrompt, commitPrompt,
+  previewPrompt, commitPrompt, deleteMemoryVersion,
   type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion,
 } from '../lib/api'
 import type { Codebook, Dataset } from '../types'
@@ -1162,11 +1162,33 @@ function MemoryTab({ memory, projectId, dimensions, onRefresh }: {
           </div>
           {byDim[d] && (
             <ul className="divide-y divide-seam">
-              {byDim[d].map(v => <MemRow key={v.id} v={v} />)}
+              {byDim[d].map(v => (
+                <MemRow
+                  key={v.id}
+                  v={v}
+                  onDelete={async () => {
+                    if (!window.confirm(`Delete memory v${String(v.version).padStart(3, '0')} for "${d}"?`)) return
+                    await deleteMemoryVersion(projectId, v.id)
+                    onRefresh()
+                  }}
+                />
+              ))}
             </ul>
           )}
           <div className="flex items-start gap-4 mt-2">
-            <FeedbackForm projectId={projectId} dimensionName={d} onDone={onRefresh} />
+            <FeedbackForm
+              projectId={projectId}
+              dimensionName={d}
+              onDone={onRefresh}
+              latestVersionId={byDim[d]?.[0]?.id}
+              onDeleteLatest={async () => {
+                const v = byDim[d]?.[0]
+                if (!v) return
+                if (!window.confirm(`Delete memory v${String(v.version).padStart(3, '0')} for "${d}"?`)) return
+                await deleteMemoryVersion(projectId, v.id)
+                onRefresh()
+              }}
+            />
             <ApplyPanel projectId={projectId} dimensionName={d} hasRules={!!byDim[d]} />
           </div>
         </div>
@@ -1175,10 +1197,12 @@ function MemoryTab({ memory, projectId, dimensions, onRefresh }: {
   )
 }
 
-function FeedbackForm({ projectId, dimensionName, onDone }: {
+function FeedbackForm({ projectId, dimensionName, onDone, latestVersionId, onDeleteLatest }: {
   projectId: number
   dimensionName: string
   onDone: () => void
+  latestVersionId?: number
+  onDeleteLatest?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
@@ -1203,12 +1227,22 @@ function FeedbackForm({ projectId, dimensionName, onDone }: {
 
   if (!open) {
     return (
-      <button
-        onClick={() => setOpen(true)}
-        className="mt-2 font-mono-editorial text-xs text-stone-400 hover:text-ink"
-      >
-        + add correction
-      </button>
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 border border-stone-300 text-xs font-medium text-stone-700 hover:bg-stone-200 transition-colors"
+        >
+          <span className="font-mono">+</span> Add correction
+        </button>
+        {latestVersionId !== undefined && onDeleteLatest && (
+          <button
+            onClick={onDeleteLatest}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
+          >
+            Delete feedback
+          </button>
+        )}
+      </div>
     )
   }
 
@@ -1281,9 +1315,9 @@ function ApplyPanel({ projectId, dimensionName, hasRules }: { projectId: number;
         onClick={handlePreview}
         disabled={!hasRules}
         title={!hasRules ? 'Add feedback first to build rules' : undefined}
-        className="font-mono-editorial text-xs text-violet-600 hover:text-violet-800 disabled:text-stone-300 disabled:cursor-not-allowed"
+        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 border border-violet-300 text-xs font-medium text-violet-700 hover:bg-violet-200 transition-colors disabled:bg-stone-50 disabled:border-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed"
       >
-        ↑ apply to prompt
+        ↑ Apply to prompt
       </button>
     )
   }
@@ -1336,19 +1370,27 @@ function ApplyPanel({ projectId, dimensionName, hasRules }: { projectId: number;
   )
 }
 
-function MemRow({ v }: { v: MemoryVersion }) {
+function MemRow({ v, onDelete }: { v: MemoryVersion; onDelete: () => void }) {
   const [open, setOpen] = useState(false)
   return (
-    <li>
-      <button onClick={() => setOpen(o => !o)}
-              className="w-full grid grid-cols-12 gap-3 py-2 px-1 text-left hover:bg-paper/40 text-xs font-mono">
-        <span className="col-span-1 text-stone-400">{open ? '−' : '+'}</span>
-        <span className="col-span-2">v{String(v.version).padStart(3, '0')}</span>
+    <li className="group">
+      <div className="grid grid-cols-12 gap-3 py-2 px-1 text-xs font-mono items-baseline">
+        <button onClick={() => setOpen(o => !o)} className="col-span-1 text-stone-400 text-left">
+          {open ? '−' : '+'}
+        </button>
+        <button onClick={() => setOpen(o => !o)} className="col-span-2 text-left hover:text-ink">
+          v{String(v.version).padStart(3, '0')}
+        </button>
         <span className="col-span-2 text-stone-700">{v.n_rules} rules</span>
         <span className="col-span-2 text-stone-500">{v.new_rules_count > 0 ? `+${v.new_rules_count}` : '—'}</span>
-        <span className="col-span-3 text-stone-500">{v.source_optimizer_run_id !== null ? `run ${String(v.source_optimizer_run_id).padStart(4, '0')}` : 'manual'}</span>
+        <span className="col-span-2 text-stone-500">{v.source_optimizer_run_id !== null ? `run ${String(v.source_optimizer_run_id).padStart(4, '0')}` : 'manual'}</span>
         <span className="col-span-2 text-right text-stone-400">{v.created_at ? new Date(v.created_at).toLocaleDateString() : '—'}</span>
-      </button>
+        <span className="col-span-1 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={onDelete} className="font-mono-editorial text-stone-400 hover:text-red-600">
+            delete
+          </button>
+        </span>
+      </div>
       {open && (
         <div className="px-1 pb-3 space-y-2">
           {v.rules.map((r, i) => (

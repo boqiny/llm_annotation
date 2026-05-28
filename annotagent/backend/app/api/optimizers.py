@@ -281,6 +281,20 @@ async def commit_prompt(
     return {"ok": True, "pipeline_id": pipeline.id, "dimension_name": body.dimension_name}
 
 
+@memory_router.delete("/{version_id}", status_code=204)
+async def delete_memory_version(
+    project_id: int,
+    version_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a single memory version."""
+    row = await db.get(ReflectMemoryVersion, version_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404, "Memory version not found")
+    await db.delete(row)
+    await db.commit()
+
+
 @router.get("/available", response_model=list[OptimizerInfo])
 async def get_available_optimizers(project_id: int):
     """List registered optimizers with their role labels."""

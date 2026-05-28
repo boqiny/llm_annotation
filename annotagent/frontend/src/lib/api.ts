@@ -253,5 +253,7 @@ export const commitPrompt = (projectId: number, dimensionName: string, newPrompt
   api.post<{ ok: boolean; pipeline_id: number; dimension_name: string }>(
     `/projects/${projectId}/memory/commit-prompt`, { dimension_name: dimensionName, new_prompt: newPrompt }
   ).then(r => r.data)
+export const deleteMemoryVersion = (projectId: number, versionId: number) =>
+  api.delete(`/projects/${projectId}/memory/${versionId}`)
 
 export default api
