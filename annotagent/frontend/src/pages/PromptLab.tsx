@@ -1318,15 +1318,30 @@ function ApplyPanel({ projectId, dimensionName, hasRules }: { projectId: number;
   const [state, setState] = useState<ApplyState>('idle')
   const [oldPrompt, setOldPrompt] = useState('')
   const [newPrompt, setNewPrompt] = useState('')
+  const [savedPrompt, setSavedPrompt] = useState('')
+  const [showSavedPrompt, setShowSavedPrompt] = useState(false)
   const [error, setError] = useState('')
+  const savedPromptKey = `annotagent.humanFeedback.generatedPrompt.${projectId}.${dimensionName}`
+
+  useEffect(() => {
+    try {
+      setSavedPrompt(localStorage.getItem(savedPromptKey) ?? '')
+    } catch {
+      setSavedPrompt('')
+    }
+    setShowSavedPrompt(false)
+  }, [savedPromptKey])
 
   const handlePreview = async () => {
     setState('loading')
     setError('')
+    setShowSavedPrompt(false)
     try {
       const res = await previewPrompt(projectId, dimensionName)
       setOldPrompt(res.old_prompt)
       setNewPrompt(res.new_prompt)
+      setSavedPrompt(res.new_prompt)
+      try { localStorage.setItem(savedPromptKey, res.new_prompt) } catch {}
       setState('preview')
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'Preview failed')
@@ -1338,6 +1353,8 @@ function ApplyPanel({ projectId, dimensionName, hasRules }: { projectId: number;
     setState('committing')
     try {
       await commitPrompt(projectId, dimensionName, newPrompt)
+      setSavedPrompt(newPrompt)
+      try { localStorage.setItem(savedPromptKey, newPrompt) } catch {}
       setState('done')
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'Commit failed')
@@ -1345,18 +1362,50 @@ function ApplyPanel({ projectId, dimensionName, hasRules }: { projectId: number;
     }
   }
 
-  const reset = () => { setState('idle'); setOldPrompt(''); setNewPrompt(''); setError('') }
+  const reset = () => { setState('idle'); setOldPrompt(''); setNewPrompt(''); setError(''); setShowSavedPrompt(false) }
+
+  const generatedPromptPanel = showSavedPrompt && savedPrompt ? (
+    <div className="mt-3 w-full border border-seam bg-paper/30 p-3 space-y-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="font-mono-editorial text-xs text-stone-500">
+          Generated prompt for <em>{dimensionName}</em>
+        </div>
+        <button
+          onClick={() => setShowSavedPrompt(false)}
+          className="font-mono-editorial text-xs text-stone-400 hover:text-ink"
+        >
+          hide
+        </button>
+      </div>
+      <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words border border-seam bg-white p-3 font-mono text-xs leading-relaxed text-stone-800">
+        {savedPrompt}
+      </pre>
+    </div>
+  ) : null
 
   if (state === 'idle') {
     return (
-      <button
-        onClick={handlePreview}
-        disabled={!hasRules}
-        title={!hasRules ? 'Add feedback first to build rules' : undefined}
-        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 border border-violet-300 text-xs font-medium text-violet-700 hover:bg-violet-200 transition-colors disabled:bg-stone-50 disabled:border-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed"
-      >
-        ↑ Apply to prompt
-      </button>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handlePreview}
+            disabled={!hasRules}
+            title={!hasRules ? 'Add feedback first to build rules' : undefined}
+            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 border border-violet-300 text-xs font-medium text-violet-700 hover:bg-violet-200 transition-colors disabled:bg-stone-50 disabled:border-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed"
+          >
+            ↑ Apply to prompt
+          </button>
+          {savedPrompt && (
+            <button
+              onClick={() => setShowSavedPrompt(v => !v)}
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 border border-stone-300 text-xs font-medium text-stone-700 hover:bg-stone-200 transition-colors"
+            >
+              Show generated prompt
+            </button>
+          )}
+        </div>
+        {generatedPromptPanel}
+      </div>
     )
   }
 
@@ -1365,7 +1414,25 @@ function ApplyPanel({ projectId, dimensionName, hasRules }: { projectId: number;
   }
 
   if (state === 'done') {
-    return <span className="font-mono-editorial text-xs text-emerald-600">✓ Prompt updated</span>
+    return (
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="font-mono-editorial text-xs text-emerald-600">✓ Prompt updated</span>
+          {savedPrompt && (
+            <button
+              onClick={() => setShowSavedPrompt(v => !v)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 border border-stone-300 text-xs font-medium text-stone-700 hover:bg-stone-200 transition-colors"
+            >
+              Show generated prompt
+            </button>
+          )}
+          <button onClick={reset} className="font-mono-editorial text-xs text-stone-400 hover:text-ink">
+            done
+          </button>
+        </div>
+        {generatedPromptPanel}
+      </div>
+    )
   }
 
   if (state === 'error') {
