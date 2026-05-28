@@ -26,5 +26,5 @@ annotagent/backend/workspace/
 legacy/vis/
 reference.md
 
-node_modules/
-frontend/dist/
+annotagent/frontend/node_modules/*
+annotagent/frontend/dist/assets/*
