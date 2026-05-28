@@ -61,6 +61,7 @@ async def list_memory_versions(
             "new_rules_count": r.new_rules_count,
             "source_optimizer_run_id": r.source_optimizer_run_id,
             "rules": r.rules_json or [],
+            "feedback_text": r.feedback_text,
             "created_at": r.created_at.isoformat() if r.created_at else None,
         }
         for r in rows
@@ -128,6 +129,7 @@ async def apply_feedback(
         rules_json=merged_rules,
         new_rules_count=new_count,
         source_optimizer_run_id=None,
+        feedback_text=body.feedback,
     )
     db.add(row)
     await db.commit()
@@ -141,6 +143,7 @@ async def apply_feedback(
         "new_rules_count": row.new_rules_count,
         "source_optimizer_run_id": row.source_optimizer_run_id,
         "rules": row.rules_json or [],
+        "feedback_text": row.feedback_text,
         "created_at": row.created_at.isoformat() if row.created_at else None,
     }
 

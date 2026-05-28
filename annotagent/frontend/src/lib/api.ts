@@ -237,6 +237,7 @@ export interface MemoryVersion {
   new_rules_count: number
   source_optimizer_run_id: number | null
   rules: MemoryRule[]
+  feedback_text: string | null
   created_at: string | null
 }
 export const listMemoryVersions = (projectId: number, dimension?: string) => {

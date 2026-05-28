@@ -25,6 +25,14 @@ async def lifespan(app: FastAPI):
     # Create tables on startup
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Add feedback_text to existing DBs that predate this column
+        from sqlalchemy import inspect as _inspect, text as _text
+        cols = await conn.run_sync(
+            lambda c: [col["name"] for col in _inspect(c).get_columns("reflect_memory_versions")]
+        )
+        if "feedback_text" not in cols:
+            await conn.execute(_text("ALTER TABLE reflect_memory_versions ADD COLUMN feedback_text TEXT"))
+
 
     # Reap stale in-flight rows. The asyncio.Task registry is process-local
     # and doesn't survive restart, so anything still ``running``/``pending``

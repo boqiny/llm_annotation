@@ -251,6 +251,7 @@ class ReflectMemoryVersion(Base):
     rules_json = Column(JSON, default=list)
     new_rules_count = Column(Integer, default=0)
     source_optimizer_run_id = Column(Integer, ForeignKey("optimizer_runs.id", ondelete="SET NULL"), nullable=True)
+    feedback_text = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
 

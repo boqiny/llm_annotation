@@ -1427,31 +1427,38 @@ function MemRow({ v, onDelete }: { v: MemoryVersion; onDelete: () => void }) {
   const [open, setOpen] = useState(false)
   return (
     <li className="group">
-      <div className="grid grid-cols-12 gap-3 py-2 px-1 text-xs font-mono items-baseline">
-        <button onClick={() => setOpen(o => !o)} className="col-span-1 text-stone-400 text-left">
+      <div className="flex items-baseline gap-3 py-2 px-1 text-xs font-mono">
+        <button onClick={() => setOpen(o => !o)} className="text-stone-400 w-3 shrink-0 text-left">
           {open ? '−' : '+'}
         </button>
-        <button onClick={() => setOpen(o => !o)} className="col-span-2 text-left hover:text-ink">
+        <button onClick={() => setOpen(o => !o)} className="text-left hover:text-ink shrink-0">
           v{String(v.version).padStart(3, '0')}
         </button>
-        <span className="col-span-2 text-stone-700">{v.n_rules} rules</span>
-        <span className="col-span-2 text-stone-500">{v.new_rules_count > 0 ? `+${v.new_rules_count}` : '—'}</span>
-        <span className="col-span-2 text-stone-500">{v.source_optimizer_run_id !== null ? `run ${String(v.source_optimizer_run_id).padStart(4, '0')}` : 'manual'}</span>
-        <span className="col-span-2 text-right text-stone-400">{v.created_at ? new Date(v.created_at).toLocaleDateString() : '—'}</span>
-        <span className="col-span-1 text-right opacity-0 group-hover:opacity-100 transition-opacity">
+        <span className="text-stone-400 font-mono-editorial">
+          {v.created_at
+            ? new Date(v.created_at).toLocaleString(undefined, {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
+              }) + ' UTC'
+            : '—'}
+        </span>
+        <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
           <button onClick={onDelete} className="font-mono-editorial text-stone-400 hover:text-red-600">
             delete
           </button>
         </span>
       </div>
       {open && (
-        <div className="px-1 pb-3 space-y-2">
-          {v.rules.map((r, i) => (
-            <div key={i} className="pl-3 border-l-2 border-violet-300 text-xs">
-              <div className="font-mono-editorial text-stone-400">{String(i + 1).padStart(2, '0')} · {r.id || 'unnamed'}</div>
-              <div>{r.boundary || r.rule || '(no boundary)'}</div>
-            </div>
-          ))}
+        <div className="px-2 pb-3 space-y-3">
+          {v.feedback_text
+            ? (
+              <div className="pl-3 border-l-2 border-stone-300 text-xs text-stone-700 leading-relaxed whitespace-pre-wrap">
+                {v.feedback_text}
+              </div>
+            ) : (
+              <div className="font-mono-editorial text-xs text-stone-400">No feedback text recorded.</div>
+            )
+          }
         </div>
       )}
     </li>
