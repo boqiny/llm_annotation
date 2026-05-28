@@ -27,3 +27,4 @@ legacy/vis/
 reference.md
 
 node_modules/
+frontend/dist/
