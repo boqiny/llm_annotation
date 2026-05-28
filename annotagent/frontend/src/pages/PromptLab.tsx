@@ -1238,19 +1238,7 @@ function MemoryTab({ memory, projectId, dimensions, onRefresh }: {
             </ul>
           )}
           <div className="flex items-start gap-4 mt-2">
-            <FeedbackForm
-              projectId={projectId}
-              dimensionName={d}
-              onDone={onRefresh}
-              latestVersionId={byDim[d]?.[0]?.id}
-              onDeleteLatest={async () => {
-                const v = byDim[d]?.[0]
-                if (!v) return
-                if (!window.confirm(`Delete memory v${String(v.version).padStart(3, '0')} for "${d}"?`)) return
-                await deleteMemoryVersion(projectId, v.id)
-                onRefresh()
-              }}
-            />
+            <FeedbackForm projectId={projectId} dimensionName={d} onDone={onRefresh} />
             <ApplyPanel projectId={projectId} dimensionName={d} hasRules={!!byDim[d]} />
           </div>
         </div>
@@ -1259,12 +1247,10 @@ function MemoryTab({ memory, projectId, dimensions, onRefresh }: {
   )
 }
 
-function FeedbackForm({ projectId, dimensionName, onDone, latestVersionId, onDeleteLatest }: {
+function FeedbackForm({ projectId, dimensionName, onDone }: {
   projectId: number
   dimensionName: string
   onDone: () => void
-  latestVersionId?: number
-  onDeleteLatest?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
@@ -1289,22 +1275,12 @@ function FeedbackForm({ projectId, dimensionName, onDone, latestVersionId, onDel
 
   if (!open) {
     return (
-      <div className="mt-2 flex items-center gap-2">
-        <button
-          onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 border border-stone-300 text-xs font-medium text-stone-700 hover:bg-stone-200 transition-colors"
-        >
-          <span className="font-mono">+</span> Add correction
-        </button>
-        {latestVersionId !== undefined && onDeleteLatest && (
-          <button
-            onClick={onDeleteLatest}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
-          >
-            Delete feedback
-          </button>
-        )}
-      </div>
+      <button
+        onClick={() => setOpen(true)}
+        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 border border-stone-300 text-xs font-medium text-stone-700 hover:bg-stone-200 transition-colors"
+      >
+        <span className="font-mono">+</span> Add correction
+      </button>
     )
   }
 
@@ -1426,7 +1402,7 @@ function ApplyPanel({ projectId, dimensionName, hasRules }: { projectId: number;
 function MemRow({ v, onDelete }: { v: MemoryVersion; onDelete: () => void }) {
   const [open, setOpen] = useState(false)
   return (
-    <li className="group">
+    <li>
       <div className="flex items-baseline gap-3 py-2 px-1 text-xs font-mono">
         <button onClick={() => setOpen(o => !o)} className="text-stone-400 w-3 shrink-0 text-left">
           {open ? '−' : '+'}
@@ -1442,11 +1418,12 @@ function MemRow({ v, onDelete }: { v: MemoryVersion; onDelete: () => void }) {
               }) + ' UTC'
             : '—'}
         </span>
-        <span className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={onDelete} className="font-mono-editorial text-stone-400 hover:text-red-600">
-            delete
-          </button>
-        </span>
+        <button
+          onClick={onDelete}
+          className="ml-auto inline-flex items-center px-2 py-0.5 bg-red-50 border border-red-200 font-mono-editorial text-xs text-red-500 hover:bg-red-100 hover:text-red-700 transition-colors"
+        >
+          delete
+        </button>
       </div>
       {open && (
         <div className="px-2 pb-3 space-y-3">
