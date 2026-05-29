@@ -7,7 +7,8 @@ import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
   listCodebooks, listDatasets, autoGeneratePrompt, patchOptimizerRun,
   listMemoryVersions, deleteOptimizerRun, cancelOptimizerRun,
-  type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion,
+  previewFeedbackBatch, commitFeedbackBatch, deleteMemoryVersion,
+  type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion, type MemoryRule,
 } from '../lib/api'
 import type { Codebook, Dataset } from '../types'
 
@@ -131,7 +132,7 @@ export default function PromptLabV2() {
         { id: 'prompts', label: 'Prompts',  count: autoPrompt?.prompts.length },
         { id: 'improve', label: 'Improve',                                     },
         { id: 'runs',    label: 'Runs',     count: runs.length                 },
-        { id: 'memory',  label: 'Memory',   count: memory.length               },
+        { id: 'memory',  label: 'Human feedback', count: memory.length          },
       ]} />
 
       {tab === 'prompts' && (
@@ -200,7 +201,15 @@ export default function PromptLabV2() {
         />
       )}
 
-      {tab === 'memory' && <MemoryTab memory={memory} />}
+      {tab === 'memory' && (
+        <MemoryTab
+          memory={memory}
+          projectId={projectId}
+          dimensions={activeCb?.dimensions.map(d => d.name) ?? []}
+          onRefresh={() => listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))}
+          onPromptCommitted={() => setTab('prompts')}
+        />
+      )}
     </div>
   )
 }
@@ -1120,55 +1129,435 @@ function EditablePromptV2({
   )
 }
 
+/* ─── Line-diff helpers ─────────────────────────────────────── */
+
+type DiffLine = { type: 'same' | 'add' | 'del'; text: string }
+
+function computeLineDiff(a: string, b: string): DiffLine[] {
+  const al = a.split('\n'), bl = b.split('\n')
+  const m = al.length, n = bl.length
+  // LCS table — prompts are short (< 200 lines) so O(m·n) is fine
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = al[i - 1] === bl[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1])
+  const out: DiffLine[] = []
+  let i = m, j = n
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && al[i - 1] === bl[j - 1]) { out.push({ type: 'same', text: al[i - 1] }); i--; j-- }
+    else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) { out.push({ type: 'add', text: bl[j - 1] }); j-- }
+    else { out.push({ type: 'del', text: al[i - 1] }); i-- }
+  }
+  return out.reverse()
+}
+
+function DiffView({ oldText, newText }: { oldText: string; newText: string }) {
+  const lines = computeLineDiff(oldText, newText)
+  const adds = lines.filter(l => l.type === 'add').length
+  const dels = lines.filter(l => l.type === 'del').length
+  return (
+    <div className="border border-seam overflow-hidden text-xs font-mono">
+      <div className="flex items-center gap-3 px-3 py-1.5 bg-stone-100 border-b border-seam font-mono-editorial text-[11px] select-none">
+        <span className="text-stone-500">unified diff</span>
+        <span className="text-red-600">−{dels} removed</span>
+        <span className="text-green-700">+{adds} added</span>
+      </div>
+      <div className="max-h-96 overflow-y-auto">
+        {lines.map((line, idx) => (
+          <div
+            key={idx}
+            className={
+              line.type === 'add' ? 'flex bg-green-50'
+              : line.type === 'del' ? 'flex bg-red-50'
+              : 'flex'
+            }
+          >
+            <span className={`select-none w-5 shrink-0 text-center leading-5 py-0.5 ${
+              line.type === 'add' ? 'text-green-600 bg-green-100'
+              : line.type === 'del' ? 'text-red-500 bg-red-100'
+              : 'text-stone-300 bg-stone-50'
+            }`}>
+              {line.type === 'add' ? '+' : line.type === 'del' ? '−' : ' '}
+            </span>
+            <pre className={`flex-1 px-3 py-0.5 whitespace-pre-wrap leading-5 break-all ${
+              line.type === 'add' ? 'text-green-900'
+              : line.type === 'del' ? 'text-red-800'
+              : 'text-stone-700'
+            }`}>{line.text}</pre>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /* ─── Memory tab ────────────────────────────────────────────── */
 
-function MemoryTab({ memory }: { memory: MemoryVersion[] }) {
-  if (memory.length === 0) {
-    return <Empty>Memory accumulates after each successful run.</Empty>
-  }
+function MemoryTab({ memory, projectId, dimensions, onRefresh, onPromptCommitted }: {
+  memory: MemoryVersion[]
+  projectId: number
+  dimensions: string[]
+  onRefresh: () => void
+  onPromptCommitted: () => void
+}) {
   const byDim: Record<string, MemoryVersion[]> = {}
   for (const v of memory) {
     if (!byDim[v.dimension_name]) byDim[v.dimension_name] = []
     byDim[v.dimension_name].push(v)
   }
+
+  // All known dimensions: those with memory + those from the codebook that don't yet
+  const allDims = Array.from(new Set([...Object.keys(byDim), ...dimensions])).sort()
+
+  if (allDims.length === 0) {
+    return <Empty>Memory accumulates after each successful run.</Empty>
+  }
+
   return (
     <div className="space-y-5">
-      {Object.keys(byDim).sort().map(d => (
+      {allDims.map(d => (
         <div key={d}>
           <div className="flex items-baseline justify-between border-b border-seam pb-1.5 mb-2">
             <h3 className="text-base font-medium">{d}</h3>
-            <span className="font-mono-editorial text-stone-500">latest v{String(byDim[d][0].version).padStart(3, '0')} · {byDim[d][0].n_rules} rules</span>
+            {byDim[d]
+              ? <span className="font-mono-editorial text-stone-500">latest v{String(byDim[d][0].version).padStart(3, '0')} · {byDim[d][0].n_rules} rules</span>
+              : <span className="font-mono-editorial text-stone-400">no rules yet</span>
+            }
           </div>
-          <ul className="divide-y divide-seam">
-            {byDim[d].map(v => <MemRow key={v.id} v={v} />)}
-          </ul>
+          {byDim[d] && (
+            <ul className="divide-y divide-seam">
+              {byDim[d].map(v => (
+                <MemRow
+                  key={v.id}
+                  v={v}
+                  onDelete={async () => {
+                    if (!window.confirm(`Delete memory v${String(v.version).padStart(3, '0')} for "${d}"?`)) return
+                    await deleteMemoryVersion(projectId, v.id)
+                    onRefresh()
+                  }}
+                />
+              ))}
+            </ul>
+          )}
+          <div className="flex items-start gap-4 mt-2">
+            <FeedbackBatchPanel
+              projectId={projectId}
+              dimensionName={d}
+              onRefresh={onRefresh}
+              onCommitted={onPromptCommitted}
+            />
+          </div>
         </div>
       ))}
     </div>
   )
 }
 
-function MemRow({ v }: { v: MemoryVersion }) {
+type ApplyState = 'idle' | 'loading' | 'preview' | 'committing' | 'done' | 'error'
+
+type DraftFeedback = { id: string; text: string }
+
+function FeedbackBatchPanel({
+  projectId, dimensionName, onRefresh, onCommitted,
+}: {
+  projectId: number
+  dimensionName: string
+  onRefresh: () => void
+  onCommitted: () => void
+}) {
+  const [state, setState] = useState<ApplyState>('idle')
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const [drafts, setDrafts] = useState<DraftFeedback[]>([])
+  const [oldPrompt, setOldPrompt] = useState('')
+  const [newPrompt, setNewPrompt] = useState('')
+  const [generatedRules, setGeneratedRules] = useState<MemoryRule[]>([])
+  const [savedPrompt, setSavedPrompt] = useState('')
+  const [showSavedPrompt, setShowSavedPrompt] = useState(false)
+  const [error, setError] = useState('')
+  const savedPromptKey = `annotagent.humanFeedback.generatedPrompt.${projectId}.${dimensionName}`
+  const draftsKey = `annotagent.humanFeedback.drafts.${projectId}.${dimensionName}`
+
+  useEffect(() => {
+    try {
+      setSavedPrompt(localStorage.getItem(savedPromptKey) ?? '')
+    } catch {
+      setSavedPrompt('')
+    }
+    setShowSavedPrompt(false)
+  }, [savedPromptKey])
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftsKey)
+      const parsed = raw ? JSON.parse(raw) : []
+      setDrafts(Array.isArray(parsed) ? parsed.filter(d => d?.text) : [])
+    } catch {
+      setDrafts([])
+    }
+    setOpen(false)
+    setText('')
+    setState('idle')
+    setOldPrompt('')
+    setNewPrompt('')
+    setGeneratedRules([])
+    setError('')
+  }, [draftsKey])
+
+  const saveDrafts = (next: DraftFeedback[]) => {
+    setDrafts(next)
+    try { localStorage.setItem(draftsKey, JSON.stringify(next)) } catch {}
+  }
+
+  const addDraft = () => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    saveDrafts([...drafts, { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, text: trimmed }])
+    setText('')
+    setOpen(false)
+    setError('')
+    setState('idle')
+  }
+
+  const removeDraft = (id: string) => {
+    saveDrafts(drafts.filter(d => d.id !== id))
+    setState('idle')
+    setOldPrompt('')
+    setNewPrompt('')
+    setGeneratedRules([])
+    setError('')
+  }
+
+  const handlePreview = async () => {
+    setState('loading')
+    setError('')
+    setShowSavedPrompt(false)
+    try {
+      const res = await previewFeedbackBatch(projectId, dimensionName, drafts.map(d => d.text))
+      setOldPrompt(res.old_prompt)
+      setNewPrompt(res.new_prompt)
+      setGeneratedRules(res.rules)
+      setSavedPrompt(res.new_prompt)
+      try { localStorage.setItem(savedPromptKey, res.new_prompt) } catch {}
+      setState('preview')
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? 'Preview failed')
+      setState('error')
+    }
+  }
+
+  const handleCommit = async () => {
+    setState('committing')
+    try {
+      await commitFeedbackBatch(projectId, dimensionName, drafts.map(d => d.text), generatedRules, newPrompt)
+      setSavedPrompt(newPrompt)
+      try { localStorage.setItem(savedPromptKey, newPrompt) } catch {}
+      saveDrafts([])
+      setState('done')
+      onRefresh()
+      onCommitted()
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? 'Commit failed')
+      setState('error')
+    }
+  }
+
+  const reset = () => {
+    setState('idle')
+    setOldPrompt('')
+    setNewPrompt('')
+    setGeneratedRules([])
+    setError('')
+    setShowSavedPrompt(false)
+  }
+
+  const generatedPromptPanel = showSavedPrompt && savedPrompt ? (
+    <div className="mt-3 w-full border border-seam bg-paper/30 p-3 space-y-2">
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="font-mono-editorial text-xs text-stone-500">
+          Generated prompt for <em>{dimensionName}</em>
+        </div>
+        <button
+          onClick={() => setShowSavedPrompt(false)}
+          className="font-mono-editorial text-xs text-stone-400 hover:text-ink"
+        >
+          hide
+        </button>
+      </div>
+      <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words border border-seam bg-white p-3 font-mono text-xs leading-relaxed text-stone-800">
+        {savedPrompt}
+      </pre>
+    </div>
+  ) : null
+
+  if (state === 'idle') {
+    return (
+      <div className="min-w-0 flex-1">
+        {drafts.length > 0 && (
+          <ul className="mt-2 divide-y divide-seam border border-seam bg-paper/30">
+            {drafts.map((draft, idx) => (
+              <li key={draft.id} className="flex items-start gap-3 px-3 py-2">
+                <span className="font-mono-editorial text-xs text-stone-400 shrink-0">#{idx + 1}</span>
+                <div className="min-w-0 flex-1 whitespace-pre-wrap text-xs leading-relaxed text-stone-700">{draft.text}</div>
+                <button
+                  onClick={() => removeDraft(draft.id)}
+                  className="shrink-0 px-2 py-0.5 bg-red-50 border border-red-200 font-mono-editorial text-xs text-red-500 hover:bg-red-100 hover:text-red-700 transition-colors"
+                >
+                  delete
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {open && (
+          <div className="mt-3 border border-seam bg-paper/30 p-3 space-y-2">
+            <Label>Describe what the model is getting wrong for <em>{dimensionName}</em></Label>
+            <textarea
+              autoFocus
+              value={text}
+              onChange={e => setText(e.target.value)}
+              rows={3}
+              className="w-full text-sm bg-transparent border border-seam p-2 resize-none focus:outline-none focus:border-ink"
+              placeholder="e.g. the model keeps labelling past-tense experiences as High when they should be Low"
+            />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={addDraft}
+                disabled={!text.trim()}
+                className="px-3 py-1.5 bg-ink text-cream text-xs font-medium disabled:opacity-40"
+              >
+                Add to batch
+              </button>
+              <button onClick={() => { setOpen(false); setText(''); setError('') }} className="font-mono-editorial text-xs text-stone-400 hover:text-ink">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+        {error && <p className="mt-2 font-mono-editorial text-xs text-red-600">{error}</p>}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => setOpen(true)}
+            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 border border-stone-300 text-xs font-medium text-stone-700 hover:bg-stone-200 transition-colors"
+          >
+            <span className="font-mono">+</span> Add correction
+          </button>
+          <button
+            onClick={handlePreview}
+            disabled={drafts.length === 0}
+            title={drafts.length === 0 ? 'Add at least one correction first' : undefined}
+            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 border border-violet-300 text-xs font-medium text-violet-700 hover:bg-violet-200 transition-colors disabled:bg-stone-50 disabled:border-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed"
+          >
+            Generate prompt
+          </button>
+          {savedPrompt && (
+            <button
+              onClick={() => setShowSavedPrompt(v => !v)}
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 border border-stone-300 text-xs font-medium text-stone-700 hover:bg-stone-200 transition-colors"
+            >
+              Show generated prompt
+            </button>
+          )}
+        </div>
+        {generatedPromptPanel}
+      </div>
+    )
+  }
+
+  if (state === 'loading') {
+    return <span className="font-mono-editorial text-xs text-stone-400">Generating preview…</span>
+  }
+
+  if (state === 'done') {
+    return (
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="font-mono-editorial text-xs text-emerald-600">✓ Prompt updated</span>
+          {savedPrompt && (
+            <button
+              onClick={() => setShowSavedPrompt(v => !v)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 border border-stone-300 text-xs font-medium text-stone-700 hover:bg-stone-200 transition-colors"
+            >
+              Show generated prompt
+            </button>
+          )}
+          <button onClick={reset} className="font-mono-editorial text-xs text-stone-400 hover:text-ink">
+            done
+          </button>
+        </div>
+        {generatedPromptPanel}
+      </div>
+    )
+  }
+
+  if (state === 'error') {
+    return (
+      <span className="font-mono-editorial text-xs text-red-600">
+        {error} · <button onClick={reset} className="underline">retry</button>
+      </span>
+    )
+  }
+
+  // preview or committing
+  return (
+    <div className="mt-3 w-full border border-violet-200 bg-paper/30 p-3 space-y-3">
+      <div className="font-mono-editorial text-xs text-stone-500 mb-2">
+        Prompt diff for <em>{dimensionName}</em> — review before applying {drafts.length} correction{drafts.length !== 1 ? 's' : ''}
+      </div>
+      <DiffView oldText={oldPrompt} newText={newPrompt} />
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleCommit}
+          disabled={state === 'committing'}
+          className="px-3 py-1.5 bg-violet-700 text-white text-xs font-medium disabled:opacity-40"
+        >
+          {state === 'committing' ? 'Saving…' : 'Confirm & apply'}
+        </button>
+        <button onClick={reset} className="font-mono-editorial text-xs text-stone-400 hover:text-ink">
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function MemRow({ v, onDelete }: { v: MemoryVersion; onDelete: () => void }) {
   const [open, setOpen] = useState(false)
   return (
     <li>
-      <button onClick={() => setOpen(o => !o)}
-              className="w-full grid grid-cols-12 gap-3 py-2 px-1 text-left hover:bg-paper/40 text-xs font-mono">
-        <span className="col-span-1 text-stone-400">{open ? '−' : '+'}</span>
-        <span className="col-span-2">v{String(v.version).padStart(3, '0')}</span>
-        <span className="col-span-2 text-stone-700">{v.n_rules} rules</span>
-        <span className="col-span-2 text-stone-500">{v.new_rules_count > 0 ? `+${v.new_rules_count}` : '—'}</span>
-        <span className="col-span-3 text-stone-500">{v.source_optimizer_run_id !== null ? `run ${String(v.source_optimizer_run_id).padStart(4, '0')}` : 'manual'}</span>
-        <span className="col-span-2 text-right text-stone-400">{v.created_at ? new Date(v.created_at).toLocaleDateString() : '—'}</span>
-      </button>
+      <div className="flex items-baseline gap-3 py-2 px-1 text-xs font-mono">
+        <button onClick={() => setOpen(o => !o)} className="text-stone-400 w-3 shrink-0 text-left">
+          {open ? '−' : '+'}
+        </button>
+        <button onClick={() => setOpen(o => !o)} className="text-left hover:text-ink shrink-0">
+          v{String(v.version).padStart(3, '0')}
+        </button>
+        <span className="text-stone-400 font-mono-editorial">
+          {v.created_at
+            ? new Date(v.created_at).toLocaleString(undefined, {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
+              }) + ' UTC'
+            : '—'}
+        </span>
+        <button
+          onClick={onDelete}
+          className="ml-auto inline-flex items-center px-2 py-0.5 bg-red-50 border border-red-200 font-mono-editorial text-xs text-red-500 hover:bg-red-100 hover:text-red-700 transition-colors"
+        >
+          delete
+        </button>
+      </div>
       {open && (
-        <div className="px-1 pb-3 space-y-2">
-          {v.rules.map((r, i) => (
-            <div key={i} className="pl-3 border-l-2 border-violet-300 text-xs">
-              <div className="font-mono-editorial text-stone-400">{String(i + 1).padStart(2, '0')} · {r.id || 'unnamed'}</div>
-              <div>{r.boundary || r.rule || '(no boundary)'}</div>
-            </div>
-          ))}
+        <div className="px-2 pb-3 space-y-3">
+          {v.feedback_text
+            ? (
+              <div className="pl-3 border-l-2 border-stone-300 text-xs text-stone-700 leading-relaxed whitespace-pre-wrap">
+                {v.feedback_text}
+              </div>
+            ) : (
+              <div className="font-mono-editorial text-xs text-stone-400">No feedback text recorded.</div>
+            )
+          }
         </div>
       )}
     </li>
