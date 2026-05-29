@@ -86,6 +86,25 @@ export const getConfusionMatrix = (projectId: number, jobId: number, dimension: 
   api.get<{ classes: string[]; matrix: Record<string, Record<string, number>> }>(
     `/projects/${projectId}/jobs/${jobId}/results/confusion`, { params: { dimension } }
   ).then(r => r.data)
+export interface FeedbackEvidence {
+  result_id: number
+  item_id: number
+  content: string
+  context: string
+  gold_label: string
+  predicted_label: string
+  reasoning: string
+  is_mismatch: boolean
+}
+export const getFeedbackEvidence = (
+  projectId: number,
+  jobId: number,
+  dimension: string,
+  params?: { limit?: number; offset?: number; mismatches_only?: boolean },
+) =>
+  api.get<FeedbackEvidence[]>(`/projects/${projectId}/jobs/${jobId}/results/evidence`, {
+    params: { dimension, ...(params || {}) },
+  }).then(r => r.data)
 export const exportResults = (projectId: number, jobId: number, format: 'csv' | 'json' = 'csv') =>
   api.get(`/projects/${projectId}/jobs/${jobId}/results/export`, { params: { format }, responseType: format === 'csv' ? 'blob' : 'json' })
 

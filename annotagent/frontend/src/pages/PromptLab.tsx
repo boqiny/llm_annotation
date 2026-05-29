@@ -6,11 +6,12 @@ import {
 import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
   listCodebooks, listDatasets, autoGeneratePrompt, patchOptimizerRun,
+  listJobs, getFeedbackEvidence,
   listMemoryVersions, deleteOptimizerRun, cancelOptimizerRun,
   previewFeedbackBatch, commitFeedbackBatch, deleteMemoryVersion,
-  type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion, type MemoryRule,
+  type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion, type MemoryRule, type FeedbackEvidence,
 } from '../lib/api'
-import type { Codebook, Dataset } from '../types'
+import type { Codebook, Dataset, Job } from '../types'
 
 type Tab = 'prompts' | 'improve' | 'runs' | 'memory'
 
@@ -32,6 +33,7 @@ export default function PromptLabV2() {
   const [runs, setRuns] = useState<OptimizerRun[]>([])
   const [optimizers, setOptimizers] = useState<OptimizerInfo[]>([])
   const [memory, setMemory] = useState<MemoryVersion[]>([])
+  const [jobs, setJobs] = useState<Job[]>([])
 
   const [autoPrompt, setAutoPrompt] = useState<AutoPromptResponse | null>(null)
   const [autoPromptLoading, setAutoPromptLoading] = useState(false)
@@ -56,8 +58,10 @@ export default function PromptLabV2() {
       listCodebooks(projectId),
       listDatasets(projectId),
       listOptimizerRuns(projectId),
-    ]).then(([opts, cbs, dss, rs]) => {
+      listJobs(projectId),
+    ]).then(([opts, cbs, dss, rs, js]) => {
       setOptimizers(opts); setCodebooks(cbs); setDatasets(dss); setRuns(rs)
+      setJobs(js)
       if (cbs.length > 0 && cbs[cbs.length - 1].dimensions[0]) {
         setSelectedDim(cbs[cbs.length - 1].dimensions[0].name)
       }
@@ -205,6 +209,7 @@ export default function PromptLabV2() {
         <MemoryTab
           memory={memory}
           projectId={projectId}
+          jobs={jobs}
           dimensions={activeCb?.dimensions.map(d => d.name) ?? []}
           onRefresh={() => listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))}
           onPromptCommitted={() => setTab('prompts')}
@@ -1193,9 +1198,10 @@ function DiffView({ oldText, newText }: { oldText: string; newText: string }) {
 
 /* ─── Memory tab ────────────────────────────────────────────── */
 
-function MemoryTab({ memory, projectId, dimensions, onRefresh, onPromptCommitted }: {
+function MemoryTab({ memory, projectId, jobs, dimensions, onRefresh, onPromptCommitted }: {
   memory: MemoryVersion[]
   projectId: number
+  jobs: Job[]
   dimensions: string[]
   onRefresh: () => void
   onPromptCommitted: () => void
@@ -1239,6 +1245,7 @@ function MemoryTab({ memory, projectId, dimensions, onRefresh, onPromptCommitted
               ))}
             </ul>
           )}
+          <EvidencePanel projectId={projectId} jobs={jobs} dimensionName={d} />
           <div className="flex items-start gap-4 mt-2">
             <FeedbackBatchPanel
               projectId={projectId}
@@ -1256,6 +1263,103 @@ function MemoryTab({ memory, projectId, dimensions, onRefresh, onPromptCommitted
 type ApplyState = 'idle' | 'loading' | 'preview' | 'committing' | 'done' | 'error'
 
 type DraftFeedback = { id: string; text: string }
+
+function EvidencePanel({ projectId, jobs, dimensionName }: {
+  projectId: number
+  jobs: Job[]
+  dimensionName: string
+}) {
+  const completedJobs = jobs.filter(j => j.status === 'completed')
+  const [jobId, setJobId] = useState<number | ''>('')
+  const [rows, setRows] = useState<FeedbackEvidence[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [mismatchesOnly, setMismatchesOnly] = useState(false)
+
+  useEffect(() => {
+    if (jobId || completedJobs.length === 0) return
+    setJobId(completedJobs[0].id)
+  }, [jobId, completedJobs])
+
+  useEffect(() => {
+    if (!jobId) { setRows([]); return }
+    setLoading(true)
+    setError('')
+    getFeedbackEvidence(projectId, Number(jobId), dimensionName, {
+      limit: 30,
+      mismatches_only: mismatchesOnly,
+    })
+      .then(setRows)
+      .catch(e => setError(fmtError(e)))
+      .finally(() => setLoading(false))
+  }, [projectId, jobId, dimensionName, mismatchesOnly])
+
+  return (
+    <div className="mt-3 border border-seam bg-paper/20">
+      <div className="flex flex-wrap items-center gap-3 border-b border-seam px-3 py-2">
+        <div className="font-mono-editorial text-xs text-stone-500">Annotated examples</div>
+        <select
+          value={jobId}
+          onChange={e => setJobId(e.target.value ? Number(e.target.value) : '')}
+          className="ml-auto max-w-full bg-white border border-seam px-2 py-1 text-xs focus:outline-none focus:border-ink"
+        >
+          {completedJobs.length === 0 && <option value="">No completed jobs</option>}
+          {completedJobs.map(j => (
+            <option key={j.id} value={j.id}>
+              job {String(j.id).padStart(4, '0')} · {j.completed_items}/{j.total_items}
+            </option>
+          ))}
+        </select>
+        <label className="inline-flex items-center gap-1.5 font-mono-editorial text-xs text-stone-500">
+          <input
+            type="checkbox"
+            checked={mismatchesOnly}
+            onChange={e => setMismatchesOnly(e.target.checked)}
+            className="accent-ink"
+          />
+          mismatches
+        </label>
+      </div>
+      {loading ? (
+        <div className="px-3 py-3 font-mono-editorial text-xs text-stone-400">Loading examples…</div>
+      ) : error ? (
+        <div className="px-3 py-3 font-mono-editorial text-xs text-red-600">{error}</div>
+      ) : rows.length === 0 ? (
+        <div className="px-3 py-3 font-mono-editorial text-xs text-stone-400">
+          {completedJobs.length === 0 ? 'Run an annotation job to review outputs here.' : 'No examples found for this dimension.'}
+        </div>
+      ) : (
+        <ul className="max-h-96 overflow-auto divide-y divide-seam">
+          {rows.map(row => (
+            <li key={row.result_id} className="px-3 py-3 space-y-2">
+              <div className="flex flex-wrap items-center gap-2 font-mono-editorial text-xs">
+                <span className={row.is_mismatch ? 'text-red-600' : 'text-emerald-700'}>
+                  {row.is_mismatch ? 'mismatch' : 'match'}
+                </span>
+                <span className="text-stone-300">·</span>
+                <span className="text-stone-500">gold</span>
+                <span className="font-mono text-stone-800">{row.gold_label || '—'}</span>
+                <span className="text-stone-300">→</span>
+                <span className="text-stone-500">model</span>
+                <span className="font-mono text-stone-800">{row.predicted_label || '—'}</span>
+                <span className="ml-auto text-stone-400">item {row.item_id}</span>
+              </div>
+              <div className="text-xs leading-relaxed text-stone-800 whitespace-pre-wrap">{row.content}</div>
+              {row.reasoning && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer font-mono-editorial text-stone-400 hover:text-ink">reasoning</summary>
+                  <div className="mt-1 border-l-2 border-stone-200 pl-3 text-stone-600 whitespace-pre-wrap leading-relaxed">
+                    {row.reasoning}
+                  </div>
+                </details>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
 
 function FeedbackBatchPanel({
   projectId, dimensionName, onRefresh, onCommitted,

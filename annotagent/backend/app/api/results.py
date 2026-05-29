@@ -131,6 +131,56 @@ async def get_confusion_matrix(
     return confusion_matrix(y_true, y_pred)
 
 
+@router.get("/evidence", response_model=list[dict])
+async def get_feedback_evidence(
+    project_id: int,
+    job_id: int,
+    dimension: str,
+    limit: int = 50,
+    offset: int = 0,
+    mismatches_only: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return annotated examples enriched with source text and gold labels.
+
+    This is shaped for the Human feedback tab, where annotators need to see
+    what the model predicted before writing correction notes.
+    """
+    job = await db.get(AnnotationJob, job_id)
+    if not job or job.project_id != project_id:
+        raise HTTPException(404, "Job not found")
+
+    result = await db.execute(
+        select(AnnotationResult, DataItem)
+        .join(DataItem, AnnotationResult.data_item_id == DataItem.id)
+        .where(AnnotationResult.job_id == job_id)
+        .where(AnnotationResult.dimension_name == dimension)
+        .order_by(AnnotationResult.data_item_id, AnnotationResult.step_order)
+    )
+
+    rows = []
+    for ann, item in result.all():
+        gold = (item.gold_labels or {}).get(dimension)
+        gold_label = ", ".join(map(str, gold)) if isinstance(gold, list) else (str(gold) if gold is not None else "")
+        predicted = ann.predicted_label or ""
+        is_mismatch = bool(gold_label) and predicted != gold_label
+        if mismatches_only and not is_mismatch:
+            continue
+        rows.append({
+            "result_id": ann.id,
+            "item_id": item.id,
+            "content": item.content,
+            "context": item.context or "",
+            "gold_label": gold_label,
+            "predicted_label": predicted,
+            "reasoning": ann.reasoning or "",
+            "is_mismatch": is_mismatch,
+        })
+
+    rows.sort(key=lambda r: (not r["is_mismatch"], r["item_id"]))
+    return rows[offset:offset + limit]
+
+
 @router.get("/export")
 async def export_results(
     project_id: int,
