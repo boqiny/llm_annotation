@@ -10,13 +10,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from pydantic import BaseModel as _BaseModel
+from app.agents.reflect_memory import apply_human_feedback, apply_rules_to_prompt
 from app.config import resolve_api_key
 from app.database import get_db, async_session
 from app.engine.codebook_parser import parse_codebook
 from app.engine.metrics import compute_metrics
 from app.engine.prompt_generator import generate_dimension_prompt
 from app.utils.storage import next_version, project_paths, save_text, save_yaml, utc_now_iso
-from app.models.tables import Codebook, DataItem, Dataset, OptimizerRun, Project, ReflectMemoryVersion
+from app.models.tables import Codebook, DataItem, Dataset, OptimizerRun, Pipeline, Project, ReflectMemoryVersion
 from app.optimizers import Example, evaluate_prompt, get_optimizer, list_optimizers
 from app.optimizers.base import audit_prompt_for_leakage
 from app.schemas.schemas import OptimizerInfo, OptimizerRunCreate, OptimizerRunOut
@@ -59,10 +61,454 @@ async def list_memory_versions(
             "new_rules_count": r.new_rules_count,
             "source_optimizer_run_id": r.source_optimizer_run_id,
             "rules": r.rules_json or [],
-            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "feedback_text": r.feedback_text,
+            "created_at": r.created_at.isoformat() + "Z" if r.created_at else None,
         }
         for r in rows
     ]
+
+
+class _FeedbackRequest(_BaseModel):
+    dimension_name: str
+    feedback: str
+
+
+@memory_router.post("/feedback")
+async def apply_feedback(
+    project_id: int,
+    body: _FeedbackRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Convert plain-English human feedback to structured rules and save as a new memory version."""
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    # Load latest memory version for this dimension
+    latest = (await db.execute(
+        select(ReflectMemoryVersion)
+        .where(
+            ReflectMemoryVersion.project_id == project_id,
+            ReflectMemoryVersion.dimension_name == body.dimension_name,
+        )
+        .order_by(ReflectMemoryVersion.version.desc())
+        .limit(1)
+    )).scalars().first()
+    existing_rules: list[dict] = list(latest.rules_json or []) if latest else []
+    last_v: int = latest.version if latest else 0
+
+    # Load label definitions from the latest codebook
+    label_defs = ""
+    codebook = (await db.execute(
+        select(Codebook).where(Codebook.project_id == project_id).order_by(Codebook.id.desc()).limit(1)
+    )).scalars().first()
+    if codebook:
+        try:
+            parsed = parse_codebook(codebook.raw_json)
+            dim_def = next((d for d in parsed.dimensions if d.name == body.dimension_name), None)
+            if dim_def:
+                label_defs = "\n".join(f"- {l.name}: {l.definition}" for l in dim_def.labels)
+        except Exception:
+            logger.warning("Failed to parse codebook for feedback labels", exc_info=True)
+
+    merged_rules = await apply_human_feedback(
+        feedback_text=body.feedback,
+        dimension_name=body.dimension_name,
+        label_defs=label_defs,
+        existing_rules=existing_rules,
+        provider=project.llm_provider,
+        model=project.llm_model,
+        api_key=resolve_api_key(project.llm_provider, project.api_key_encrypted),
+    )
+
+    new_count = max(0, len(merged_rules) - len(existing_rules))
+    row = ReflectMemoryVersion(
+        project_id=project_id,
+        dimension_name=body.dimension_name,
+        version=last_v + 1,
+        rules_json=merged_rules,
+        new_rules_count=new_count,
+        source_optimizer_run_id=None,
+        feedback_text=body.feedback,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+
+    return {
+        "id": row.id,
+        "dimension_name": row.dimension_name,
+        "version": row.version,
+        "n_rules": len(row.rules_json or []),
+        "new_rules_count": row.new_rules_count,
+        "source_optimizer_run_id": row.source_optimizer_run_id,
+        "rules": row.rules_json or [],
+        "feedback_text": row.feedback_text,
+        "created_at": row.created_at.isoformat() + "Z" if row.created_at else None,
+    }
+
+
+class _PreviewRequest(_BaseModel):
+    dimension_name: str
+
+
+class _CommitRequest(_BaseModel):
+    dimension_name: str
+    new_prompt: str
+
+
+class _FeedbackBatchPreviewRequest(_BaseModel):
+    dimension_name: str
+    feedbacks: list[str]
+
+
+class _FeedbackBatchCommitRequest(_BaseModel):
+    dimension_name: str
+    feedbacks: list[str]
+    rules: list[dict[str, Any]]
+    new_prompt: str
+
+
+def _find_pipeline_step(steps: list[dict], dimension_name: str) -> dict | None:
+    """Return the first step that covers dimension_name."""
+    for step in steps:
+        if dimension_name in step.get("dimensions", []) or step.get("name") == dimension_name:
+            return step
+    return None
+
+
+async def _latest_memory(
+    db: AsyncSession,
+    project_id: int,
+    dimension_name: str,
+) -> ReflectMemoryVersion | None:
+    return (await db.execute(
+        select(ReflectMemoryVersion)
+        .where(
+            ReflectMemoryVersion.project_id == project_id,
+            ReflectMemoryVersion.dimension_name == dimension_name,
+        )
+        .order_by(ReflectMemoryVersion.version.desc())
+        .limit(1)
+    )).scalars().first()
+
+
+async def _latest_pipeline(db: AsyncSession, project_id: int) -> Pipeline | None:
+    return (await db.execute(
+        select(Pipeline)
+        .where(Pipeline.project_id == project_id)
+        .order_by(Pipeline.id.desc())
+        .limit(1)
+    )).scalars().first()
+
+
+async def _label_defs_for_dimension(
+    db: AsyncSession,
+    project_id: int,
+    dimension_name: str,
+) -> str:
+    codebook = (await db.execute(
+        select(Codebook).where(Codebook.project_id == project_id).order_by(Codebook.id.desc()).limit(1)
+    )).scalars().first()
+    if not codebook:
+        return ""
+    try:
+        parsed = parse_codebook(codebook.raw_json)
+        dim_def = next((d for d in parsed.dimensions if d.name == dimension_name), None)
+        if dim_def:
+            return "\n".join(f"- {l.name}: {l.definition}" for l in dim_def.labels)
+    except Exception:
+        logger.warning("Failed to parse codebook for feedback labels", exc_info=True)
+    return ""
+
+
+def _clean_feedbacks(feedbacks: list[str]) -> list[str]:
+    return [f.strip() for f in feedbacks if f.strip()]
+
+
+def _join_feedbacks(feedbacks: list[str]) -> str:
+    return "\n\n".join(f"{i}. {text}" for i, text in enumerate(feedbacks, 1))
+
+
+@memory_router.post("/preview-prompt")
+async def preview_prompt(
+    project_id: int,
+    body: _PreviewRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a preview of the updated prompt with memory rules applied.
+
+    Returns {old_prompt, new_prompt} so the frontend can show a diff.
+    Does NOT persist anything.
+    """
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    # Latest memory version for this dimension
+    latest_mem = (await db.execute(
+        select(ReflectMemoryVersion)
+        .where(
+            ReflectMemoryVersion.project_id == project_id,
+            ReflectMemoryVersion.dimension_name == body.dimension_name,
+        )
+        .order_by(ReflectMemoryVersion.version.desc())
+        .limit(1)
+    )).scalars().first()
+
+    if not latest_mem or not latest_mem.rules_json:
+        raise HTTPException(400, "No memory rules found for this dimension. Add feedback first.")
+
+    # Latest pipeline for this project
+    pipeline = (await db.execute(
+        select(Pipeline)
+        .where(Pipeline.project_id == project_id)
+        .order_by(Pipeline.id.desc())
+        .limit(1)
+    )).scalars().first()
+
+    if not pipeline:
+        raise HTTPException(400, "No pipeline found. Generate a pipeline first.")
+
+    step = _find_pipeline_step(pipeline.steps or [], body.dimension_name)
+    if not step:
+        raise HTTPException(400, f"No pipeline step found for dimension '{body.dimension_name}'.")
+
+    old_prompt = step.get("prompt", "")
+    new_prompt = await apply_rules_to_prompt(
+        base_prompt=old_prompt,
+        rules=list(latest_mem.rules_json),
+        dimension_name=body.dimension_name,
+        provider=project.llm_provider,
+        model=project.llm_model,
+        api_key=resolve_api_key(project.llm_provider, project.api_key_encrypted),
+    )
+
+    return {
+        "dimension_name": body.dimension_name,
+        "pipeline_id": pipeline.id,
+        "memory_version": latest_mem.version,
+        "old_prompt": old_prompt,
+        "new_prompt": new_prompt,
+    }
+
+
+@memory_router.post("/preview-feedback-batch")
+async def preview_feedback_batch(
+    project_id: int,
+    body: _FeedbackBatchPreviewRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Preview a prompt update from a batch of draft human feedback.
+
+    This performs the two LLM steps — feedback-to-rules, then rules-to-prompt —
+    but does not persist either memory or prompt changes.
+    """
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    feedbacks = _clean_feedbacks(body.feedbacks)
+    if not feedbacks:
+        raise HTTPException(400, "Add at least one feedback item before generating a prompt.")
+
+    latest_mem = await _latest_memory(db, project_id, body.dimension_name)
+    existing_rules: list[dict] = list(latest_mem.rules_json or []) if latest_mem else []
+    feedback_text = _join_feedbacks(feedbacks)
+    label_defs = await _label_defs_for_dimension(db, project_id, body.dimension_name)
+
+    merged_rules = await apply_human_feedback(
+        feedback_text=feedback_text,
+        dimension_name=body.dimension_name,
+        label_defs=label_defs,
+        existing_rules=existing_rules,
+        provider=project.llm_provider,
+        model=project.llm_model,
+        api_key=resolve_api_key(project.llm_provider, project.api_key_encrypted),
+    )
+
+    pipeline = await _latest_pipeline(db, project_id)
+    if not pipeline:
+        raise HTTPException(400, "No pipeline found. Generate a pipeline first.")
+
+    step = _find_pipeline_step(pipeline.steps or [], body.dimension_name)
+    if not step:
+        raise HTTPException(400, f"No pipeline step found for dimension '{body.dimension_name}'.")
+
+    old_prompt = step.get("prompt", "")
+    new_prompt = await apply_rules_to_prompt(
+        base_prompt=old_prompt,
+        rules=merged_rules,
+        dimension_name=body.dimension_name,
+        provider=project.llm_provider,
+        model=project.llm_model,
+        api_key=resolve_api_key(project.llm_provider, project.api_key_encrypted),
+    )
+
+    return {
+        "dimension_name": body.dimension_name,
+        "pipeline_id": pipeline.id,
+        "memory_version": (latest_mem.version if latest_mem else 0) + 1,
+        "old_prompt": old_prompt,
+        "new_prompt": new_prompt,
+        "rules": merged_rules,
+        "feedback_text": feedback_text,
+    }
+
+
+@memory_router.post("/commit-prompt")
+async def commit_prompt(
+    project_id: int,
+    body: _CommitRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Commit a previewed prompt update to Pipeline.steps and the filesystem audit trail.
+
+    Caller provides the new_prompt text (from a prior /preview-prompt call).
+    """
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    pipeline = (await db.execute(
+        select(Pipeline)
+        .where(Pipeline.project_id == project_id)
+        .order_by(Pipeline.id.desc())
+        .limit(1)
+    )).scalars().first()
+
+    if not pipeline:
+        raise HTTPException(400, "No pipeline found.")
+
+    steps = [dict(s) for s in (pipeline.steps or [])]
+    updated = False
+    for step in steps:
+        if body.dimension_name in step.get("dimensions", []) or step.get("name") == body.dimension_name:
+            step["prompt"] = body.new_prompt
+            updated = True
+
+    if not updated:
+        raise HTTPException(400, f"No pipeline step found for dimension '{body.dimension_name}'.")
+
+    pipeline.steps = steps
+    await db.commit()
+
+    # Filesystem audit trail: workspace/project_{id}/prompts/{dimension}/human_memory/vNNN.txt
+    try:
+        paths = project_paths(str(project_id))
+        prompt_dir = paths["prompts"] / body.dimension_name / "human_memory"
+        version = next_version(prompt_dir)
+        save_text(prompt_dir / f"{version}.txt", body.new_prompt)
+        save_yaml(prompt_dir / f"{version}.meta.yaml", {
+            "version": version,
+            "dimension": body.dimension_name,
+            "pipeline_id": pipeline.id,
+            "source": "human_memory",
+            "updated_at": utc_now_iso(),
+        })
+    except Exception:
+        logger.warning("Filesystem prompt version write failed", exc_info=True)
+
+    return {"ok": True, "pipeline_id": pipeline.id, "dimension_name": body.dimension_name}
+
+
+@memory_router.post("/commit-feedback-batch")
+async def commit_feedback_batch(
+    project_id: int,
+    body: _FeedbackBatchCommitRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Commit a reviewed feedback batch and its generated prompt in one transaction."""
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+
+    feedbacks = _clean_feedbacks(body.feedbacks)
+    if not feedbacks:
+        raise HTTPException(400, "Add at least one feedback item before applying.")
+    if not body.rules:
+        raise HTTPException(400, "No generated rules supplied. Generate a preview first.")
+
+    latest_mem = await _latest_memory(db, project_id, body.dimension_name)
+    last_v = latest_mem.version if latest_mem else 0
+    existing_rules: list[dict] = list(latest_mem.rules_json or []) if latest_mem else []
+    feedback_text = _join_feedbacks(feedbacks)
+
+    row = ReflectMemoryVersion(
+        project_id=project_id,
+        dimension_name=body.dimension_name,
+        version=last_v + 1,
+        rules_json=body.rules,
+        new_rules_count=max(0, len(body.rules) - len(existing_rules)),
+        source_optimizer_run_id=None,
+        feedback_text=feedback_text,
+    )
+    db.add(row)
+
+    pipeline = await _latest_pipeline(db, project_id)
+    if not pipeline:
+        raise HTTPException(400, "No pipeline found.")
+
+    steps = [dict(s) for s in (pipeline.steps or [])]
+    updated = False
+    for step in steps:
+        if body.dimension_name in step.get("dimensions", []) or step.get("name") == body.dimension_name:
+            step["prompt"] = body.new_prompt
+            updated = True
+
+    if not updated:
+        raise HTTPException(400, f"No pipeline step found for dimension '{body.dimension_name}'.")
+
+    pipeline.steps = steps
+    await db.commit()
+    await db.refresh(row)
+
+    try:
+        paths = project_paths(str(project_id))
+        prompt_dir = paths["prompts"] / body.dimension_name / "human_memory"
+        version = next_version(prompt_dir)
+        save_text(prompt_dir / f"{version}.txt", body.new_prompt)
+        save_yaml(prompt_dir / f"{version}.meta.yaml", {
+            "version": version,
+            "dimension": body.dimension_name,
+            "pipeline_id": pipeline.id,
+            "memory_version": row.version,
+            "source": "human_memory_batch",
+            "updated_at": utc_now_iso(),
+        })
+    except Exception:
+        logger.warning("Filesystem prompt version write failed", exc_info=True)
+
+    return {
+        "ok": True,
+        "pipeline_id": pipeline.id,
+        "dimension_name": body.dimension_name,
+        "memory": {
+            "id": row.id,
+            "dimension_name": row.dimension_name,
+            "version": row.version,
+            "n_rules": len(row.rules_json or []),
+            "new_rules_count": row.new_rules_count,
+            "source_optimizer_run_id": row.source_optimizer_run_id,
+            "rules": row.rules_json or [],
+            "feedback_text": row.feedback_text,
+            "created_at": row.created_at.isoformat() + "Z" if row.created_at else None,
+        },
+    }
+
+
+@memory_router.delete("/{version_id}", status_code=204)
+async def delete_memory_version(
+    project_id: int,
+    version_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a single memory version."""
+    row = await db.get(ReflectMemoryVersion, version_id)
+    if not row or row.project_id != project_id:
+        raise HTTPException(404, "Memory version not found")
+    await db.delete(row)
+    await db.commit()
 
 
 @router.get("/available", response_model=list[OptimizerInfo])
@@ -87,9 +533,6 @@ async def get_run(project_id: int, run_id: int, db: AsyncSession = Depends(get_d
     if not run or run.project_id != project_id:
         raise HTTPException(404, "Run not found")
     return run
-
-
-from pydantic import BaseModel as _BaseModel
 
 
 class OptimizerRunPatch(_BaseModel):

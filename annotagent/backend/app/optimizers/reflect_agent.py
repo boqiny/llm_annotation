@@ -13,6 +13,9 @@ the PatternExtractor is *forbidden* from quoting exemplars verbatim and must
 produce a `boundary` statement — which is what generalizes across held-out
 items where the surface form differs from the training set.
 """
+
+# TODO: Move all the inline prompts to the prompt templates
+# add memory
 from __future__ import annotations
 
 import copy

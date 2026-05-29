@@ -55,38 +55,13 @@ export default function ProjectList() {
             so the cream page tone shows through any transparent areas. */}
         <figure className="mb-12">
           <img
-            src="/workflow.svg"
+            src="/workflow_0517.png"
             alt="AnnotAgent workflow: Define codebook → Auto-draft prompts → Improve from examples → Annotate dataset"
-            className="w-full h-auto"
+            className="w-2/3 h-auto mx-auto block"
             onError={(e) => { (e.currentTarget.style.display = 'none') }}
           />
-          <figcaption className="font-mono-editorial text-stone-400 mt-3">
-            workflow · define → draft → improve → annotate
-          </figcaption>
         </figure>
 
-        <ol className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
-          <Step
-            n="01"
-            title="Define"
-            body="Pick a built-in codebook (Self-Disclosure, AI Behavior, Harm) or upload your own JSON. Don't have one? Upload a PDF, doc, or notes — CodebookAgent will draft a structured codebook for you to edit."
-          />
-          <Step
-            n="02"
-            title="Draft"
-            body="The system writes a starting annotation prompt for each dimension automatically, in parallel. You don't write any prompts yourself — you can read and tweak the drafts on the Improve page."
-          />
-          <Step
-            n="03"
-            title="Improve"
-            body="Optional. Upload a small set of labeled examples (gold) and the system tries the draft prompts on them, finds where it's wrong, writes plain-English correction rules, and rolls back any rule that hurts accuracy."
-          />
-          <Step
-            n="04"
-            title="Annotate"
-            body="Run the calibrated prompts over your unlabeled data. Watch progress live. Export results as CSV or JSON. Compare model output against gold — per-dimension accuracy, confusion matrix, mistakes you can scroll through."
-          />
-        </ol>
       </section>
 
       {/* Projects band */}
@@ -178,6 +153,22 @@ function Step({ n, title, body }: { n: string; title: string; body: string }) {
   )
 }
 
+function formatDate(value: string | null) {
+  if (!value) return '—'
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  }) + ' UTC'
+}
+
 function ProjectRow({
   project, index, onOpen, onDelete,
 }: {
@@ -200,7 +191,7 @@ function ProjectRow({
         <div className="col-span-1 font-mono-editorial text-stone-400 pt-1">
           {(index + 1).toString().padStart(2, '0')}
         </div>
-        <div className="col-span-6">
+        <div className="col-span-4">
           <div className="flex items-baseline gap-3">
             <h3 className="text-xl font-medium tracking-tight">{project.name}</h3>
             <span className={`font-mono-editorial ${statusTone}`}>· {project.status}</span>
@@ -210,6 +201,12 @@ function ProjectRow({
           )}
         </div>
         <div className="col-span-3 pt-1">
+          <div className="font-mono-editorial text-stone-500 mb-1">Created</div>
+          <div className="font-mono text-xs text-stone-700">
+            {formatDate(project.created_at)}
+          </div>
+        </div>
+        <div className="col-span-2 pt-1">
           <div className="font-mono-editorial text-stone-500 mb-1">Model</div>
           <div className="font-mono text-xs text-stone-700 truncate">{project.llm_provider} / {project.llm_model}</div>
         </div>
