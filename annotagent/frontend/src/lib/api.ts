@@ -254,6 +254,27 @@ export const commitPrompt = (projectId: number, dimensionName: string, newPrompt
   api.post<{ ok: boolean; pipeline_id: number; dimension_name: string }>(
     `/projects/${projectId}/memory/commit-prompt`, { dimension_name: dimensionName, new_prompt: newPrompt }
   ).then(r => r.data)
+export const previewFeedbackBatch = (projectId: number, dimensionName: string, feedbacks: string[]) =>
+  api.post<{
+    dimension_name: string
+    pipeline_id: number
+    memory_version: number
+    old_prompt: string
+    new_prompt: string
+    rules: MemoryRule[]
+    feedback_text: string
+  }>(`/projects/${projectId}/memory/preview-feedback-batch`, { dimension_name: dimensionName, feedbacks }).then(r => r.data)
+export const commitFeedbackBatch = (
+  projectId: number,
+  dimensionName: string,
+  feedbacks: string[],
+  rules: MemoryRule[],
+  newPrompt: string,
+) =>
+  api.post<{ ok: boolean; pipeline_id: number; dimension_name: string; memory: MemoryVersion }>(
+    `/projects/${projectId}/memory/commit-feedback-batch`,
+    { dimension_name: dimensionName, feedbacks, rules, new_prompt: newPrompt },
+  ).then(r => r.data)
 export const deleteMemoryVersion = (projectId: number, versionId: number) =>
   api.delete(`/projects/${projectId}/memory/${versionId}`)
 

@@ -6,9 +6,9 @@ import {
 import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
   listCodebooks, listDatasets, autoGeneratePrompt, patchOptimizerRun,
-  listMemoryVersions, deleteOptimizerRun, cancelOptimizerRun, submitMemoryFeedback,
-  previewPrompt, commitPrompt, deleteMemoryVersion,
-  type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion,
+  listMemoryVersions, deleteOptimizerRun, cancelOptimizerRun,
+  previewFeedbackBatch, commitFeedbackBatch, deleteMemoryVersion,
+  type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion, type MemoryRule,
 } from '../lib/api'
 import type { Codebook, Dataset } from '../types'
 
@@ -1240,11 +1240,10 @@ function MemoryTab({ memory, projectId, dimensions, onRefresh, onPromptCommitted
             </ul>
           )}
           <div className="flex items-start gap-4 mt-2">
-            <FeedbackForm projectId={projectId} dimensionName={d} onDone={onRefresh} />
-            <ApplyPanel
+            <FeedbackBatchPanel
               projectId={projectId}
               dimensionName={d}
-              hasRules={!!byDim[d]}
+              onRefresh={onRefresh}
               onCommitted={onPromptCommitted}
             />
           </div>
@@ -1254,88 +1253,30 @@ function MemoryTab({ memory, projectId, dimensions, onRefresh, onPromptCommitted
   )
 }
 
-function FeedbackForm({ projectId, dimensionName, onDone }: {
-  projectId: number
-  dimensionName: string
-  onDone: () => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [text, setText] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  const handleSubmit = async () => {
-    if (!text.trim()) return
-    setLoading(true)
-    setError('')
-    try {
-      await submitMemoryFeedback(projectId, dimensionName, text.trim())
-      setText('')
-      setOpen(false)
-      onDone()
-    } catch (e: any) {
-      setError(e?.response?.data?.detail ?? 'Request failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 border border-stone-300 text-xs font-medium text-stone-700 hover:bg-stone-200 transition-colors"
-      >
-        <span className="font-mono">+</span> Add correction
-      </button>
-    )
-  }
-
-  return (
-    <div className="mt-3 border border-seam bg-paper/30 p-3 space-y-2">
-      <Label>Describe what the model is getting wrong for <em>{dimensionName}</em></Label>
-      <textarea
-        autoFocus
-        value={text}
-        onChange={e => setText(e.target.value)}
-        rows={3}
-        className="w-full text-sm bg-transparent border border-seam p-2 resize-none focus:outline-none focus:border-ink"
-        placeholder="e.g. the model keeps labelling past-tense experiences as High when they should be Low"
-      />
-      {error && <p className="font-mono-editorial text-xs text-red-600">{error}</p>}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleSubmit}
-          disabled={loading || !text.trim()}
-          className="px-3 py-1.5 bg-ink text-cream text-xs font-medium disabled:opacity-40"
-        >
-          {loading ? 'Applying…' : 'Apply feedback'}
-        </button>
-        <button onClick={() => { setOpen(false); setText(''); setError('') }} className="font-mono-editorial text-xs text-stone-400 hover:text-ink">
-          Cancel
-        </button>
-      </div>
-    </div>
-  )
-}
-
 type ApplyState = 'idle' | 'loading' | 'preview' | 'committing' | 'done' | 'error'
 
-function ApplyPanel({
-  projectId, dimensionName, hasRules, onCommitted,
+type DraftFeedback = { id: string; text: string }
+
+function FeedbackBatchPanel({
+  projectId, dimensionName, onRefresh, onCommitted,
 }: {
   projectId: number
   dimensionName: string
-  hasRules: boolean
+  onRefresh: () => void
   onCommitted: () => void
 }) {
   const [state, setState] = useState<ApplyState>('idle')
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const [drafts, setDrafts] = useState<DraftFeedback[]>([])
   const [oldPrompt, setOldPrompt] = useState('')
   const [newPrompt, setNewPrompt] = useState('')
+  const [generatedRules, setGeneratedRules] = useState<MemoryRule[]>([])
   const [savedPrompt, setSavedPrompt] = useState('')
   const [showSavedPrompt, setShowSavedPrompt] = useState(false)
   const [error, setError] = useState('')
   const savedPromptKey = `annotagent.humanFeedback.generatedPrompt.${projectId}.${dimensionName}`
+  const draftsKey = `annotagent.humanFeedback.drafts.${projectId}.${dimensionName}`
 
   useEffect(() => {
     try {
@@ -1346,14 +1287,56 @@ function ApplyPanel({
     setShowSavedPrompt(false)
   }, [savedPromptKey])
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(draftsKey)
+      const parsed = raw ? JSON.parse(raw) : []
+      setDrafts(Array.isArray(parsed) ? parsed.filter(d => d?.text) : [])
+    } catch {
+      setDrafts([])
+    }
+    setOpen(false)
+    setText('')
+    setState('idle')
+    setOldPrompt('')
+    setNewPrompt('')
+    setGeneratedRules([])
+    setError('')
+  }, [draftsKey])
+
+  const saveDrafts = (next: DraftFeedback[]) => {
+    setDrafts(next)
+    try { localStorage.setItem(draftsKey, JSON.stringify(next)) } catch {}
+  }
+
+  const addDraft = () => {
+    const trimmed = text.trim()
+    if (!trimmed) return
+    saveDrafts([...drafts, { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, text: trimmed }])
+    setText('')
+    setOpen(false)
+    setError('')
+    setState('idle')
+  }
+
+  const removeDraft = (id: string) => {
+    saveDrafts(drafts.filter(d => d.id !== id))
+    setState('idle')
+    setOldPrompt('')
+    setNewPrompt('')
+    setGeneratedRules([])
+    setError('')
+  }
+
   const handlePreview = async () => {
     setState('loading')
     setError('')
     setShowSavedPrompt(false)
     try {
-      const res = await previewPrompt(projectId, dimensionName)
+      const res = await previewFeedbackBatch(projectId, dimensionName, drafts.map(d => d.text))
       setOldPrompt(res.old_prompt)
       setNewPrompt(res.new_prompt)
+      setGeneratedRules(res.rules)
       setSavedPrompt(res.new_prompt)
       try { localStorage.setItem(savedPromptKey, res.new_prompt) } catch {}
       setState('preview')
@@ -1366,10 +1349,12 @@ function ApplyPanel({
   const handleCommit = async () => {
     setState('committing')
     try {
-      await commitPrompt(projectId, dimensionName, newPrompt)
+      await commitFeedbackBatch(projectId, dimensionName, drafts.map(d => d.text), generatedRules, newPrompt)
       setSavedPrompt(newPrompt)
       try { localStorage.setItem(savedPromptKey, newPrompt) } catch {}
+      saveDrafts([])
       setState('done')
+      onRefresh()
       onCommitted()
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'Commit failed')
@@ -1377,7 +1362,14 @@ function ApplyPanel({
     }
   }
 
-  const reset = () => { setState('idle'); setOldPrompt(''); setNewPrompt(''); setError(''); setShowSavedPrompt(false) }
+  const reset = () => {
+    setState('idle')
+    setOldPrompt('')
+    setNewPrompt('')
+    setGeneratedRules([])
+    setError('')
+    setShowSavedPrompt(false)
+  }
 
   const generatedPromptPanel = showSavedPrompt && savedPrompt ? (
     <div className="mt-3 w-full border border-seam bg-paper/30 p-3 space-y-2">
@@ -1401,14 +1393,62 @@ function ApplyPanel({
   if (state === 'idle') {
     return (
       <div className="min-w-0 flex-1">
+        {drafts.length > 0 && (
+          <ul className="mt-2 divide-y divide-seam border border-seam bg-paper/30">
+            {drafts.map((draft, idx) => (
+              <li key={draft.id} className="flex items-start gap-3 px-3 py-2">
+                <span className="font-mono-editorial text-xs text-stone-400 shrink-0">#{idx + 1}</span>
+                <div className="min-w-0 flex-1 whitespace-pre-wrap text-xs leading-relaxed text-stone-700">{draft.text}</div>
+                <button
+                  onClick={() => removeDraft(draft.id)}
+                  className="shrink-0 px-2 py-0.5 bg-red-50 border border-red-200 font-mono-editorial text-xs text-red-500 hover:bg-red-100 hover:text-red-700 transition-colors"
+                >
+                  delete
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {open && (
+          <div className="mt-3 border border-seam bg-paper/30 p-3 space-y-2">
+            <Label>Describe what the model is getting wrong for <em>{dimensionName}</em></Label>
+            <textarea
+              autoFocus
+              value={text}
+              onChange={e => setText(e.target.value)}
+              rows={3}
+              className="w-full text-sm bg-transparent border border-seam p-2 resize-none focus:outline-none focus:border-ink"
+              placeholder="e.g. the model keeps labelling past-tense experiences as High when they should be Low"
+            />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={addDraft}
+                disabled={!text.trim()}
+                className="px-3 py-1.5 bg-ink text-cream text-xs font-medium disabled:opacity-40"
+              >
+                Add to batch
+              </button>
+              <button onClick={() => { setOpen(false); setText(''); setError('') }} className="font-mono-editorial text-xs text-stone-400 hover:text-ink">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+        {error && <p className="mt-2 font-mono-editorial text-xs text-red-600">{error}</p>}
         <div className="flex flex-wrap items-center gap-3">
           <button
+            onClick={() => setOpen(true)}
+            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 border border-stone-300 text-xs font-medium text-stone-700 hover:bg-stone-200 transition-colors"
+          >
+            <span className="font-mono">+</span> Add correction
+          </button>
+          <button
             onClick={handlePreview}
-            disabled={!hasRules}
-            title={!hasRules ? 'Add feedback first to build rules' : undefined}
+            disabled={drafts.length === 0}
+            title={drafts.length === 0 ? 'Add at least one correction first' : undefined}
             className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 border border-violet-300 text-xs font-medium text-violet-700 hover:bg-violet-200 transition-colors disabled:bg-stone-50 disabled:border-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed"
           >
-            ↑ Apply to prompt
+            Generate prompt
           </button>
           {savedPrompt && (
             <button
@@ -1462,7 +1502,7 @@ function ApplyPanel({
   return (
     <div className="mt-3 w-full border border-violet-200 bg-paper/30 p-3 space-y-3">
       <div className="font-mono-editorial text-xs text-stone-500 mb-2">
-        Prompt diff for <em>{dimensionName}</em> — review before applying
+        Prompt diff for <em>{dimensionName}</em> — review before applying {drafts.length} correction{drafts.length !== 1 ? 's' : ''}
       </div>
       <DiffView oldText={oldPrompt} newText={newPrompt} />
       <div className="flex items-center gap-3">

@@ -202,6 +202,75 @@ async def test_preview_does_not_write_and_commit_updates_pipeline(monkeypatch, t
     assert (tmp_path / "prompts" / "self_disclosure" / "human_memory" / "v001.txt").read_text() == "Updated prompt."
 
 
+async def test_feedback_batch_preview_is_dry_run_and_commit_saves_memory_and_prompt(monkeypatch, tmp_path, db_session):
+    async def fake_apply_human_feedback(**kwargs):
+        assert kwargs["feedback_text"] == "1. First correction.\n\n2. Second correction."
+        return [
+            {"id": "first", "boundary": "First generated boundary."},
+            {"id": "second", "boundary": "Second generated boundary."},
+        ]
+
+    async def fake_apply_rules_to_prompt(**kwargs):
+        assert [r["id"] for r in kwargs["rules"]] == ["first", "second"]
+        return "Batch-updated prompt."
+
+    monkeypatch.setattr(optimizers, "apply_human_feedback", fake_apply_human_feedback)
+    monkeypatch.setattr(optimizers, "apply_rules_to_prompt", fake_apply_rules_to_prompt)
+    monkeypatch.setattr(optimizers, "project_paths", lambda _project_id: {"prompts": tmp_path / "prompts"})
+
+    project = Project(name="Batch feedback test", llm_provider="openai", llm_model="test-model")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    pipeline = Pipeline(
+        project_id=project.id,
+        steps=[{"name": "self_disclosure", "dimensions": ["self_disclosure"], "prompt": "Original prompt."}],
+        auto_generated=True,
+    )
+    db_session.add(pipeline)
+    await db_session.commit()
+    await db_session.refresh(pipeline)
+
+    preview = await optimizers.preview_feedback_batch(
+        project_id=project.id,
+        body=optimizers._FeedbackBatchPreviewRequest(
+            dimension_name="self_disclosure",
+            feedbacks=["First correction.", "Second correction."],
+        ),
+        db=db_session,
+    )
+
+    assert preview["old_prompt"] == "Original prompt."
+    assert preview["new_prompt"] == "Batch-updated prompt."
+    assert preview["memory_version"] == 1
+    assert [r["id"] for r in preview["rules"]] == ["first", "second"]
+    assert (await db_session.execute(select(ReflectMemoryVersion))).scalars().all() == []
+
+    commit = await optimizers.commit_feedback_batch(
+        project_id=project.id,
+        body=optimizers._FeedbackBatchCommitRequest(
+            dimension_name="self_disclosure",
+            feedbacks=["First correction.", "Second correction."],
+            rules=preview["rules"],
+            new_prompt=preview["new_prompt"],
+        ),
+        db=db_session,
+    )
+
+    assert commit["ok"] is True
+    assert commit["memory"]["version"] == 1
+    assert commit["memory"]["feedback_text"] == "1. First correction.\n\n2. Second correction."
+
+    rows = (await db_session.execute(select(ReflectMemoryVersion))).scalars().all()
+    assert len(rows) == 1
+    assert rows[0].rules_json == preview["rules"]
+
+    updated = await db_session.get(Pipeline, pipeline.id)
+    assert updated.steps[0]["prompt"] == "Batch-updated prompt."
+    assert (tmp_path / "prompts" / "self_disclosure" / "human_memory" / "v001.txt").read_text() == "Batch-updated prompt."
+
+
 async def test_delete_memory_version_removes_only_matching_project_row(db_session):
     project = Project(name="Delete memory test")
     other_project = Project(name="Other project")
