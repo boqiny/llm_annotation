@@ -1214,6 +1214,15 @@ function MemoryTab({ memory, projectId, jobs, dimensions, onRefresh, onPromptCom
 
   // All known dimensions: those with memory + those from the codebook that don't yet
   const allDims = Array.from(new Set([...Object.keys(byDim), ...dimensions])).sort()
+  const [evidenceDim, setEvidenceDim] = useState(allDims[0] ?? '')
+
+  useEffect(() => {
+    if (!evidenceDim && allDims.length > 0) {
+      setEvidenceDim(allDims[0])
+    } else if (evidenceDim && allDims.length > 0 && !allDims.includes(evidenceDim)) {
+      setEvidenceDim(allDims[0])
+    }
+  }, [allDims.join('\n'), evidenceDim])
 
   if (allDims.length === 0) {
     return <Empty>Memory accumulates after each successful run.</Empty>
@@ -1221,6 +1230,13 @@ function MemoryTab({ memory, projectId, jobs, dimensions, onRefresh, onPromptCom
 
   return (
     <div className="space-y-5">
+      <EvidencePanel
+        projectId={projectId}
+        jobs={jobs}
+        dimensions={allDims}
+        dimensionName={evidenceDim || allDims[0]}
+        onDimensionChange={setEvidenceDim}
+      />
       {allDims.map(d => (
         <div key={d}>
           <div className="flex items-baseline justify-between border-b border-seam pb-1.5 mb-2">
@@ -1245,7 +1261,6 @@ function MemoryTab({ memory, projectId, jobs, dimensions, onRefresh, onPromptCom
               ))}
             </ul>
           )}
-          <EvidencePanel projectId={projectId} jobs={jobs} dimensionName={d} />
           <div className="flex items-start gap-4 mt-2">
             <FeedbackBatchPanel
               projectId={projectId}
@@ -1264,10 +1279,12 @@ type ApplyState = 'idle' | 'loading' | 'preview' | 'committing' | 'done' | 'erro
 
 type DraftFeedback = { id: string; text: string }
 
-function EvidencePanel({ projectId, jobs, dimensionName }: {
+function EvidencePanel({ projectId, jobs, dimensions, dimensionName, onDimensionChange }: {
   projectId: number
   jobs: Job[]
+  dimensions: string[]
   dimensionName: string
+  onDimensionChange: (dimensionName: string) => void
 }) {
   const completedJobs = jobs.filter(j => j.status === 'completed')
   const [jobId, setJobId] = useState<number | ''>('')
@@ -1295,9 +1312,18 @@ function EvidencePanel({ projectId, jobs, dimensionName }: {
   }, [projectId, jobId, dimensionName, mismatchesOnly])
 
   return (
-    <div className="mt-3 border border-seam bg-paper/20">
+    <div className="border border-seam bg-paper/20">
       <div className="flex flex-wrap items-center gap-3 border-b border-seam px-3 py-2">
         <div className="font-mono-editorial text-xs text-stone-500">Annotated examples</div>
+        <select
+          value={dimensionName}
+          onChange={e => onDimensionChange(e.target.value)}
+          className="bg-white border border-seam px-2 py-1 text-xs focus:outline-none focus:border-ink"
+        >
+          {dimensions.map(d => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
         <select
           value={jobId}
           onChange={e => setJobId(e.target.value ? Number(e.target.value) : '')}
@@ -1337,17 +1363,17 @@ function EvidencePanel({ projectId, jobs, dimensionName }: {
                   {row.is_mismatch ? 'mismatch' : 'match'}
                 </span>
                 <span className="text-stone-300">·</span>
-                <span className="text-stone-500">gold</span>
+                <span className="text-stone-500">Correct label</span>
                 <span className="font-mono text-stone-800">{row.gold_label || '—'}</span>
                 <span className="text-stone-300">→</span>
-                <span className="text-stone-500">model</span>
+                <span className="text-stone-500">Predicted label</span>
                 <span className="font-mono text-stone-800">{row.predicted_label || '—'}</span>
                 <span className="ml-auto text-stone-400">item {row.item_id}</span>
               </div>
               <div className="text-xs leading-relaxed text-stone-800 whitespace-pre-wrap">{row.content}</div>
               {row.reasoning && (
                 <details className="text-xs">
-                  <summary className="cursor-pointer font-mono-editorial text-stone-400 hover:text-ink">reasoning</summary>
+                  <summary className="cursor-pointer font-mono-editorial text-stone-400 hover:text-ink">annotation output</summary>
                   <div className="mt-1 border-l-2 border-stone-200 pl-3 text-stone-600 whitespace-pre-wrap leading-relaxed">
                     {row.reasoning}
                   </div>
