@@ -114,21 +114,21 @@ export default function CodebookDraftWizard({
             door="upload"
             active={door === 'upload'}
             onClick={() => setDoor('upload')}
-            title="A · Upload a file"
+            title="A. Upload a file"
             hint="PDF · DOCX · XLSX · CSV · JSON · TXT — agent parses + cleans"
           />
           <DoorCard
             door="paste"
             active={door === 'paste'}
             onClick={() => setDoor('paste')}
-            title="B · Paste text"
+            title="B. Paste text"
             hint="Annotator notes, instructions, or an old draft — anything in text"
           />
           <DoorCard
             door="preset"
             active={door === 'preset'}
             onClick={() => setDoor('preset')}
-            title="C · Use a preset"
+            title="C. Use a preset"
             hint={`Self-disclosure · AI behavior · ${presets.length} available`}
             emphasized
           />
@@ -136,7 +136,7 @@ export default function CodebookDraftWizard({
             door="scratch"
             active={door === 'scratch'}
             onClick={() => setDoor('scratch')}
-            title="D · Describe it to me"
+            title="D. Describe it to me"
             hint="Conversational elicitor (Phase 3 — not yet available)"
             disabled
           />
@@ -227,11 +227,10 @@ function DoorCard({
           : 'border-seam hover:border-stone-400'
       } ${emphasized ? 'ring-1 ring-offset-0 ring-indigo-200' : ''}`}
     >
-      <div className="font-mono-editorial text-stone-500 mb-2">
-        Door {door.toUpperCase()}
-        {emphasized && <span className="ml-2 text-indigo-700">· default</span>}
+      <div className="text-lg font-medium tracking-tight mb-1">
+        {title}
+        {emphasized && <span className="ml-2 align-middle font-mono-editorial text-xs text-indigo-700">default</span>}
       </div>
-      <div className="text-lg font-medium tracking-tight mb-1">{title}</div>
       <p className="text-sm text-stone-600 leading-relaxed">{hint}</p>
     </button>
   )
@@ -688,4 +687,3 @@ function LabelEditor({
     </div>
   )
 }
-
