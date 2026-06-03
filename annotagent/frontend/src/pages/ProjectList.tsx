@@ -66,7 +66,7 @@ export default function ProjectList() {
 
       {/* Projects band */}
       <section>
-        <div className="flex items-end justify-between border-b border-seam pb-4 mb-8">
+        <div className="flex items-end justify-between pb-4 mb-4">
           <div>
             <div className="font-mono-editorial text-stone-500 mb-2">
               Total projects: {projects.length}
