@@ -1343,7 +1343,7 @@ function EvidencePanel({ projectId, jobs, dimensions, dimensionName, onDimension
             onChange={e => setMismatchesOnly(e.target.checked)}
             className="accent-ink"
           />
-          mismatches
+          Show only items that need review
         </label>
       </div>
       {loading ? (
@@ -1355,30 +1355,59 @@ function EvidencePanel({ projectId, jobs, dimensions, dimensionName, onDimension
           {completedJobs.length === 0 ? 'Run an annotation job to review outputs here.' : 'No examples found for this dimension.'}
         </div>
       ) : (
-        <ul className="max-h-96 overflow-auto divide-y divide-seam">
+        <ul className="max-h-[520px] overflow-auto divide-y divide-stone-300 bg-white">
           {rows.map(row => (
-            <li key={row.result_id} className="px-3 py-3 space-y-2">
-              <div className="flex flex-wrap items-center gap-2 font-mono-editorial text-xs">
-                <span className={row.is_mismatch ? 'text-red-600' : 'text-emerald-700'}>
-                  {row.is_mismatch ? 'mismatch' : 'match'}
-                </span>
-                <span className="text-stone-300">·</span>
-                <span className="text-stone-500">Correct label</span>
-                <span className="font-mono text-stone-800">{row.gold_label || '—'}</span>
-                <span className="text-stone-300">→</span>
-                <span className="text-stone-500">Predicted label</span>
-                <span className="font-mono text-stone-800">{row.predicted_label || '—'}</span>
-                <span className="ml-auto text-stone-400">item {row.item_id}</span>
+            <li key={row.result_id} className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_260px]">
+              <div className="min-w-0 px-4 py-4">
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-mono-editorial text-stone-600">Item {row.item_id}</span>
+                  <span className="text-stone-300">·</span>
+                  <span className="font-medium text-stone-700">{dimensionName}</span>
+                </div>
+                <div className="mb-2 text-[11px] font-semibold text-stone-700">Example text</div>
+                <div className="text-base leading-relaxed text-stone-950 whitespace-pre-wrap">{row.content}</div>
+                {row.reasoning && (
+                  <details className="mt-3 text-sm">
+                    <summary className="cursor-pointer text-xs font-semibold text-stone-700 hover:text-ink">Annotation output</summary>
+                    <div className="mt-2 border-l-2 border-stone-400 pl-3 text-stone-800 whitespace-pre-wrap leading-relaxed">
+                      {row.reasoning}
+                    </div>
+                  </details>
+                )}
               </div>
-              <div className="text-xs leading-relaxed text-stone-800 whitespace-pre-wrap">{row.content}</div>
-              {row.reasoning && (
-                <details className="text-xs">
-                  <summary className="cursor-pointer font-mono-editorial text-stone-400 hover:text-ink">annotation output</summary>
-                  <div className="mt-1 border-l-2 border-stone-200 pl-3 text-stone-600 whitespace-pre-wrap leading-relaxed">
-                    {row.reasoning}
+              <div className={`border-t lg:border-l lg:border-t-0 px-4 py-4 ${
+                !row.gold_label
+                  ? 'border-stone-300 bg-stone-50'
+                    : row.is_mismatch
+                      ? 'border-red-300 bg-red-50'
+                      : 'border-emerald-300 bg-emerald-50'
+              }`}>
+                <span className={`px-2 py-0.5 border font-medium ${
+                  !row.gold_label
+                    ? 'border-stone-300 bg-stone-50 text-stone-600'
+                    : row.is_mismatch
+                      ? 'border-red-300 bg-red-50 text-red-700'
+                      : 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                }`}>
+                  {!row.gold_label ? 'No correct label' : row.is_mismatch ? 'Needs review' : 'Agrees'}
+                </span>
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <div className="mb-1 text-[11px] font-semibold text-stone-700">Correct</div>
+                    <div className={`font-mono text-base break-words ${row.gold_label ? 'text-ink' : 'text-stone-600'}`}>
+                    {row.gold_label || 'No correct label available'}
+                    </div>
                   </div>
-                </details>
-              )}
+                  <div className="border-t border-current/20 pt-3">
+                    <div className={`mb-1 text-[11px] font-semibold ${row.is_mismatch ? 'text-red-800' : 'text-stone-700'}`}>
+                      Predicted
+                    </div>
+                    <div className={`font-mono text-base break-words ${row.is_mismatch ? 'text-red-900' : 'text-ink'}`}>
+                      {row.predicted_label || '—'}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </li>
           ))}
         </ul>
