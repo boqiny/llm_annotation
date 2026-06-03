@@ -69,7 +69,7 @@ export default function ProjectList() {
         <div className="flex items-end justify-between border-b border-seam pb-4 mb-8">
           <div>
             <div className="font-mono-editorial text-stone-500 mb-2">
-              № {projects.length.toString().padStart(2, '0')} · projects
+              Total projects: {projects.length}
             </div>
             <h2 className="text-3xl font-medium tracking-tight">Your projects</h2>
           </div>
