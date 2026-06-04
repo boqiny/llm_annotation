@@ -127,7 +127,7 @@ async def run_codebook_agent(
     draft_json: dict[str, Any] = {}
     drafter_error: str = ""
 
-    if (provider or "").lower() == "openai":
+    if (provider or "").lower() in {"openai", "anthropic"}:
         # Tool-calling orchestrator: agent inspects the file directly via
         # list_sheets / read_sheet_range / column_unique_values / search_text
         # / read_text and submits the codebook via propose_codebook.
@@ -147,7 +147,7 @@ async def run_codebook_agent(
                 initial_hint = f"Sheet hints: {[t.name for t in ingest.tables]}"
             orch = await run_orchestrator(
                 explorer=explorer,
-                api_key=api_key, model=model,
+                api_key=api_key, provider=provider, model=model,
                 initial_hint=initial_hint,
             )
             if orch.ok:
