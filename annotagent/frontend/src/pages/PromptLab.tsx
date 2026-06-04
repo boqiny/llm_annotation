@@ -1384,11 +1384,12 @@ function MemoryTab({ memory, projectId, jobs, datasets, dimensions, onRefresh, o
 }) {
   const byDim: Record<string, MemoryVersion[]> = {}
   for (const v of memory) {
+    if (!v.feedback_text) continue
     if (!byDim[v.dimension_name]) byDim[v.dimension_name] = []
     byDim[v.dimension_name].push(v)
   }
 
-  // All known dimensions: those with memory + those from the codebook that don't yet
+  // All known dimensions: human-feedback history + codebook dimensions that don't yet
   const allDims = Array.from(new Set([...Object.keys(byDim), ...dimensions])).sort()
   const [evidenceDim, setEvidenceDim] = useState(allDims[0] ?? '')
 
@@ -1401,7 +1402,7 @@ function MemoryTab({ memory, projectId, jobs, datasets, dimensions, onRefresh, o
   }, [allDims.join('\n'), evidenceDim])
 
   if (allDims.length === 0) {
-    return <Empty>Memory accumulates after each successful run.</Empty>
+    return <Empty>Human feedback appears here after you add a correction.</Empty>
   }
 
   return (
