@@ -171,9 +171,26 @@ class _FeedbackBatchCommitRequest(_BaseModel):
 
 def _find_pipeline_step(steps: list[dict], dimension_name: str) -> dict | None:
     """Return the first step that covers dimension_name."""
+    target = _norm_dimension_name(dimension_name)
     for step in steps:
-        if dimension_name in step.get("dimensions", []) or step.get("name") == dimension_name:
+        step_name = _norm_dimension_name(step.get("name", ""))
+        step_dims = [_norm_dimension_name(d) for d in step.get("dimensions", [])]
+        if target in step_dims or step_name == target:
             return step
+    return None
+
+
+def _norm_dimension_name(value: str) -> str:
+    return " ".join(str(value or "").split()).casefold()
+
+
+def _label_for_dimension(labels: dict, dimension_name: str):
+    if dimension_name in labels:
+        return labels[dimension_name]
+    target = _norm_dimension_name(dimension_name)
+    for key, value in labels.items():
+        if _norm_dimension_name(key) == target:
+            return value
     return None
 
 
@@ -382,10 +399,10 @@ async def commit_prompt(
 
     steps = [dict(s) for s in (pipeline.steps or [])]
     updated = False
-    for step in steps:
-        if body.dimension_name in step.get("dimensions", []) or step.get("name") == body.dimension_name:
-            step["prompt"] = body.new_prompt
-            updated = True
+    step = _find_pipeline_step(steps, body.dimension_name)
+    if step:
+        step["prompt"] = body.new_prompt
+        updated = True
 
     if not updated:
         raise HTTPException(400, f"No pipeline step found for dimension '{body.dimension_name}'.")
@@ -451,10 +468,10 @@ async def commit_feedback_batch(
 
     steps = [dict(s) for s in (pipeline.steps or [])]
     updated = False
-    for step in steps:
-        if body.dimension_name in step.get("dimensions", []) or step.get("name") == body.dimension_name:
-            step["prompt"] = body.new_prompt
-            updated = True
+    step = _find_pipeline_step(steps, body.dimension_name)
+    if step:
+        step["prompt"] = body.new_prompt
+        updated = True
 
     if not updated:
         raise HTTPException(400, f"No pipeline step found for dimension '{body.dimension_name}'.")
@@ -775,11 +792,12 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
         examples: list[Example] = []
         for it in items:
             labels = it.gold_labels or {}
-            if run.dimension_name not in labels:
+            gold_label = _label_for_dimension(labels, run.dimension_name)
+            if gold_label is None:
                 continue
             examples.append(Example(
                 sentence=it.content,
-                gold=str(labels[run.dimension_name]).strip(),
+                gold=str(gold_label).strip(),
                 context=it.context or "",
             ))
 

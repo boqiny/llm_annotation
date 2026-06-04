@@ -37,8 +37,17 @@ export default function CodebookView() {
   if (!codebook || !project) {
     return (
       <div className="min-h-[60vh] grid place-items-center">
-        <div className="font-mono-editorial text-stone-400">
-          No codebook loaded · go to Setup
+        <div className="text-center space-y-4">
+          <div className="font-mono-editorial text-stone-400">
+            No codebook loaded
+          </div>
+          <Link
+            to={`/projects/${projectId}/setup`}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
+          >
+            <span aria-hidden="true">←</span>
+            Back to setup
+          </Link>
         </div>
       </div>
     )
@@ -65,15 +74,16 @@ export default function CodebookView() {
     <div className="space-y-12">
       {/* Masthead */}
       <header className="border-b border-seam pb-8">
-        <div className="flex items-baseline justify-between mb-4">
+        <div className="flex items-center justify-between gap-4 mb-4">
           <div className="font-mono-editorial text-stone-500">
             Codebook · №{codebook.id.toString().padStart(3, '0')}
           </div>
           <Link
             to={`/projects/${projectId}/setup`}
-            className="font-mono-editorial text-stone-400 hover:text-ink transition"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition shrink-0"
           >
-            ← Setup
+            <span aria-hidden="true">←</span>
+            Back to setup
           </Link>
         </div>
 

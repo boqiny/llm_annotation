@@ -51,6 +51,8 @@ export const listDatasets = (projectId: number) =>
   api.get<Dataset[]>(`/projects/${projectId}/datasets`).then(r => r.data)
 export const previewDataset = (projectId: number, datasetId: number) =>
   api.get<DatasetPreview>(`/projects/${projectId}/datasets/${datasetId}`).then(r => r.data)
+export const deleteDataset = (projectId: number, datasetId: number) =>
+  api.delete(`/projects/${projectId}/datasets/${datasetId}`)
 
 // Pipelines
 export type DecomposeMode = 'per_dimension' | 'all_together' | 'auto'

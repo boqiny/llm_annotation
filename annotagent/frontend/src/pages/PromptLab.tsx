@@ -1,19 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend,
 } from 'recharts'
 import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
   listCodebooks, listDatasets, autoGeneratePrompt, patchOptimizerRun,
-  listJobs, getFeedbackEvidence,
+  listJobs, getFeedbackEvidence, listPipelines,
   listMemoryVersions, deleteOptimizerRun, cancelOptimizerRun,
-  previewFeedbackBatch, commitFeedbackBatch, deleteMemoryVersion,
+  previewFeedbackBatch, commitFeedbackBatch, deleteMemoryVersion, commitPrompt,
   type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion, type MemoryRule, type FeedbackEvidence,
 } from '../lib/api'
 import type { Codebook, Dataset, Job } from '../types'
 
 type Tab = 'prompts' | 'improve' | 'runs' | 'memory'
+const TABS: Tab[] = ['prompts', 'improve', 'runs', 'memory']
+
+function parseTab(value: string | null): Tab {
+  return TABS.includes(value as Tab) ? value as Tab : 'prompts'
+}
 
 function fmtError(e: any): string {
   const d = e?.response?.data?.detail
@@ -23,11 +28,16 @@ function fmtError(e: any): string {
   return e?.message || 'Unknown error'
 }
 
+function normDimensionName(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
 export default function PromptLabV2() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const projectId = Number(id)
 
-  const [tab, setTab] = useState<Tab>('runs')
+  const [tab, setTab] = useState<Tab>(() => parseTab(searchParams.get('tab')))
   const [codebooks, setCodebooks] = useState<Codebook[]>([])
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [runs, setRuns] = useState<OptimizerRun[]>([])
@@ -51,6 +61,11 @@ export default function PromptLabV2() {
   const [selectedRun, setSelectedRun] = useState<OptimizerRun | null>(null)
 
   const activeCb = codebooks[codebooks.length - 1]
+
+  const handleTabChange = (next: Tab) => {
+    setTab(next)
+    setSearchParams({ tab: next }, { replace: true })
+  }
 
   useEffect(() => {
     Promise.all([
@@ -132,7 +147,7 @@ export default function PromptLabV2() {
         </div>
       </header>
 
-      <Tabs value={tab} onChange={setTab} items={[
+      <Tabs value={tab} onChange={handleTabChange} items={[
         { id: 'prompts', label: 'Prompts',  count: autoPrompt?.prompts.length },
         { id: 'improve', label: 'Improve',                                     },
         { id: 'runs',    label: 'Runs',     count: runs.length                 },
@@ -156,7 +171,8 @@ export default function PromptLabV2() {
             } catch (e: any) { setAutoPromptError(fmtError(e)) }
             finally { setAutoPromptLoading(false) }
           }}
-          onJumpToRun={(id) => { setSelectedRunId(id); setTab('runs') }}
+          onJumpToRun={(id) => { setSelectedRunId(id); handleTabChange('runs') }}
+          onContinue={() => handleTabChange('improve')}
         />
       )}
 
@@ -172,7 +188,7 @@ export default function PromptLabV2() {
           onLaunched={(run) => {
             setRuns([run, ...runs])
             setSelectedRunId(run.id)
-            setTab('runs')
+            handleTabChange('runs')
           }}
           setLaunching={setLaunching} setLaunchError={setLaunchError}
         />
@@ -202,6 +218,7 @@ export default function PromptLabV2() {
             catch (e: any) { alert(`Cancel failed: ${fmtError(e)}`) }
           }}
           projectId={projectId}
+          onContinue={() => handleTabChange('memory')}
         />
       )}
 
@@ -212,7 +229,7 @@ export default function PromptLabV2() {
           jobs={jobs}
           dimensions={activeCb?.dimensions.map(d => d.name) ?? []}
           onRefresh={() => listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))}
-          onPromptCommitted={() => setTab('prompts')}
+          onPromptCommitted={() => handleTabChange('prompts')}
         />
       )}
     </div>
@@ -256,7 +273,7 @@ function Tabs<T extends string>({
 /* ─── Prompts tab ──────────────────────────────────────────── */
 
 function PromptsTab({
-  activeCb, autoPrompt, loading, error, runs, onRegenerate, onJumpToRun,
+  activeCb, autoPrompt, loading, error, runs, onRegenerate, onJumpToRun, onContinue,
 }: {
   activeCb?: Codebook
   autoPrompt: AutoPromptResponse | null
@@ -265,6 +282,7 @@ function PromptsTab({
   runs: OptimizerRun[]
   onRegenerate: () => void
   onJumpToRun: (runId: number) => void
+  onContinue: () => void
 }) {
   if (!activeCb) {
     return <Empty>Load a codebook on Setup first.</Empty>
@@ -291,15 +309,20 @@ function PromptsTab({
     )
   }
   return (
-    <div>
-      <div className="flex items-baseline justify-between mb-3">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
         <div className="font-mono-editorial text-stone-500">
           {autoPrompt.prompts.length} prompts · {activeCb.name}
         </div>
-        <button onClick={onRegenerate} disabled={loading}
-                className="font-mono-editorial text-stone-500 hover:text-ink disabled:opacity-50">
-          {loading ? 're-generating…' : 're-generate all'}
-        </button>
+        <div className="sm:text-right">
+          <button onClick={onRegenerate} disabled={loading}
+                  className="px-3 py-1.5 border border-ink bg-white text-ink text-xs font-medium hover:bg-paper disabled:opacity-50 transition">
+            {loading ? 'Re-generating…' : 'Re-generate all'}
+          </button>
+          <p className="mt-1 text-xs text-stone-500 sm:whitespace-nowrap">
+            Use this after changing the codebook, or if you want a fresh starting draft.
+          </p>
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {autoPrompt.prompts.map(p => {
@@ -308,6 +331,14 @@ function PromptsTab({
             .sort((a, b) => b.id - a.id)[0]
           return <PromptCard key={p.dimension_name} dp={p} optimizedRun={optimized} onJumpToRun={onJumpToRun} />
         })}
+      </div>
+      <div className="flex justify-end border-t border-seam pt-4">
+        <button
+          onClick={onContinue}
+          className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
+        >
+          Continue to improve →
+        </button>
       </div>
     </div>
   )
@@ -404,7 +435,8 @@ function ImproveTab({
       .catch(() => setClassCounts({}))
   }, [selectedGold, projectId])
 
-  const classes = classCounts[selectedDim] ?? {}
+  const selectedLabelKey = Object.keys(classCounts).find(k => normDimensionName(k) === normDimensionName(selectedDim)) ?? selectedDim
+  const classes = classCounts[selectedLabelKey] ?? {}
   const total = Object.values(classes).reduce((a, b) => a + b, 0)
   const split = useMemo(() => stratifiedPreview(classes, 15, 42), [classes])
   const sorted = Object.keys(classes).sort((a, b) => classes[b] - classes[a])
@@ -428,9 +460,10 @@ function ImproveTab({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Left: pickers */}
-      <div className="lg:col-span-1 space-y-4">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: pickers */}
+        <div className="lg:col-span-1 space-y-4">
         <div>
           <Label>Dimension</Label>
           <select value={selectedDim} onChange={e => setSelectedDim(e.target.value)}
@@ -461,13 +494,13 @@ function ImproveTab({
         </div>
         <button onClick={handleLaunch} disabled={launching || noLabels || tooFew}
                 className="w-full py-2.5 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40">
-          {launching ? 'Starting…' : 'Improve from examples →'}
+          {launching ? 'Starting…' : 'Run improvement →'}
         </button>
         {launchError && <div className="text-xs text-red-700">{launchError}</div>}
-      </div>
+        </div>
 
-      {/* Right: split preview */}
-      <div className="lg:col-span-2">
+        {/* Right: split preview */}
+        <div className="lg:col-span-2">
         {noLabels ? (
           <div className="border border-amber-200 bg-amber-50/50 p-4 text-sm text-amber-800">
             <div className="font-mono-editorial text-amber-700 mb-1">No labels for "{selectedDim}"</div>
@@ -515,6 +548,7 @@ function ImproveTab({
             </table>
           </div>
         )}
+        </div>
       </div>
     </div>
   )
@@ -540,7 +574,7 @@ function stratifiedPreview(classes: Record<string, number>, trainPct: number, va
 /* ─── Runs tab (master-detail) ─────────────────────────────── */
 
 function RunsTab({
-  runs, selectedRunId, selectedRun, onSelect, onUpdate, onDelete, onCancel, projectId,
+  runs, selectedRunId, selectedRun, onSelect, onUpdate, onDelete, onCancel, projectId, onContinue,
 }: {
   runs: OptimizerRun[]
   selectedRunId: number | null
@@ -550,14 +584,28 @@ function RunsTab({
   onDelete: (r: OptimizerRun) => void
   onCancel: (r: OptimizerRun) => void
   projectId: number
+  onContinue: () => void
 }) {
   if (runs.length === 0) {
-    return <Empty>No runs yet. Launch one from <em>Improve</em>.</Empty>
+    return (
+      <div className="space-y-4">
+        <Empty>No runs yet. Launch one from <em>Improve</em>.</Empty>
+        <div className="flex justify-end border-t border-seam pt-4">
+          <button
+            onClick={onContinue}
+            className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
+          >
+            Continue to human feedback →
+          </button>
+        </div>
+      </div>
+    )
   }
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-      {/* Master: list */}
-      <div className="lg:col-span-4 border border-seam bg-white max-h-[78vh] overflow-auto">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Master: list */}
+        <div className="lg:col-span-4 border border-seam bg-white max-h-[78vh] overflow-auto">
         {runs.map(r => {
           const test = (r.artifact as any)?.test as { final_score?: number; delta?: number } | undefined
           const score = test?.final_score ?? r.final_score
@@ -599,14 +647,23 @@ function RunsTab({
             </div>
           )
         })}
-      </div>
+        </div>
 
-      {/* Detail */}
-      <div className="lg:col-span-8 border border-seam bg-white max-h-[78vh] overflow-auto">
+        {/* Detail */}
+        <div className="lg:col-span-8 border border-seam bg-white max-h-[78vh] overflow-auto">
         {selectedRun
           ? <RunDetailV2 run={selectedRun} projectId={projectId} onUpdate={onUpdate} />
           : <Empty>Pick a run on the left.</Empty>
         }
+        </div>
+      </div>
+      <div className="flex justify-end border-t border-seam pt-4">
+        <button
+          onClick={onContinue}
+          className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
+        >
+          Continue to human feedback →
+        </button>
       </div>
     </div>
   )
@@ -763,7 +820,12 @@ function RunDetailV2({
 
       {/* Editable prompt */}
       {run.optimized_prompt && (
-        <EditablePromptV2 run={run} projectId={projectId} onUpdate={onUpdate} />
+        <>
+          <EditablePromptV2 run={run} projectId={projectId} onUpdate={onUpdate} />
+          {run.status === 'completed' && (
+            <UseImprovedPromptCard run={run} projectId={projectId} />
+          )}
+        </>
       )}
     </div>
   )
@@ -1129,6 +1191,107 @@ function EditablePromptV2({
           <pre className="bg-paper/50 border border-seam p-3 font-mono text-xs leading-relaxed max-h-72 overflow-auto whitespace-pre-wrap">{run.optimized_prompt}</pre>
         )}
         {err && <div className="mt-2 text-xs text-red-700">{err}</div>}
+      </Card>
+    </div>
+  )
+}
+
+function UseImprovedPromptCard({
+  run,
+  projectId,
+}: {
+  run: OptimizerRun
+  projectId: number
+}) {
+  const [currentPrompt, setCurrentPrompt] = useState('')
+  const [foundCurrentPrompt, setFoundCurrentPrompt] = useState(false)
+  const [pipelineId, setPipelineId] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [committed, setCommitted] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true); setErr(''); setCommitted(false)
+    setFoundCurrentPrompt(false)
+    listPipelines(projectId)
+      .then(pipelines => {
+        if (cancelled) return
+        const latest = pipelines.slice().sort((a, b) => b.id - a.id)[0]
+        setPipelineId(latest?.id ?? null)
+        const step = (latest?.steps || []).find((s: any) =>
+          normDimensionName(s?.name || '') === normDimensionName(run.dimension_name)
+          || (Array.isArray(s?.dimensions) && s.dimensions.some((d: string) => normDimensionName(d) === normDimensionName(run.dimension_name)))
+        )
+        setFoundCurrentPrompt(!!step)
+        setCurrentPrompt(String((step as any)?.prompt || ''))
+      })
+      .catch(e => {
+        if (!cancelled) setErr(fmtError(e))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [projectId, run.id, run.dimension_name])
+
+  const alreadyApplied = currentPrompt.trim() === run.optimized_prompt.trim()
+  const canCommit = !!run.optimized_prompt && !alreadyApplied && !loading && !saving
+
+  const handleCommit = async () => {
+    setSaving(true); setErr('')
+    try {
+      await commitPrompt(projectId, run.dimension_name, run.optimized_prompt)
+      setCurrentPrompt(run.optimized_prompt)
+      setCommitted(true)
+    } catch (e: any) {
+      setErr(fmtError(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="px-3 pb-3">
+      <Card
+        title="Apply improved prompt"
+        rightSlot={
+          <button
+            onClick={handleCommit}
+            disabled={!canCommit}
+            className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition"
+          >
+            {saving ? 'Applying…' : alreadyApplied || committed ? 'Applied' : 'Apply'}
+          </button>
+        }
+      >
+        <div className="space-y-2">
+          <div className="flex items-baseline justify-between gap-3 text-xs">
+            <p className="text-stone-600 leading-relaxed">
+              Replace the active pipeline prompt for this dimension with the improved prompt.
+            </p>
+            {pipelineId ? <span className="font-mono-editorial text-stone-400 shrink-0">Pipeline {pipelineId}</span> : null}
+          </div>
+          {loading ? (
+            <Empty>Loading current pipeline prompt…</Empty>
+          ) : err ? (
+            <div className="text-xs text-red-700">{err}</div>
+          ) : !foundCurrentPrompt ? (
+            <div className="border border-amber-200 bg-amber-50/50 px-3 py-2 text-xs text-amber-800">
+              Could not find the current active prompt for this dimension, so the diff is unavailable.
+            </div>
+          ) : (
+            <details className="border border-seam bg-paper/40">
+              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-stone-700 hover:text-ink">
+                Review changes
+              </summary>
+              <div className="border-t border-seam">
+                <DiffView oldText={currentPrompt} newText={run.optimized_prompt} />
+              </div>
+            </details>
+          )}
+        </div>
       </Card>
     </div>
   )

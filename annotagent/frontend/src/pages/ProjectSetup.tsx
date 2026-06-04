@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   getProject, updateProject, listPresets, listCodebooks,
-  uploadDataset, listDatasets, decomposePipeline,
+  uploadDataset, listDatasets, deleteDataset, decomposePipeline,
   listSeedDatasets, loadSeedDataset, getBackendConfig,
   type SeedDatasetInfo, type BackendConfig,
 } from '../lib/api'
@@ -39,6 +39,7 @@ export default function ProjectSetupV2() {
   const [step, setStep] = useState<Step>('model')
   const [loading, setLoading] = useState(false)
   const [loadingSeed, setLoadingSeed] = useState<string | null>(null)
+  const [removingDataset, setRemovingDataset] = useState<number | null>(null)
   const [wizardMode, setWizardMode] = useState(false)
 
   const loadData = useCallback(async () => {
@@ -66,6 +67,13 @@ export default function ProjectSetupV2() {
     try { await loadSeedDataset(projectId, seedId); setDatasets(await listDatasets(projectId)) }
     finally { setLoadingSeed(null) }
   }
+  const handleRemoveDataset = async (datasetId: number) => {
+    setRemovingDataset(datasetId)
+    try {
+      await deleteDataset(projectId, datasetId)
+      setDatasets(await listDatasets(projectId))
+    } finally { setRemovingDataset(null) }
+  }
   const handleSaveLLM = async () => {
     const patch: Record<string, string> = { llm_provider: llmProvider, llm_model: llmModel }
     if (apiKey) patch.api_key = apiKey
@@ -84,7 +92,7 @@ export default function ProjectSetupV2() {
     try {
       await handleSaveLLM()
       await decomposePipeline(projectId)
-      navigate(`/projects/${projectId}/prompt-lab`)
+      navigate(`/projects/${projectId}/prompt-lab?tab=prompts`)
     } finally { setLoading(false) }
   }
 
@@ -124,7 +132,7 @@ export default function ProjectSetupV2() {
                       active={step === 'model'} done={keyOK} onClick={() => setStep('model')} />
             <StepLink n="02" label="Codebook" hint="label schema"
                       active={step === 'codebook'} done={!!activeCb} onClick={() => setStep('codebook')} />
-            <StepLink n="03" label="Data" hint="optional"
+            <StepLink n="03" label="Labeled data" hint="optional"
                       active={step === 'data'} done={hasDataset} onClick={() => setStep('data')} />
           </ol>
         </aside>
@@ -139,6 +147,7 @@ export default function ProjectSetupV2() {
               presets={presets}
               projectId={projectId}
               onAccepted={() => { setWizardMode(false); loadData(); setStep('data') }}
+              onContinue={() => setStep('data')}
             />
           )}
           {step === 'data' && (
@@ -147,7 +156,9 @@ export default function ProjectSetupV2() {
               seeds={seeds}
               datasets={datasets}
               loadingSeed={loadingSeed}
+              removingDataset={removingDataset}
               onLoadSeed={handleLoadSeed}
+              onRemoveDataset={handleRemoveDataset}
               onUpload={handleDataUpload}
             />
           )}
@@ -212,7 +223,7 @@ function StepLink({
 /* ─── Steps ─────────────────────────────────────────────────── */
 
 function CodebookStep({
-  activeCb, wizardMode, setWizardMode, presets, projectId, onAccepted,
+  activeCb, wizardMode, setWizardMode, presets, projectId, onAccepted, onContinue,
 }: {
   activeCb?: Codebook
   wizardMode: boolean
@@ -220,6 +231,7 @@ function CodebookStep({
   presets: PresetInfo[]
   projectId: number
   onAccepted: () => void
+  onContinue: () => void
 }) {
   if (activeCb && !wizardMode) {
     return (
@@ -255,6 +267,14 @@ function CodebookStep({
             </li>
           ))}
         </ul>
+        <div className="px-4 py-3 border-t border-seam flex justify-end">
+          <button
+            onClick={onContinue}
+            className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
+          >
+            Continue to data →
+          </button>
+        </div>
       </div>
     )
   }
@@ -272,27 +292,29 @@ function CodebookStep({
 }
 
 function DataStep({
-  activeCb, seeds, datasets, loadingSeed, onLoadSeed, onUpload,
+  activeCb, seeds, datasets, loadingSeed, removingDataset, onLoadSeed, onRemoveDataset, onUpload,
 }: {
   activeCb?: Codebook
   seeds: SeedDatasetInfo[]
   datasets: Dataset[]
   loadingSeed: string | null
+  removingDataset: number | null
   onLoadSeed: (id: string) => void
+  onRemoveDataset: (id: number) => void
   onUpload: (e: React.ChangeEvent<HTMLInputElement>, isGold: boolean) => void
 }) {
   return (
     <div className="space-y-4">
-      <div className="font-mono-editorial text-stone-500 text-xs">
-        Labeled examples drive the Improve step. Skip if you'll add later.
+      <div className="border-l-2 border-violet-700 bg-violet-50 px-4 py-3 text-sm text-violet-950 leading-relaxed">
+        Upload existing labeled data if you have it. AnnotAgent can learn from those correct labels to improve the prompts and check annotation quality.
       </div>
 
       {seeds.length > 0 && isSelfDisclosure(activeCb) && (
         <div>
-          <div className="font-mono-editorial text-stone-500 text-xs mb-2">Bundled · self-disclosure</div>
+          <div className="font-mono-editorial text-stone-500 text-xs mb-2">Bundled labeled data · self-disclosure</div>
           <ul className="divide-y divide-seam border-y border-seam">
             {seeds.filter(s => s.role !== 'test').map(s => {
-              const loaded = datasets.some(d => d.name === s.label)
+              const loadedDataset = datasets.find(d => d.name === s.label)
               return (
                 <li key={s.id} className={`flex items-center gap-4 py-2.5 ${s.available ? '' : 'opacity-50'}`}>
                   <div className="flex-1 min-w-0">
@@ -302,9 +324,17 @@ function DataStep({
                     </div>
                     <div className="text-xs text-stone-500 truncate">{s.description}</div>
                   </div>
-                  <div className="shrink-0 w-24 text-right">
+                  <div className="shrink-0 w-28 text-right">
                     {!s.available ? <span className="font-mono-editorial text-stone-400 text-xs">missing</span>
-                      : loaded ? <span className="font-mono-editorial text-emerald-700 text-xs">loaded ✓</span>
+                      : loadedDataset ? (
+                        <button
+                          onClick={() => onRemoveDataset(loadedDataset.id)}
+                          disabled={removingDataset === loadedDataset.id}
+                          className="px-2 py-1 text-xs font-medium border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {removingDataset === loadedDataset.id ? 'Removing…' : 'Remove'}
+                        </button>
+                      )
                       : <button onClick={() => onLoadSeed(s.id)} disabled={loadingSeed === s.id}
                                 className="px-2 py-1 text-xs font-medium border border-ink hover:bg-ink hover:text-cream disabled:opacity-50">
                           {loadingSeed === s.id ? '…' : 'Load'}
@@ -319,22 +349,45 @@ function DataStep({
       )}
 
       <div>
-        <div className="font-mono-editorial text-stone-500 text-xs mb-2">Upload your own</div>
+        <div className="font-mono-editorial text-stone-500 text-xs mb-2">Upload labeled data</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FileField label="Data (CSV/JSON)" onChange={e => onUpload(e, false)} />
-          <FileField label="Gold standard (CSV/JSON)" onChange={e => onUpload(e, true)} />
+          <FileField
+            label="Labeled data (CSV/JSON)"
+            description="Examples that already have labels. AnnotAgent can learn from them to improve future annotations."
+            onChange={e => onUpload(e, false)}
+          />
+          <FileField
+            label="Gold standard (CSV/JSON)"
+            description="Your most trusted labels, such as expert-reviewed answers. AnnotAgent uses these to check quality."
+            onChange={e => onUpload(e, true)}
+          />
         </div>
       </div>
 
       {datasets.length > 0 && (
         <div>
-          <div className="font-mono-editorial text-stone-500 text-xs mb-2">Loaded · {datasets.length}</div>
+          <div className="font-mono-editorial text-stone-500 text-xs mb-2">Loaded labeled data · {datasets.length}</div>
           <ul className="divide-y divide-seam border-y border-seam">
+            <li className="flex items-baseline gap-4 py-2 bg-paper/70 text-[11px] font-mono-editorial text-stone-500 uppercase tracking-wide">
+              <span className="flex-1 min-w-0">File</span>
+              <span className="shrink-0 w-24 text-right">Items</span>
+              <span className="shrink-0 w-16 text-right">Format</span>
+              <span className="shrink-0 w-28 text-right">Type</span>
+              <span className="shrink-0 w-[72px] text-right">Action</span>
+            </li>
             {datasets.map(ds => (
               <li key={ds.id} className="flex items-baseline gap-4 py-2">
                 <span className="flex-1 min-w-0 font-medium truncate">{ds.name}</span>
                 <span className="shrink-0 w-24 text-right font-mono text-xs text-stone-600">{ds.total_items} items</span>
                 <span className="shrink-0 w-16 text-right font-mono-editorial text-stone-400 text-[11px]">{ds.file_type}</span>
+                <span className="shrink-0 w-28 text-right text-xs text-stone-700">{ds.is_gold ? 'Gold standard' : 'Reference labels'}</span>
+                <button
+                  onClick={() => onRemoveDataset(ds.id)}
+                  disabled={removingDataset === ds.id}
+                  className="shrink-0 w-[72px] px-2 py-1 text-xs font-medium border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  {removingDataset === ds.id ? 'Removing…' : 'Remove'}
+                </button>
               </li>
             ))}
           </ul>
@@ -418,10 +471,19 @@ function LabelV2({ children }: { children: React.ReactNode }) {
   return <span className="font-mono-editorial text-stone-500 block mb-1 text-xs">{children}</span>
 }
 
-function FileField({ label, onChange }: { label: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void }) {
+function FileField({
+  label,
+  description,
+  onChange,
+}: {
+  label: string
+  description?: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+}) {
   return (
-    <label className="block">
-      <LabelV2>{label}</LabelV2>
+    <label className="block border border-seam bg-white px-4 py-3 hover:border-stone-300 transition">
+      <span className="block text-sm font-semibold text-ink mb-1">{label}</span>
+      {description && <p className="mb-2 text-xs text-stone-600 leading-relaxed">{description}</p>}
       <input type="file" accept=".csv,.json" onChange={onChange} className="text-sm pt-1" />
     </label>
   )
