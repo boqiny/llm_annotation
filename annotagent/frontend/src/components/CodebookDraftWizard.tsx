@@ -524,12 +524,12 @@ function DraftPreview({
                   <span className="font-mono-editorial text-stone-400">
                     {(dim.labels || []).length} labels
                   </span>
-                  <button
-                    onClick={() => removeDim(i)}
-                    className="ml-auto font-mono-editorial text-stone-400 hover:text-red-600 text-xs"
-                  >
-                    remove dimension
-                  </button>
+	                  <button
+	                    onClick={() => removeDim(i)}
+	                    className="ml-auto px-2.5 py-1 bg-red-50 border border-red-200 text-xs font-medium text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors"
+	                  >
+	                    Remove dimension
+	                  </button>
                 </div>
                 <textarea
                   value={dim.instructions || ''}
@@ -638,14 +638,9 @@ function DraftPreview({
           )}
         </div>
       </div>
-
-      {/* BOTTOM: duplicate action bar so users find it after scrolling */}
-      <div className="p-5 border-t border-seam">
-        <ActionBar />
-      </div>
-    </div>
-  )
-}
+	    </div>
+	  )
+	}
 
 function LabelEditor({
   lbl, onChange, onRemove,
