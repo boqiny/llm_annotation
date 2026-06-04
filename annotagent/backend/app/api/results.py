@@ -18,6 +18,20 @@ from app.engine.metrics import compute_metrics, confusion_matrix
 router = APIRouter(prefix="/api/projects/{project_id}/jobs/{job_id}/results", tags=["results"])
 
 
+def _norm_dimension_name(value: str) -> str:
+    return " ".join(str(value or "").split()).casefold()
+
+
+def _label_for_dimension(labels: dict, dimension: str):
+    if dimension in labels:
+        return labels[dimension]
+    target = _norm_dimension_name(dimension)
+    for key, value in labels.items():
+        if _norm_dimension_name(key) == target:
+            return value
+    return None
+
+
 def _metadata_value(metadata: dict, candidates: tuple[str, ...]) -> str:
     for key in candidates:
         value = metadata.get(key)
@@ -30,7 +44,7 @@ def _gold_from_coding_metadata(metadata: dict, dimension: str) -> str:
     """Extract labels from coder CSV rows that store theme/level as metadata."""
     theme = _metadata_value(metadata, ("Coding theme", "coding theme", "Unnamed: 3"))
     label = _metadata_value(metadata, ("Level", "level", "Label", "label", "Unnamed: 4"))
-    if theme == dimension and label:
+    if _norm_dimension_name(theme) == _norm_dimension_name(dimension) and label:
         return label
     return ""
 
@@ -178,7 +192,6 @@ async def get_feedback_evidence(
         select(AnnotationResult, DataItem)
         .join(DataItem, AnnotationResult.data_item_id == DataItem.id)
         .where(AnnotationResult.job_id == job_id)
-        .where(AnnotationResult.dimension_name == dimension)
         .order_by(AnnotationResult.data_item_id, AnnotationResult.step_order)
     )
 
@@ -194,9 +207,12 @@ async def get_feedback_evidence(
             gold_by_content.setdefault(item.content, item.gold_labels or {})
 
     rows = []
+    target_dimension = _norm_dimension_name(dimension)
     for ann, item in result.all():
+        if _norm_dimension_name(ann.dimension_name) != target_dimension:
+            continue
         labels = item.gold_labels or gold_by_content.get(item.content, {}) or {}
-        gold = labels.get(dimension)
+        gold = _label_for_dimension(labels, dimension)
         gold_label = ", ".join(map(str, gold)) if isinstance(gold, list) else (str(gold) if gold is not None else "")
         if not gold_label:
             gold_label = _gold_from_coding_metadata(item.metadata_ or {}, dimension)
