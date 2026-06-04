@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -30,6 +31,22 @@ def _label_for_dimension(labels: dict, dimension: str):
         if _norm_dimension_name(key) == target:
             return value
     return None
+
+
+def _norm_label(value: str) -> str:
+    text = str(value or "").casefold()
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    tokens = [
+        token for token in text.split()
+        if token not in {"layer", "level", "label", "category"}
+    ]
+    return " ".join(tokens)
+
+
+def _labels_agree(predicted: str, gold: str) -> bool:
+    if not predicted or not gold:
+        return False
+    return _norm_label(predicted) == _norm_label(gold)
 
 
 def _metadata_value(metadata: dict, candidates: tuple[str, ...]) -> str:
@@ -217,7 +234,7 @@ async def get_feedback_evidence(
         if not gold_label:
             gold_label = _gold_from_coding_metadata(item.metadata_ or {}, dimension)
         predicted = ann.predicted_label or ""
-        is_mismatch = bool(gold_label) and predicted != gold_label
+        is_mismatch = bool(gold_label) and not _labels_agree(predicted, gold_label)
         if mismatches_only and not is_mismatch:
             continue
         rows.append({
