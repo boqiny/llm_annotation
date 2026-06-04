@@ -109,37 +109,42 @@ export default function CodebookDraftWizard({
     <div className="space-y-6">
       {/* Door chooser */}
       {!hasDraft && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <DoorCard
-            door="upload"
-            active={door === 'upload'}
-            onClick={() => setDoor('upload')}
-            title="A. Upload a file"
-            hint="PDF · DOCX · XLSX · CSV · JSON · TXT — agent parses + cleans"
-          />
-          <DoorCard
-            door="paste"
-            active={door === 'paste'}
-            onClick={() => setDoor('paste')}
-            title="B. Paste text"
-            hint="Annotator notes, instructions, or an old draft — anything in text"
-          />
-          <DoorCard
-            door="preset"
-            active={door === 'preset'}
-            onClick={() => setDoor('preset')}
-            title="C. Use a preset"
-            hint={`Self-disclosure · AI behavior · ${presets.length} available`}
-            emphasized
-          />
-          <DoorCard
-            door="scratch"
-            active={door === 'scratch'}
-            onClick={() => setDoor('scratch')}
-            title="D. Describe it to me"
-            hint="Conversational elicitor (Phase 3 — not yet available)"
-            disabled
-          />
+        <div className="space-y-4">
+          <div className="border-l-2 border-ink pl-4 text-sm leading-relaxed text-stone-700">
+            A codebook is your label definition. Select one option below to define your codebook.
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <DoorCard
+              door="upload"
+              active={door === 'upload'}
+              onClick={() => setDoor('upload')}
+              title="A. Upload a file"
+              hint="PDF · DOCX · XLSX · CSV · JSON · TXT — agent parses + cleans"
+            />
+            <DoorCard
+              door="paste"
+              active={door === 'paste'}
+              onClick={() => setDoor('paste')}
+              title="B. Paste text"
+              hint="Annotator notes, instructions, or an old draft — anything in text"
+            />
+            <DoorCard
+              door="preset"
+              active={door === 'preset'}
+              onClick={() => setDoor('preset')}
+              title="C. Use a preset"
+              hint={`Self-disclosure · AI behavior · ${presets.length} available`}
+              emphasized
+            />
+            <DoorCard
+              door="scratch"
+              active={door === 'scratch'}
+              onClick={() => setDoor('scratch')}
+              title="D. Describe it to me"
+              hint="Conversational elicitor (Phase 3 — not yet available)"
+              disabled
+            />
+          </div>
         </div>
       )}
 
