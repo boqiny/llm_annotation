@@ -6,7 +6,7 @@ import {
 import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
   listCodebooks, listDatasets, autoGeneratePrompt, patchOptimizerRun,
-  listJobs, getFeedbackEvidence, listPipelines,
+  listJobs, getFeedbackEvidence, listPipelines, startJob,
   listMemoryVersions, deleteOptimizerRun, cancelOptimizerRun,
   previewFeedbackBatch, commitFeedbackBatch, deleteMemoryVersion, commitPrompt,
   type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion, type MemoryRule, type FeedbackEvidence,
@@ -30,6 +30,10 @@ function fmtError(e: any): string {
 
 function normDimensionName(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+function normStatus(value: string): string {
+  return String(value || '').toLowerCase()
 }
 
 export default function PromptLabV2() {
@@ -113,6 +117,11 @@ export default function PromptLabV2() {
   useEffect(() => {
     listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))
   }, [projectId, runs.length, runs.map(r => r.status).join(',')])
+
+  useEffect(() => {
+    if (tab !== 'memory') return
+    listJobs(projectId).then(setJobs).catch(() => setJobs([]))
+  }, [tab, projectId])
 
   // Auto-prompt cache
   const autoPromptCacheKey = activeCb ? `annotagent.autoPrompt.${projectId}.${activeCb.id}` : null
@@ -227,8 +236,10 @@ export default function PromptLabV2() {
           memory={memory}
           projectId={projectId}
           jobs={jobs}
+          datasets={datasets}
           dimensions={activeCb?.dimensions.map(d => d.name) ?? []}
           onRefresh={() => listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))}
+          onJobsRefresh={() => listJobs(projectId).then(setJobs).catch(() => setJobs([]))}
           onPromptCommitted={() => handleTabChange('prompts')}
         />
       )}
@@ -1361,12 +1372,14 @@ function DiffView({ oldText, newText }: { oldText: string; newText: string }) {
 
 /* ─── Memory tab ────────────────────────────────────────────── */
 
-function MemoryTab({ memory, projectId, jobs, dimensions, onRefresh, onPromptCommitted }: {
+function MemoryTab({ memory, projectId, jobs, datasets, dimensions, onRefresh, onJobsRefresh, onPromptCommitted }: {
   memory: MemoryVersion[]
   projectId: number
   jobs: Job[]
+  datasets: Dataset[]
   dimensions: string[]
   onRefresh: () => void
+  onJobsRefresh: () => void
   onPromptCommitted: () => void
 }) {
   const byDim: Record<string, MemoryVersion[]> = {}
@@ -1396,9 +1409,11 @@ function MemoryTab({ memory, projectId, jobs, dimensions, onRefresh, onPromptCom
       <EvidencePanel
         projectId={projectId}
         jobs={jobs}
+        datasets={datasets}
         dimensions={allDims}
         dimensionName={evidenceDim || allDims[0]}
         onDimensionChange={setEvidenceDim}
+        onJobsRefresh={onJobsRefresh}
       />
       {allDims.map(d => (
         <div key={d}>
@@ -1442,24 +1457,35 @@ type ApplyState = 'idle' | 'loading' | 'preview' | 'committing' | 'done' | 'erro
 
 type DraftFeedback = { id: string; text: string }
 
-function EvidencePanel({ projectId, jobs, dimensions, dimensionName, onDimensionChange }: {
+function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, onDimensionChange, onJobsRefresh }: {
   projectId: number
   jobs: Job[]
+  datasets: Dataset[]
   dimensions: string[]
   dimensionName: string
   onDimensionChange: (dimensionName: string) => void
+  onJobsRefresh: () => void
 }) {
-  const completedJobs = jobs.filter(j => j.status === 'completed')
+  const completedJobs = jobs.filter(j => normStatus(j.status) === 'completed')
   const [jobId, setJobId] = useState<number | ''>('')
+  const [runDatasetId, setRunDatasetId] = useState<number | ''>('')
   const [rows, setRows] = useState<FeedbackEvidence[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [launchingJob, setLaunchingJob] = useState(false)
+  const [launchStatus, setLaunchStatus] = useState('')
   const [mismatchesOnly, setMismatchesOnly] = useState(false)
 
   useEffect(() => {
     if (jobId || completedJobs.length === 0) return
     setJobId(completedJobs[0].id)
   }, [jobId, completedJobs])
+
+  useEffect(() => {
+    if (runDatasetId || datasets.length === 0) return
+    const preferred = datasets.find(d => d.is_gold) ?? datasets[0]
+    setRunDatasetId(preferred.id)
+  }, [runDatasetId, datasets])
 
   useEffect(() => {
     if (!jobId) { setRows([]); return }
@@ -1473,6 +1499,55 @@ function EvidencePanel({ projectId, jobs, dimensions, dimensionName, onDimension
       .catch(e => setError(fmtError(e)))
       .finally(() => setLoading(false))
   }, [projectId, jobId, dimensionName, mismatchesOnly])
+
+  const refreshUntilDone = (newJobId: number) => {
+    let tries = 0
+    const poll = async () => {
+      tries += 1
+      const latest = await listJobs(projectId)
+      const job = latest.find(j => j.id === newJobId)
+      onJobsRefresh()
+      if (job && normStatus(job.status) === 'completed') {
+        setJobId(newJobId)
+        setLaunchStatus('Annotation complete. Showing the latest results.')
+        setLaunchingJob(false)
+        return
+      }
+      if (job && ['failed', 'cancelled'].includes(normStatus(job.status))) {
+        setLaunchStatus(`Annotation ${normStatus(job.status)}.`)
+        setLaunchingJob(false)
+        return
+      }
+      if (tries < 180) {
+        setLaunchStatus(job ? `Annotating ${job.completed_items}/${job.total_items} items…` : 'Starting annotation…')
+        window.setTimeout(poll, 2000)
+      } else {
+        setLaunchStatus('Annotation is still running. Reopen Human feedback in a moment.')
+        setLaunchingJob(false)
+      }
+    }
+    window.setTimeout(poll, 1200)
+  }
+
+  const handleRunLatestPrompt = async () => {
+    if (!runDatasetId) return
+    setLaunchingJob(true)
+    setError('')
+    setLaunchStatus('Starting annotation with the latest pipeline prompt…')
+    try {
+      const pipelines = await listPipelines(projectId)
+      const latest = pipelines.slice().sort((a, b) => b.id - a.id)[0]
+      if (!latest) throw new Error('No pipeline found. Generate a pipeline first.')
+      const job = await startJob(projectId, Number(runDatasetId), latest.id)
+      onJobsRefresh()
+      setJobId('')
+      refreshUntilDone(job.id)
+    } catch (e: any) {
+      setError(fmtError(e))
+      setLaunchingJob(false)
+      setLaunchStatus('')
+    }
+  }
 
   return (
     <div className="border border-seam bg-paper/20">
@@ -1499,6 +1574,25 @@ function EvidencePanel({ projectId, jobs, dimensions, dimensionName, onDimension
             </option>
           ))}
         </select>
+        <select
+          value={runDatasetId}
+          onChange={e => setRunDatasetId(e.target.value ? Number(e.target.value) : '')}
+          className="max-w-full bg-white border border-seam px-2 py-1 text-xs focus:outline-none focus:border-ink"
+        >
+          {datasets.length === 0 && <option value="">No datasets</option>}
+          {datasets.map(d => (
+            <option key={d.id} value={d.id}>
+              run on {d.name} · {d.total_items}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={handleRunLatestPrompt}
+          disabled={launchingJob || !runDatasetId}
+          className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition"
+        >
+          {launchingJob ? 'Running…' : 'Run annotation with latest prompt'}
+        </button>
         <label className="inline-flex items-center gap-1.5 font-mono-editorial text-xs text-stone-500">
           <input
             type="checkbox"
@@ -1509,13 +1603,21 @@ function EvidencePanel({ projectId, jobs, dimensions, dimensionName, onDimension
           Show only items that need review
         </label>
       </div>
+      {launchStatus && (
+        <div className="border-b border-seam px-3 py-2 text-xs text-stone-600 bg-white">
+          {launchStatus}
+        </div>
+      )}
       {loading ? (
         <div className="px-3 py-3 font-mono-editorial text-xs text-stone-400">Loading examples…</div>
       ) : error ? (
         <div className="px-3 py-3 font-mono-editorial text-xs text-red-600">{error}</div>
       ) : rows.length === 0 ? (
-        <div className="px-3 py-3 font-mono-editorial text-xs text-stone-400">
-          {completedJobs.length === 0 ? 'Run an annotation job to review outputs here.' : 'No examples found for this dimension.'}
+        <div className="px-3 py-3 text-xs text-stone-500 leading-relaxed">
+          {completedJobs.length === 0
+            ? 'No completed annotation jobs yet. A finished improvement run updates the prompt, but annotated examples appear here only after you run annotation on a dataset.'
+            : 'No annotated examples found for this dimension in the selected job. Try another completed job, or run annotation again after applying the prompt.'
+          }
         </div>
       ) : (
         <ul className="max-h-[520px] overflow-auto divide-y divide-stone-300 bg-white">
