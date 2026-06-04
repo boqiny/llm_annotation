@@ -230,6 +230,7 @@ class WSProgressMessage(BaseModel):
 class CodebookDraftCreate(BaseModel):
     """JSON body when not uploading a file. For uploads, use multipart."""
     source: str  # "paste" | "preset" | "scratch"
+    project_id: Optional[int] = None
     text: Optional[str] = None
     preset_name: Optional[str] = None
 

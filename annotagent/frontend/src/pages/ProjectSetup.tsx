@@ -9,7 +9,12 @@ import {
 import type { Project, Codebook, Dataset, PresetInfo } from '../types'
 import CodebookDraftWizard from '../components/CodebookDraftWizard'
 
-type Step = 'codebook' | 'data' | 'model'
+type Step = 'model' | 'codebook' | 'data'
+
+const MODEL_OPTIONS: Record<string, string[]> = {
+  openai: ['gpt-5.4-mini', 'gpt-5.4', 'gpt-4.1-mini'],
+  anthropic: ['claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805', 'claude-3-5-haiku-20241022'],
+}
 
 function isSelfDisclosure(cb: Codebook | undefined | null): boolean {
   if (!cb) return false
@@ -31,7 +36,7 @@ export default function ProjectSetupV2() {
   const [llmProvider, setLlmProvider] = useState('openai')
   const [llmModel, setLlmModel] = useState('gpt-5.4-mini')
   const [apiKey, setApiKey] = useState('')
-  const [step, setStep] = useState<Step>('codebook')
+  const [step, setStep] = useState<Step>('model')
   const [loading, setLoading] = useState(false)
   const [loadingSeed, setLoadingSeed] = useState<string | null>(null)
   const [wizardMode, setWizardMode] = useState(false)
@@ -65,6 +70,14 @@ export default function ProjectSetupV2() {
     const patch: Record<string, string> = { llm_provider: llmProvider, llm_model: llmModel }
     if (apiKey) patch.api_key = apiKey
     await updateProject(projectId, patch)
+    setProject(prev => prev ? { ...prev, llm_provider: llmProvider, llm_model: llmModel } : prev)
+  }
+  const handleSaveModelAndContinue = async () => {
+    setLoading(true)
+    try {
+      await handleSaveLLM()
+      setStep('codebook')
+    } finally { setLoading(false) }
   }
   const handleGeneratePipeline = async () => {
     setLoading(true)
@@ -107,12 +120,12 @@ export default function ProjectSetupV2() {
         {/* Step rail */}
         <aside className="md:w-52 shrink-0">
           <ol className="space-y-1">
-            <StepLink n="01" label="Codebook" hint="label schema"
-                      active={step === 'codebook'} done={!!activeCb} onClick={() => setStep('codebook')} />
-            <StepLink n="02" label="Data" hint="optional"
-                      active={step === 'data'} done={hasDataset} onClick={() => setStep('data')} />
-            <StepLink n="03" label="Model" hint="LLM + key"
+            <StepLink n="01" label="Model" hint="LLM + key"
                       active={step === 'model'} done={keyOK} onClick={() => setStep('model')} />
+            <StepLink n="02" label="Codebook" hint="label schema"
+                      active={step === 'codebook'} done={!!activeCb} onClick={() => setStep('codebook')} />
+            <StepLink n="03" label="Data" hint="optional"
+                      active={step === 'data'} done={hasDataset} onClick={() => setStep('data')} />
           </ol>
         </aside>
 
@@ -125,7 +138,7 @@ export default function ProjectSetupV2() {
               setWizardMode={setWizardMode}
               presets={presets}
               projectId={projectId}
-              onAccepted={() => { setWizardMode(false); loadData() }}
+              onAccepted={() => { setWizardMode(false); loadData(); setStep('data') }}
             />
           )}
           {step === 'data' && (
@@ -147,6 +160,8 @@ export default function ProjectSetupV2() {
               setLlmProvider={setLlmProvider}
               setLlmModel={setLlmModel}
               setApiKey={setApiKey}
+              onSaveAndContinue={handleSaveModelAndContinue}
+              saving={loading}
             />
           )}
         </main>
@@ -330,7 +345,7 @@ function DataStep({
 }
 
 function ModelStep({
-  backendCfg, llmProvider, llmModel, apiKey, setLlmProvider, setLlmModel, setApiKey,
+  backendCfg, llmProvider, llmModel, apiKey, setLlmProvider, setLlmModel, setApiKey, onSaveAndContinue, saving,
 }: {
   backendCfg: BackendConfig | null
   llmProvider: string
@@ -339,14 +354,24 @@ function ModelStep({
   setLlmProvider: (v: string) => void
   setLlmModel: (v: string) => void
   setApiKey: (v: string) => void
+  onSaveAndContinue: () => void
+  saving: boolean
 }) {
   const envOK = envKeyAvailable(backendCfg, llmProvider)
+  const modelOptions = MODEL_OPTIONS[llmProvider] || []
+  const modelChoices = modelOptions.includes(llmModel) ? modelOptions : [llmModel, ...modelOptions].filter(Boolean)
+  const handleProviderChange = (provider: string) => {
+    setLlmProvider(provider)
+    const defaults = MODEL_OPTIONS[provider]
+    if (defaults?.length) setLlmModel(defaults[0])
+  }
+  const keyPlaceholder = llmProvider === 'anthropic' ? 'sk-ant-...' : 'sk-...'
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
         <div className="md:col-span-4">
           <LabelV2>Provider</LabelV2>
-          <select value={llmProvider} onChange={e => setLlmProvider(e.target.value)}
+          <select value={llmProvider} onChange={e => handleProviderChange(e.target.value)}
                   className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-medium">
             <option value="openai">OpenAI</option>
             <option value="anthropic">Anthropic</option>
@@ -354,13 +379,17 @@ function ModelStep({
         </div>
         <div className="md:col-span-4">
           <LabelV2>Model</LabelV2>
-          <input value={llmModel} onChange={e => setLlmModel(e.target.value)}
-                 className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-mono text-sm" />
+          <select value={llmModel} onChange={e => setLlmModel(e.target.value)}
+                  className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-mono text-sm">
+            {modelChoices.map(model => (
+              <option key={model} value={model}>{model}</option>
+            ))}
+          </select>
         </div>
         <div className="md:col-span-4">
           <LabelV2>API key {envOK && <span className="text-emerald-700 ml-1 normal-case tracking-normal text-[10px]">.env loaded</span>}</LabelV2>
           <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)}
-                 placeholder={envOK ? 'leave blank to use .env' : 'sk-…'}
+                 placeholder={envOK ? 'leave blank to use .env' : keyPlaceholder}
                  className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-mono text-sm" />
         </div>
       </div>
@@ -370,6 +399,15 @@ function ModelStep({
           <KeyBadge label="Anthropic" loaded={backendCfg.anthropic_key_loaded} />
         </div>
       )}
+      <div className="flex justify-end">
+        <button
+          onClick={onSaveAndContinue}
+          disabled={saving || (!envOK && !apiKey)}
+          className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40"
+        >
+          {saving ? 'Saving…' : 'Save model & continue →'}
+        </button>
+      </div>
     </div>
   )
 }

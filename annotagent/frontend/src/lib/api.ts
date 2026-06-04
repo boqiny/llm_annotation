@@ -149,9 +149,10 @@ export interface CodebookDraft {
   updated_at: string | null
 }
 
-export const uploadCodebookDraft = async (file: File): Promise<CodebookDraft> => {
+export const uploadCodebookDraft = async (projectId: number, file: File): Promise<CodebookDraft> => {
   const form = new FormData()
   form.append('file', file)
+  form.append('project_id', String(projectId))
   const r = await api.post<CodebookDraft>('/codebook-drafts/upload', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 120_000,
@@ -159,8 +160,8 @@ export const uploadCodebookDraft = async (file: File): Promise<CodebookDraft> =>
   return r.data
 }
 
-export const pasteCodebookDraft = (text: string) =>
-  api.post<CodebookDraft>('/codebook-drafts', { source: 'paste', text }, { timeout: 120_000 })
+export const pasteCodebookDraft = (projectId: number, text: string) =>
+  api.post<CodebookDraft>('/codebook-drafts', { source: 'paste', project_id: projectId, text }, { timeout: 120_000 })
      .then(r => r.data)
 
 export const presetCodebookDraft = (preset_name: string) =>

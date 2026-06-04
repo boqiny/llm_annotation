@@ -44,7 +44,7 @@ export default function CodebookDraftWizard({
   const handleUpload = async (file: File) => {
     setLoading(`Ingesting ${file.name}…`); setError(''); setDraft(null)
     try {
-      const d = await uploadCodebookDraft(file)
+      const d = await uploadCodebookDraft(projectId, file)
       setDraft(d)
       if (d.status !== 'ready') setError(d.error_message || 'Draft failed.')
     } catch (e: any) {
@@ -61,7 +61,7 @@ export default function CodebookDraftWizard({
     }
     setLoading('Agent reading your text…'); setError(''); setDraft(null)
     try {
-      const d = await pasteCodebookDraft(pasteText)
+      const d = await pasteCodebookDraft(projectId, pasteText)
       setDraft(d)
       if (d.status !== 'ready') setError(d.error_message || 'Draft failed.')
     } catch (e: any) {
