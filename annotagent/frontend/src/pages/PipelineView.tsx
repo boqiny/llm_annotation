@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  listPipelines, listDatasets, startJob, uploadDataset, estimateAnnotationRun,
+  listPipelines, listDatasets, startJob, uploadDataset, estimateAnnotationRun, listJobs,
   listSeedDatasets, loadSeedDataset, listCodebooks,
   type AnnotationCostEstimate, type SeedDatasetInfo,
 } from '../lib/api'
-import type { Pipeline, PipelineStep, Dataset, Codebook } from '../types'
+import type { Pipeline, PipelineStep, Dataset, Codebook, Job } from '../types'
 
 function isSelfDisclosure(cb: Codebook | null | undefined): boolean {
   if (!cb) return false
@@ -29,17 +29,20 @@ export default function PipelineView() {
   const [estimate, setEstimate] = useState<AnnotationCostEstimate | null>(null)
   const [estimateLoading, setEstimateLoading] = useState(false)
   const [estimateError, setEstimateError] = useState('')
+  const [jobs, setJobs] = useState<Job[]>([])
 
   const reload = () => Promise.all([
     listPipelines(projectId),
     listDatasets(projectId),
     listSeedDatasets(projectId),
     listCodebooks(projectId),
-  ]).then(([pipelines, ds, sd, cbs]) => {
+    listJobs(projectId),
+  ]).then(([pipelines, ds, sd, cbs, js]) => {
     if (pipelines.length > 0) setPipeline(pipelines[pipelines.length - 1])
     setDatasets(ds)
     setTestSeeds(sd.filter(s => s.role === 'test'))
     setActiveCb(cbs.length > 0 ? cbs[cbs.length - 1] : null)
+    setJobs(js)
     const nonGold = ds.filter(d => !d.is_gold)
     if (nonGold.length > 0 && !selectedDataset) {
       const testDs = nonGold.find(d => d.name.toLowerCase().includes('test set'))
@@ -247,6 +250,46 @@ export default function PipelineView() {
             />
           </div>
         </div>
+
+        {jobs.length > 0 && (
+          <section className="border border-seam bg-white">
+            <div className="flex items-baseline justify-between gap-4 px-4 py-3 border-b border-seam">
+              <div>
+                <div className="font-mono-editorial text-stone-500">Recent annotation runs</div>
+                <p className="mt-1 text-xs text-stone-500">Completed runs are saved. Reopen results anytime without exporting first.</p>
+              </div>
+            </div>
+            <div className="divide-y divide-seam">
+              {jobs.slice(0, 5).map(job => {
+                const dataset = datasets.find(d => d.id === job.dataset_id)
+                const completed = job.status === 'completed'
+                return (
+                  <div key={job.id} className="grid grid-cols-12 gap-3 items-center px-4 py-3 text-sm">
+                    <div className="col-span-4">
+                      <div className="font-medium">Job № {job.id.toString().padStart(4, '0')}</div>
+                      <div className="text-xs text-stone-500 truncate">{dataset?.name ?? `Dataset ${job.dataset_id}`}</div>
+                    </div>
+                    <div className="col-span-2 font-mono-editorial text-stone-500">{job.status}</div>
+                    <div className="col-span-2 font-mono text-xs text-stone-500">
+                      {job.completed_items.toLocaleString()} / {job.total_items.toLocaleString()} items
+                    </div>
+                    <div className="col-span-2 font-mono text-xs text-stone-500">
+                      ${job.total_cost.toFixed(4)}
+                    </div>
+                    <div className="col-span-2 text-right">
+                      <Link
+                        to={`/projects/${projectId}/${completed ? 'results' : 'monitor'}/${job.id}`}
+                        className="px-3 py-1.5 border border-ink text-ink text-xs font-medium hover:bg-ink hover:text-cream transition"
+                      >
+                        {completed ? 'View results' : 'Open run'}
+                      </Link>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
 
         {/* Bundled unseen test sets — only relevant for the self-disclosure
             project (the rest of the test corpus belongs to that codebook). */}

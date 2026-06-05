@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { getJob, getMetrics, getConfusionMatrix, exportResults } from '../lib/api'
 import { formatTokens, formatPercent } from '../lib/utils'
 import type { Job, DimensionMetrics } from '../types'
+
+type OutputRow = Record<string, string | number | null | undefined>
 
 export default function ResultsDashboard() {
   const { id, jobId } = useParams<{ id: string; jobId: string }>()
@@ -14,6 +16,8 @@ export default function ResultsDashboard() {
   const [metrics, setMetrics] = useState<DimensionMetrics[]>([])
   const [confusionDim, setConfusionDim] = useState<string>('')
   const [confusionData, setConfusionData] = useState<{ classes: string[]; matrix: Record<string, Record<string, number>> } | null>(null)
+  const [resultsOpen, setResultsOpen] = useState(true)
+  const [outputRows, setOutputRows] = useState<OutputRow[]>([])
 
   useEffect(() => {
     getJob(projectId, jid).then(setJob)
@@ -21,6 +25,7 @@ export default function ResultsDashboard() {
       setMetrics(m)
       if (m.length > 0) setConfusionDim(m[0].dimension)
     })
+    exportResults(projectId, jid, 'json').then(resp => setOutputRows(Array.isArray(resp.data) ? resp.data : []))
   }, [projectId, jid])
 
   useEffect(() => {
@@ -52,6 +57,10 @@ export default function ResultsDashboard() {
     accuracy: +(m.metrics.accuracy * 100).toFixed(1),
     macro_f1: +(m.metrics.macro_f1 * 100).toFixed(1),
   }))
+  const outputColumns = outputRows.length > 0
+    ? Object.keys(outputRows[0]).filter(k => k !== 'item_id' && k !== 'content')
+    : []
+  const previewRows = outputRows.slice(0, 200)
 
   return (
     <div className="space-y-12">
@@ -64,6 +73,12 @@ export default function ResultsDashboard() {
           <h1 className="text-4xl font-medium tracking-tight">Per-dimension outcomes.</h1>
         </div>
         <div className="flex gap-2">
+          <Link
+            to={`/projects/${projectId}/pipeline`}
+            className="px-4 py-2 text-sm font-medium text-ink border border-ink bg-white hover:bg-paper transition-colors"
+          >
+            Back to annotation
+          </Link>
           <button onClick={() => handleExport('csv')} className="px-4 py-2 text-sm font-medium text-ink border border-seam hover:border-ink transition-colors">
             Export · CSV
           </button>
@@ -87,6 +102,64 @@ export default function ResultsDashboard() {
           value={job?.status ?? '—'}
           tone={job?.status === 'completed' ? 'text-emerald-700' : 'text-stone-600'}
         />
+      </section>
+      <p className="-mt-8 text-xs text-stone-500">
+        Tokens and cost are persisted from actual model usage for this job. Input/output token split is not stored separately yet.
+      </p>
+
+      <section className="border border-seam bg-white">
+        <button
+          type="button"
+          onClick={() => setResultsOpen(v => !v)}
+          className="w-full px-4 py-3 flex items-center justify-between gap-4 text-left hover:bg-paper/50"
+        >
+          <div>
+            <div className="font-mono-editorial text-stone-500">Annotated results</div>
+            <p className="mt-1 text-xs text-stone-500">
+              Output preview in the same shape as the exported CSV: sentence plus predicted labels. Showing {previewRows.length.toLocaleString()} of {outputRows.length.toLocaleString()} rows.
+            </p>
+          </div>
+          <span className="font-mono-editorial text-violet-700">{resultsOpen ? 'Hide' : 'Show'}</span>
+        </button>
+        {resultsOpen && (
+          <div className="border-t border-seam max-h-[460px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-white border-b border-seam">
+                <tr>
+                  <th className="px-3 py-3 text-left font-mono-editorial text-stone-500">Item</th>
+                  <th className="px-3 py-3 text-left font-mono-editorial text-stone-500 min-w-[320px]">Sentence</th>
+                  {outputColumns.map(col => (
+                    <th key={col} className="px-3 py-3 text-left font-mono-editorial text-stone-500 min-w-[160px]">{col}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-seam">
+                {previewRows.map((row, idx) => (
+                  <tr key={`${row.item_id ?? idx}`} className="hover:bg-paper/40">
+                    <td className="px-3 py-3 font-mono text-xs text-stone-500">{String(row.item_id ?? idx + 1).padStart(4, '0')}</td>
+                    <td className="px-3 py-3 text-stone-700 max-w-[520px]">
+                      <div className="line-clamp-3">{String(row.content ?? '')}</div>
+                    </td>
+                    {outputColumns.map(col => (
+                      <td key={col} className="px-3 py-3">
+                        <span className="px-2 py-0.5 bg-paper border border-seam text-stone-700 text-xs">
+                          {String(row[col] ?? '—')}
+                        </span>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {previewRows.length === 0 && (
+                  <tr>
+                    <td colSpan={Math.max(2, outputColumns.length + 2)} className="px-4 py-12 text-center text-stone-400 font-mono-editorial">
+                      No stored predictions found for this job yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {/* Accuracy Chart */}
