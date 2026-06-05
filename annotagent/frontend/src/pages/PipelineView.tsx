@@ -256,24 +256,38 @@ export default function PipelineView() {
             <div className="flex items-baseline justify-between gap-4 px-4 py-3 border-b border-seam">
               <div>
                 <div className="font-mono-editorial text-stone-500">Recent annotation runs</div>
-                <p className="mt-1 text-xs text-stone-500">Completed runs are saved. Reopen results anytime without exporting first.</p>
+                <p className="mt-1 text-xs text-stone-500">Completed runs are saved. The source label shows where the run was started.</p>
               </div>
+            </div>
+            <div className="grid grid-cols-12 gap-3 px-4 py-2 border-b border-seam bg-paper/40 font-mono-editorial text-xs text-stone-500">
+              <div className="col-span-3">Run</div>
+              <div className="col-span-2">Created from</div>
+              <div className="col-span-2">Status</div>
+              <div className="col-span-2">Items</div>
+              <div className="col-span-1 text-right">Cost</div>
+              <div className="col-span-2 text-right">Results</div>
             </div>
             <div className="divide-y divide-seam">
               {jobs.slice(0, 5).map(job => {
                 const dataset = datasets.find(d => d.id === job.dataset_id)
                 const completed = job.status === 'completed'
+                const source = runSourceDisplay(job.source)
                 return (
                   <div key={job.id} className="grid grid-cols-12 gap-3 items-center px-4 py-3 text-sm">
-                    <div className="col-span-4">
+                    <div className="col-span-3">
                       <div className="font-medium">Job № {job.id.toString().padStart(4, '0')}</div>
                       <div className="text-xs text-stone-500 truncate">{dataset?.name ?? `Dataset ${job.dataset_id}`}</div>
+                    </div>
+                    <div className="col-span-2">
+                      <span className={`px-2 py-0.5 border text-xs ${source.className}`}>
+                        {source.label}
+                      </span>
                     </div>
                     <div className="col-span-2 font-mono-editorial text-stone-500">{job.status}</div>
                     <div className="col-span-2 font-mono text-xs text-stone-500">
                       {job.completed_items.toLocaleString()} / {job.total_items.toLocaleString()} items
                     </div>
-                    <div className="col-span-2 font-mono text-xs text-stone-500">
+                    <div className="col-span-1 text-right font-mono text-xs text-stone-500">
                       ${job.total_cost.toFixed(4)}
                     </div>
                     <div className="col-span-2 text-right">
@@ -384,6 +398,19 @@ export default function PipelineView() {
       </section>
     </div>
   )
+}
+
+function runSourceDisplay(source: string | null | undefined): { label: string; className: string } {
+  if (source === 'human_feedback') {
+    return { label: 'Human feedback', className: 'border-sky-200 bg-sky-50 text-sky-800' }
+  }
+  if (source === 'improve') {
+    return { label: 'Improve page', className: 'border-amber-200 bg-amber-50 text-amber-800' }
+  }
+  if (source === 'annotation') {
+    return { label: 'Annotation page', className: 'border-emerald-200 bg-emerald-50 text-emerald-800' }
+  }
+  return { label: 'Older run', className: 'border-stone-200 bg-paper text-stone-600' }
 }
 
 function CostEstimatePanel({

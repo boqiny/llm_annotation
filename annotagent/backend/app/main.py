@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
             lambda c: [col["name"] for col in _inspect(c).get_columns("annotation_jobs")]
         )
         if "source" not in job_cols:
-            await conn.execute(_text("ALTER TABLE annotation_jobs ADD COLUMN source VARCHAR(32) DEFAULT 'annotation'"))
+            await conn.execute(_text("ALTER TABLE annotation_jobs ADD COLUMN source VARCHAR(32) DEFAULT 'unknown'"))
 
 
     # Reap stale in-flight rows. The asyncio.Task registry is process-local

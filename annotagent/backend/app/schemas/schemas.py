@@ -161,7 +161,7 @@ class JobOut(BaseModel):
     failed_items: int
     total_tokens: int
     total_cost: float
-    source: str = "annotation"
+    source: str = "unknown"
     created_at: Optional[datetime.datetime] = None
     updated_at: Optional[datetime.datetime] = None
 
