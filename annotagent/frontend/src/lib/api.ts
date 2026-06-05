@@ -84,8 +84,8 @@ export const updatePipeline = (projectId: number, pipelineId: number, steps: obj
   api.put<Pipeline>(`/projects/${projectId}/pipelines/${pipelineId}`, { steps }).then(r => r.data)
 
 // Jobs
-export const startJob = (projectId: number, datasetId: number, pipelineId: number) =>
-  api.post<Job>(`/projects/${projectId}/jobs`, { dataset_id: datasetId, pipeline_id: pipelineId }).then(r => r.data)
+export const startJob = (projectId: number, datasetId: number, pipelineId: number, source = 'annotation') =>
+  api.post<Job>(`/projects/${projectId}/jobs`, { dataset_id: datasetId, pipeline_id: pipelineId, source }).then(r => r.data)
 export const listJobs = (projectId: number) =>
   api.get<Job[]>(`/projects/${projectId}/jobs`).then(r => r.data)
 export const getJob = (projectId: number, jobId: number) =>

@@ -83,6 +83,7 @@ export interface Job {
   failed_items: number
   total_tokens: number
   total_cost: number
+  source: string
   created_at: string | null
   updated_at: string | null
 }

@@ -147,6 +147,7 @@ class PipelineUpdate(BaseModel):
 class JobCreate(BaseModel):
     dataset_id: int
     pipeline_id: int
+    source: str = "annotation"
 
 
 class JobOut(BaseModel):
@@ -160,6 +161,7 @@ class JobOut(BaseModel):
     failed_items: int
     total_tokens: int
     total_cost: float
+    source: str = "annotation"
     created_at: Optional[datetime.datetime] = None
     updated_at: Optional[datetime.datetime] = None
 
