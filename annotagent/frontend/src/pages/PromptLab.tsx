@@ -89,11 +89,23 @@ export default function PromptLabV2() {
     return String((step as any)?.prompt || '')
   }
 
-  const bestReflectRunByDimension = () => {
+  const completedRunsForDimension = (dimensionName: string) => runs.filter(run =>
+    normDimensionName(run.dimension_name) === normDimensionName(dimensionName)
+    && normStatus(run.status) === 'completed'
+    && !!run.optimized_prompt
+  ).sort((a, b) => b.id - a.id)
+
+  const selectedPromptForAnnotation = (dimensionName: string, startingPrompt: string): string => {
+    const completed = completedRunsForDimension(dimensionName)
+    const appliedPrompt = pipelinePromptForDimension(dimensionName).trim()
+    const appliedRun = completed.find(run => appliedPrompt && run.optimized_prompt.trim() === appliedPrompt)
+    return appliedRun?.optimized_prompt ?? completed[0]?.optimized_prompt ?? (appliedPrompt || startingPrompt)
+  }
+
+  const bestRunByDimension = () => {
     const byDim: Record<string, OptimizerRun> = {}
     const completed = runs.filter(run =>
-      run.optimizer_name === 'reflect_agent'
-      && normStatus(run.status) === 'completed'
+      normStatus(run.status) === 'completed'
       && !!run.optimized_prompt
     )
 
@@ -105,7 +117,7 @@ export default function PromptLabV2() {
     }
 
     for (const run of runs) {
-      if (run.optimizer_name !== 'reflect_agent' || normStatus(run.status) !== 'completed' || !run.optimized_prompt) continue
+      if (normStatus(run.status) !== 'completed' || !run.optimized_prompt) continue
       const key = normDimensionName(run.dimension_name)
       if (byDim[key]) continue
       byDim[key] = run
@@ -118,10 +130,21 @@ export default function PromptLabV2() {
   const handleAnnotateWithBestPrompts = async () => {
     setPreparingAnnotation(true)
     try {
-      const latestRuns = bestReflectRunByDimension()
-      await Promise.all(Object.values(latestRuns).map(run =>
-        commitPrompt(projectId, run.dimension_name, run.optimized_prompt)
-      ))
+      const promptsToApply = autoPrompt?.prompts ?? []
+      if (promptsToApply.length > 0) {
+        await Promise.all(promptsToApply.map(prompt =>
+          commitPrompt(
+            projectId,
+            prompt.dimension_name,
+            selectedPromptForAnnotation(prompt.dimension_name, prompt.prompt),
+          )
+        ))
+      } else {
+        const latestRuns = bestRunByDimension()
+        await Promise.all(Object.values(latestRuns).map(run =>
+          commitPrompt(projectId, run.dimension_name, run.optimized_prompt)
+        ))
+      }
       await refreshPipelines()
       navigate(`/projects/${projectId}/pipeline`)
     } catch (e: any) {
@@ -428,7 +451,6 @@ function PromptsTab({
         {autoPrompt.prompts.map(p => {
           const completedRuns = runs.filter(r =>
             normDimensionName(r.dimension_name) === normDimensionName(p.dimension_name)
-            && r.optimizer_name === 'reflect_agent'
             && normStatus(r.status) === 'completed'
             && !!r.optimized_prompt
           ).sort((a, b) => b.id - a.id)

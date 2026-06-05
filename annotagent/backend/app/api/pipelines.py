@@ -1,13 +1,10 @@
 """Pipeline API routes — decompose, view, edit steps/prompts."""
 from __future__ import annotations
 
-from typing import Literal
-
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import resolve_api_key
 from app.database import get_db
 from app.models.tables import Pipeline, Codebook, Dimension, Label, Project
 from app.schemas.schemas import PipelineOut, PipelineUpdate
@@ -20,13 +17,9 @@ router = APIRouter(prefix="/api/projects/{project_id}/pipelines", tags=["pipelin
 @router.post("/decompose", response_model=PipelineOut, status_code=201)
 async def decompose(
     project_id: int,
-    mode: Literal["per_dimension", "all_together", "auto"] = Query("per_dimension"),
     db: AsyncSession = Depends(get_db),
 ):
-    """Generate a pipeline from the project's codebook.
-
-    ``mode`` controls grouping (default: per_dimension — one step per dim).
-    """
+    """Generate the active pipeline: one prompt per codebook dimension."""
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
@@ -41,13 +34,7 @@ async def decompose(
         raise HTTPException(400, "No codebook uploaded for this project")
 
     parsed = parse_codebook(codebook.raw_json)
-    steps = await decompose_codebook(
-        codebook=parsed,
-        mode=mode,
-        provider=project.llm_provider,
-        model=project.llm_model,
-        api_key=resolve_api_key(project.llm_provider, project.api_key_encrypted),
-    )
+    steps = await decompose_codebook(codebook=parsed)
 
     pipeline = Pipeline(
         project_id=project_id,

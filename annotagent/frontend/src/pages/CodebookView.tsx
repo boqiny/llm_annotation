@@ -5,7 +5,6 @@ import type { Codebook, Dimension, Label, Project } from '../types'
 
 type RawCodebook = {
   mode?: 'single_label' | 'multi_label' | 'mixed'
-  decomposition_hints?: { groups?: string[][]; order?: string[] }
   dimensions?: Array<{ name: string; type?: string; instructions?: string }>
 }
 
@@ -53,9 +52,6 @@ export default function CodebookView() {
     )
   }
 
-  const groups = raw.decomposition_hints?.groups ?? [codebook.dimensions.map(d => d.name)]
-  const groupOrder = raw.decomposition_hints?.order ?? groups.map((_, i) => `Step ${i + 1}`)
-
   const toggleDim = (id: number) => {
     setExpanded(prev => {
       const next = new Set(prev)
@@ -100,35 +96,8 @@ export default function CodebookView() {
           <ModeBadge mode={mode} />
           <MetaPair label="Dimensions" value={codebook.dimensions.length} />
           <MetaPair label="Labels" value={codebook.dimensions.reduce((s, d) => s + d.labels.length, 0)} />
-          <MetaPair label="Pipeline steps" value={groups.length} />
         </div>
       </header>
-
-      {/* Pipeline strip */}
-      {groups.length > 0 && (
-        <section>
-          <SectionLabel>Pipeline decomposition</SectionLabel>
-          <div className="flex items-stretch flex-wrap gap-0">
-            {groups.map((grp, i) => (
-              <div key={i} className="flex items-center">
-                <div className="border border-seam bg-white px-4 py-3 min-w-[200px]">
-                  <div className="font-mono-editorial text-stone-400 mb-1">
-                    Step {String(i + 1).padStart(2, '0')} · {groupOrder[i] ?? ''}
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {grp.map(dim => (
-                      <span key={dim} className="text-sm text-stone-800">{dim}</span>
-                    ))}
-                  </div>
-                </div>
-                {i < groups.length - 1 && (
-                  <div className="px-3 text-stone-300 font-mono text-xl">→</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Dimensions header + expand-all */}
       <section>

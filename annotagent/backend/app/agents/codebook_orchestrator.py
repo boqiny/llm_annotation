@@ -297,7 +297,7 @@ TOOLS: list[dict[str, Any]] = [
                 "properties": {
                     "codebook_json": {
                         "type": "string",
-                        "description": "STRICT JSON string with: name, description, mode (single_label/multi_label/mixed), dimensions [{name, type, instructions, labels:[{name, definition, examples:[]}]}], decomposition_hints {groups, order}.",
+                        "description": "STRICT JSON string with: name, description, mode (single_label/multi_label/mixed), dimensions [{name, type, instructions, labels:[{name, definition, examples:[]}]}].",
                     },
                 },
                 "required": ["codebook_json"], "additionalProperties": False,
@@ -352,10 +352,6 @@ Output schema (when calling propose_codebook):
       "labels": [{"name": "...", "definition": "...", "examples": []}]
     }
   ],
-  "decomposition_hints": {
-    "groups": [["dim_a", "dim_b"], ["dim_c"]],
-    "order": ["Step 1: …", "Step 2: …"]
-  },
   "_rationale_per_dim": {"dim_a": "why I chose this mode + any ambiguity"}
 }
 
@@ -364,8 +360,6 @@ Rules:
 - Each dimension should have 2-10 labels (binary is OK for a 1-label source).
 - Definitions: copy verbatim from the file when present; paraphrase only if
   the source is fragmentary.
-- decomposition_hints: group dimensions that share scope (e.g. all
-  self-disclosure dims in one step, all AI-behavior dims in another).
 - Stop calling exploration tools once you have everything you need —
   unnecessary calls are wasteful."""
 
