@@ -40,6 +40,9 @@ def parse_answer(response: str, valid_labels: list[str], is_binary: bool = False
 
 
 def _match_label(candidate: str, labels: list[str], is_binary: bool) -> str | None:
+    no_label = _canonical_no_label(labels)
+    if no_label and _looks_like_no_label(candidate):
+        return no_label
     if is_binary:
         return _match_yes_no(candidate, labels)
     for label in labels:
@@ -52,6 +55,11 @@ def _match_label(candidate: str, labels: list[str], is_binary: bool) -> str | No
 
 
 def _last_label_in_text(text: str, labels: list[str], is_binary: bool) -> str | None:
+    no_label = _canonical_no_label(labels)
+    if no_label:
+        answer_matches = list(re.finditer(r"(?i)answer[:\s]+(.+?)(?:\n|$)", text))
+        if answer_matches and _looks_like_no_label(answer_matches[-1].group(1)):
+            return no_label
     if is_binary:
         return _match_yes_no(text, labels)
     last_pos = -1
@@ -77,3 +85,26 @@ def _match_yes_no(text: str, labels: list[str]) -> str | None:
         if keyword in label.lower():
             return label
     return labels[0] if is_yes else labels[-1]
+
+
+def _canonical_no_label(labels: list[str]) -> str | None:
+    for label in labels:
+        if label.strip().lower() == "no label":
+            return label
+    return None
+
+
+def _looks_like_no_label(text: str) -> bool:
+    cleaned = re.sub(r"[^a-z0-9/ ]+", " ", text.lower())
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned in {
+        "no label",
+        "none",
+        "n/a",
+        "na",
+        "not applicable",
+        "not apply",
+        "does not apply",
+        "no applicable label",
+        "no labels",
+    }
