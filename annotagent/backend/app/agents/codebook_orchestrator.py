@@ -360,6 +360,9 @@ Rules:
 - Each dimension should have 2-10 labels (binary is OK for a 1-label source).
 - Definitions: copy verbatim from the file when present; paraphrase only if
   the source is fragmentary.
+- If a dimension may not apply to every item, include an explicit "No label"
+  label with a definition like "Use when none of the substantive labels apply."
+  Do not represent non-applicability by omitting the dimension or leaving cells blank.
 - Stop calling exploration tools once you have everything you need —
   unnecessary calls are wasteful."""
 

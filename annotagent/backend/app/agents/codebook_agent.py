@@ -64,7 +64,10 @@ RULES:
      columns), synthesize the schema from the OBSERVED labels per theme.
   3. Use canonical casing (Title Case for labels; lowercase with underscores in IDs).
   4. 2-6 dimensions is typical; 3-8 labels per dimension is typical.
-  5. Output STRICT JSON. No prose, no markdown fences, no comments."""
+  5. If a dimension may not apply to every item, include an explicit "No label"
+     label with a definition like "Use when none of the substantive labels apply."
+     Do not represent non-applicability by omitting the dimension or leaving cells blank.
+  6. Output STRICT JSON. No prose, no markdown fences, no comments."""
 
 
 async def run_codebook_agent(
