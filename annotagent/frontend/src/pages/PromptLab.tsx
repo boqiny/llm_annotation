@@ -833,7 +833,20 @@ function ImproveTab({
         <div>
           <Label>Labeled examples</Label>
           {datasets.length === 0
-            ? <p className="text-sm text-stone-500">None loaded.</p>
+            ? (
+              <div className="border border-amber-200 bg-amber-50 px-3 py-3">
+                <p className="text-sm font-medium text-amber-900">No labeled examples loaded.</p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                  To run improvement, upload labeled data in Setup first.
+                </p>
+                <a
+                  href={`/projects/${projectId}/setup`}
+                  className="mt-2 inline-flex px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 transition"
+                >
+                  Go to Setup →
+                </a>
+              </div>
+            )
             : (
               <select value={selectedGold ?? ''} onChange={e => setSelectedGold(Number(e.target.value))}
                       className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-medium">
@@ -918,7 +931,12 @@ function ImproveTab({
 
         {/* Right: split preview */}
         <div className="lg:col-span-2">
-        {noLabels ? (
+        {datasets.length === 0 ? (
+          <div className="border border-amber-200 bg-amber-50/60 p-5 text-sm text-amber-900">
+            <div className="font-mono-editorial text-amber-700 mb-1">Labeled data required</div>
+            Improvement learns from examples that already have correct labels. Go back to Setup and upload labeled CSV/JSON before running this step.
+          </div>
+        ) : noLabels ? (
           <div className="border border-amber-200 bg-amber-50/50 p-4 text-sm text-amber-800">
             <div className="font-mono-editorial text-amber-700 mb-1">No labels for "{selectedDim}"</div>
             Available: {Object.keys(classCounts).filter(k => Object.keys(classCounts[k]).length > 0).join(', ') || '—'}.
