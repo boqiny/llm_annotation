@@ -11,7 +11,7 @@ import api, {
   previewFeedbackBatch, commitFeedbackBatch, deleteMemoryVersion, commitPrompt,
   type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion, type MemoryRule, type FeedbackEvidence,
 } from '../lib/api'
-import type { Codebook, Dataset, Job } from '../types'
+import type { Codebook, Dataset, Job, Pipeline } from '../types'
 
 type Tab = 'prompts' | 'improve' | 'runs' | 'memory'
 const TABS: Tab[] = ['prompts', 'improve', 'runs', 'memory']
@@ -49,6 +49,7 @@ export default function PromptLabV2() {
   const [optimizers, setOptimizers] = useState<OptimizerInfo[]>([])
   const [memory, setMemory] = useState<MemoryVersion[]>([])
   const [jobs, setJobs] = useState<Job[]>([])
+  const [pipelines, setPipelines] = useState<Pipeline[]>([])
 
   const [autoPrompt, setAutoPrompt] = useState<AutoPromptResponse | null>(null)
   const [autoPromptLoading, setAutoPromptLoading] = useState(false)
@@ -73,23 +74,50 @@ export default function PromptLabV2() {
     setSearchParams({ tab: next }, { replace: true })
   }
 
-  const latestReflectRunByDimension = () => {
+  const latestPipeline = pipelines.slice().sort((a, b) => b.id - a.id)[0] ?? null
+
+  const pipelinePromptForDimension = (dimensionName: string): string => {
+    const step = (latestPipeline?.steps || []).find((s: any) =>
+      normDimensionName(s?.name || '') === normDimensionName(dimensionName)
+      || (Array.isArray(s?.dimensions) && s.dimensions.some((d: string) => normDimensionName(d) === normDimensionName(dimensionName)))
+    )
+    return String((step as any)?.prompt || '')
+  }
+
+  const bestReflectRunByDimension = () => {
     const byDim: Record<string, OptimizerRun> = {}
+    const completed = runs.filter(run =>
+      run.optimizer_name === 'reflect_agent'
+      && normStatus(run.status) === 'completed'
+      && !!run.optimized_prompt
+    )
+
+    for (const run of completed) {
+      const appliedPrompt = pipelinePromptForDimension(run.dimension_name).trim()
+      if (!appliedPrompt || appliedPrompt !== run.optimized_prompt.trim()) continue
+      const key = normDimensionName(run.dimension_name)
+      if (!byDim[key] || run.id > byDim[key].id) byDim[key] = run
+    }
+
     for (const run of runs) {
       if (run.optimizer_name !== 'reflect_agent' || normStatus(run.status) !== 'completed' || !run.optimized_prompt) continue
       const key = normDimensionName(run.dimension_name)
-      if (!byDim[key] || run.id > byDim[key].id) byDim[key] = run
+      if (byDim[key]) continue
+      byDim[key] = run
     }
     return byDim
   }
 
+  const refreshPipelines = () => listPipelines(projectId).then(setPipelines).catch(() => setPipelines([]))
+
   const handleAnnotateWithBestPrompts = async () => {
     setPreparingAnnotation(true)
     try {
-      const latestRuns = latestReflectRunByDimension()
+      const latestRuns = bestReflectRunByDimension()
       await Promise.all(Object.values(latestRuns).map(run =>
         commitPrompt(projectId, run.dimension_name, run.optimized_prompt)
       ))
+      await refreshPipelines()
       navigate(`/projects/${projectId}/pipeline`)
     } catch (e: any) {
       alert(`Could not prepare prompts for annotation: ${fmtError(e)}`)
@@ -105,9 +133,11 @@ export default function PromptLabV2() {
       listDatasets(projectId),
       listOptimizerRuns(projectId),
       listJobs(projectId),
-    ]).then(([opts, cbs, dss, rs, js]) => {
+      listPipelines(projectId),
+    ]).then(([opts, cbs, dss, rs, js, ps]) => {
       setOptimizers(opts); setCodebooks(cbs); setDatasets(dss); setRuns(rs)
       setJobs(js)
+      setPipelines(ps)
       if (cbs.length > 0 && cbs[cbs.length - 1].dimensions[0]) {
         setSelectedDim(cbs[cbs.length - 1].dimensions[0].name)
       }
@@ -198,6 +228,8 @@ export default function PromptLabV2() {
           error={autoPromptError}
           runs={runs}
           projectId={projectId}
+          pipelinePromptForDimension={pipelinePromptForDimension}
+          onPipelinesRefresh={refreshPipelines}
           onRegenerate={async () => {
             if (!activeCb || !autoPromptCacheKey) return
             setAutoPromptLoading(true); setAutoPromptError('')
@@ -258,6 +290,7 @@ export default function PromptLabV2() {
             catch (e: any) { alert(`Cancel failed: ${fmtError(e)}`) }
           }}
           projectId={projectId}
+          onPipelinesRefresh={refreshPipelines}
           onContinue={() => handleTabChange('memory')}
         />
       )}
@@ -315,7 +348,7 @@ function Tabs<T extends string>({
 /* ─── Prompts tab ──────────────────────────────────────────── */
 
 function PromptsTab({
-  activeCb, autoPrompt, loading, error, runs, projectId, onRegenerate, onJumpToRun, onContinue, onHumanFeedback, onAnnotate, preparingAnnotation,
+  activeCb, autoPrompt, loading, error, runs, projectId, pipelinePromptForDimension, onPipelinesRefresh, onRegenerate, onJumpToRun, onContinue, onHumanFeedback, onAnnotate, preparingAnnotation,
 }: {
   activeCb?: Codebook
   autoPrompt: AutoPromptResponse | null
@@ -323,6 +356,8 @@ function PromptsTab({
   error: string
   runs: OptimizerRun[]
   projectId: number
+  pipelinePromptForDimension: (dimensionName: string) => string
+  onPipelinesRefresh: () => Promise<void>
   onRegenerate: () => void
   onJumpToRun: (runId: number) => void
   onContinue: () => void
@@ -372,10 +407,26 @@ function PromptsTab({
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {autoPrompt.prompts.map(p => {
-          const optimized = runs.filter(r => r.dimension_name === p.dimension_name
-            && r.optimizer_name === 'reflect_agent' && r.status === 'completed')
-            .sort((a, b) => b.id - a.id)[0]
-          return <PromptCard key={p.dimension_name} dp={p} optimizedRun={optimized} onJumpToRun={onJumpToRun} projectId={projectId} />
+          const completedRuns = runs.filter(r =>
+            normDimensionName(r.dimension_name) === normDimensionName(p.dimension_name)
+            && r.optimizer_name === 'reflect_agent'
+            && normStatus(r.status) === 'completed'
+            && !!r.optimized_prompt
+          ).sort((a, b) => b.id - a.id)
+          const appliedPrompt = pipelinePromptForDimension(p.dimension_name).trim()
+          const appliedRun = completedRuns.find(r => appliedPrompt && r.optimized_prompt.trim() === appliedPrompt)
+          const optimized = appliedRun ?? completedRuns[0]
+          return (
+            <PromptCard
+              key={p.dimension_name}
+              dp={p}
+              optimizedRun={optimized}
+              appliedRunId={appliedRun?.id ?? null}
+              onJumpToRun={onJumpToRun}
+              projectId={projectId}
+              onPipelineSaved={onPipelinesRefresh}
+            />
+          )
         })}
       </div>
       <div className="border-t border-seam pt-4">
@@ -444,12 +495,14 @@ function NextStepButton({
 }
 
 function PromptCard({
-  dp, optimizedRun, onJumpToRun, projectId,
+  dp, optimizedRun, appliedRunId, onJumpToRun, projectId, onPipelineSaved,
 }: {
   dp: { dimension_name: string; prompt: string; version: string; path: string; error: string | null }
   optimizedRun?: OptimizerRun
+  appliedRunId: number | null
   onJumpToRun: (runId: number) => void
   projectId: number
+  onPipelineSaved: () => Promise<void>
 }) {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<'starting' | 'optimized'>(optimizedRun ? 'optimized' : 'starting')
@@ -480,6 +533,7 @@ function PromptCard({
     setSaving(true); setErr('')
     try {
       await commitPrompt(projectId, dp.dimension_name, draft)
+      await onPipelineSaved()
       setEditing(false)
       setSaved(true)
     } catch (e: any) {
@@ -511,6 +565,7 @@ function PromptCard({
             ? <span className="text-violet-700">run {String(optimizedRun.id).padStart(4, '0')}{typeof score === 'number' ? ` · ${(score * 100).toFixed(0)}%` : ''}</span>
             : <span className="text-stone-400">{dp.version}</span>
           }
+          {appliedRunId === optimizedRun?.id && <span className="text-emerald-700">applied</span>}
           {saved && <span className="text-emerald-700">saved</span>}
         </div>
       </button>
@@ -759,7 +814,7 @@ function stratifiedPreview(classes: Record<string, number>, trainPct: number, va
 /* ─── Runs tab (master-detail) ─────────────────────────────── */
 
 function RunsTab({
-  runs, selectedRunId, selectedRun, onSelect, onUpdate, onDelete, onCancel, projectId, onContinue,
+  runs, selectedRunId, selectedRun, onSelect, onUpdate, onDelete, onCancel, projectId, onPipelinesRefresh, onContinue,
 }: {
   runs: OptimizerRun[]
   selectedRunId: number | null
@@ -769,6 +824,7 @@ function RunsTab({
   onDelete: (r: OptimizerRun) => void
   onCancel: (r: OptimizerRun) => void
   projectId: number
+  onPipelinesRefresh: () => Promise<void>
   onContinue: () => void
 }) {
   if (runs.length === 0) {
@@ -837,7 +893,7 @@ function RunsTab({
         {/* Detail */}
         <div className="lg:col-span-8 border border-seam bg-white max-h-[78vh] overflow-auto">
         {selectedRun
-          ? <RunDetailV2 run={selectedRun} projectId={projectId} onUpdate={onUpdate} />
+          ? <RunDetailV2 run={selectedRun} projectId={projectId} onUpdate={onUpdate} onPipelinesRefresh={onPipelinesRefresh} />
           : <Empty>Pick a run on the left.</Empty>
         }
         </div>
@@ -855,8 +911,8 @@ function RunsTab({
 }
 
 function RunDetailV2({
-  run, projectId, onUpdate,
-}: { run: OptimizerRun; projectId: number; onUpdate: (r: OptimizerRun) => void }) {
+  run, projectId, onUpdate, onPipelinesRefresh,
+}: { run: OptimizerRun; projectId: number; onUpdate: (r: OptimizerRun) => void; onPipelinesRefresh: () => Promise<void> }) {
   const test = (run.artifact as any)?.test as
     | { initial_score: number; final_score: number; delta: number; n: number; initial_metrics?: any; final_metrics?: any }
     | undefined
@@ -872,6 +928,7 @@ function RunDetailV2({
   const currentRound = traj.reduce((m, t) => Math.max(m, t?.round ?? 0), 0)
   const budget = run.budget || 1
   const progressPct = isRunning ? Math.max(4, Math.min(100, (currentRound / budget) * 100)) : 100
+  const [rulesOpen, setRulesOpen] = useState(false)
 
   return (
     <div>
@@ -983,34 +1040,46 @@ function RunDetailV2({
               : <Empty>{test ? 'Old run — no per-class.' : 'Test eval pending.'}</Empty>}
         </Card>
 
-        <Card title={`Rule library · ${ruleLib.length}`} className="md:col-span-2">
-          {ruleLib.length === 0
-            ? isRunning
-              ? <SkeletonRules label="Rules accumulate as the optimizer mines failures from train each round." />
-              : <Empty>No rules yet.</Empty>
-            : <div className="space-y-2 max-h-56 overflow-auto pr-2">
-                {ruleLib.map((r: any, i: number) => (
-                  <div key={i} className="pl-3 border-l-2 border-violet-300">
-                    <div className="font-mono-editorial text-stone-400 text-[11px]">
-                      {String(i + 1).padStart(2, '0')} · {r.id || 'unnamed'}
-                      {r.target_labels?.length ? ` · ${r.target_labels.join(' / ')}` : ''}
+        <Card
+          title={`Rule library · ${ruleLib.length}`}
+          className="md:col-span-2"
+          rightSlot={
+            <button
+              onClick={() => setRulesOpen(v => !v)}
+              className="px-2 py-0.5 border border-seam bg-white text-xs font-medium text-stone-700 hover:border-ink hover:text-ink"
+            >
+              {rulesOpen ? 'Hide' : 'Show'}
+            </button>
+          }
+        >
+          {!rulesOpen ? (
+            <div className="text-xs text-stone-500">
+              Learned calibration rules are hidden to keep the run summary focused.
+            </div>
+          ) : ruleLib.length === 0
+              ? isRunning
+                ? <SkeletonRules label="Rules accumulate as the optimizer mines failures from train each round." />
+                : <Empty>No rules yet.</Empty>
+              : <div className="space-y-2 max-h-56 overflow-auto pr-2">
+                  {ruleLib.map((r: any, i: number) => (
+                    <div key={i} className="pl-3 border-l-2 border-violet-300">
+                      <div className="font-mono-editorial text-stone-400 text-[11px]">
+                        {String(i + 1).padStart(2, '0')} · {r.id || 'unnamed'}
+                        {r.target_labels?.length ? ` · ${r.target_labels.join(' / ')}` : ''}
+                      </div>
+                      <div className="text-sm">{r.boundary || r.rule || '(no boundary)'}</div>
                     </div>
-                    <div className="text-sm">{r.boundary || r.rule || '(no boundary)'}</div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
           }
         </Card>
       </div>
 
       {/* Editable prompt */}
       {run.optimized_prompt && (
-        <>
-          <EditablePromptV2 run={run} projectId={projectId} onUpdate={onUpdate} />
-          {run.status === 'completed' && (
-            <UseImprovedPromptCard run={run} projectId={projectId} />
-          )}
-        </>
+        run.status === 'completed' && (
+          <UseImprovedPromptCard run={run} projectId={projectId} onUpdate={onUpdate} onApplied={onPipelinesRefresh} />
+        )
       )}
     </div>
   )
@@ -1335,65 +1404,25 @@ function PerClassMini({ initial, final }: { initial: any; final: any }) {
   )
 }
 
-function EditablePromptV2({
-  run, projectId, onUpdate,
-}: { run: OptimizerRun; projectId: number; onUpdate: (r: OptimizerRun) => void }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(run.optimized_prompt)
-  const [saving, setSaving] = useState(false)
-  const [err, setErr] = useState('')
-  const [tracked, setTracked] = useState(run.id)
-  if (tracked !== run.id) { setTracked(run.id); setDraft(run.optimized_prompt); setEditing(false); setErr('') }
-  const dirty = draft !== run.optimized_prompt
-  const editable = run.status === 'completed' || run.status === 'failed'
-
-  const save = async () => {
-    setSaving(true); setErr('')
-    try {
-      const updated = await patchOptimizerRun(projectId, run.id, { optimized_prompt: draft })
-      onUpdate(updated); setEditing(false)
-    } catch (e: any) { setErr(e?.response?.data?.detail || e?.message || 'Save failed') }
-    finally { setSaving(false) }
-  }
-
-  return (
-    <div className="px-3 pb-3">
-      <Card title="Updated prompt" rightSlot={
-        <div className="flex items-center gap-2">
-          {dirty && <span className="font-mono-editorial text-amber-700 text-[11px]">unsaved</span>}
-          {!editing && editable && <button onClick={() => setEditing(true)} className="font-mono-editorial text-stone-500 hover:text-ink">edit</button>}
-          {editing && (
-            <>
-              <button onClick={() => { setDraft(run.optimized_prompt); setEditing(false); setErr('') }} disabled={saving} className="font-mono-editorial text-stone-500 hover:text-ink">cancel</button>
-              <button onClick={save} disabled={saving || !dirty} className="px-2 py-0.5 text-xs bg-ink text-cream disabled:opacity-40">{saving ? 'saving…' : 'save'}</button>
-            </>
-          )}
-        </div>
-      }>
-        {editing ? (
-          <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={Math.min(28, Math.max(10, draft.split('\n').length + 1))}
-                    className="w-full bg-white border border-seam focus:border-ink focus:outline-none p-3 font-mono text-xs leading-relaxed resize-y" />
-        ) : (
-          <pre className="bg-paper/50 border border-seam p-3 font-mono text-xs leading-relaxed max-h-72 overflow-auto whitespace-pre-wrap">{run.optimized_prompt}</pre>
-        )}
-        {err && <div className="mt-2 text-xs text-red-700">{err}</div>}
-      </Card>
-    </div>
-  )
-}
-
 function UseImprovedPromptCard({
   run,
   projectId,
+  onUpdate,
+  onApplied,
 }: {
   run: OptimizerRun
   projectId: number
+  onUpdate: (r: OptimizerRun) => void
+  onApplied: () => Promise<void>
 }) {
   const [currentPrompt, setCurrentPrompt] = useState('')
+  const [draft, setDraft] = useState(run.optimized_prompt)
+  const [editing, setEditing] = useState(false)
   const [foundCurrentPrompt, setFoundCurrentPrompt] = useState(false)
   const [pipelineId, setPipelineId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
   const [committed, setCommitted] = useState(false)
   const [err, setErr] = useState('')
 
@@ -1401,6 +1430,8 @@ function UseImprovedPromptCard({
     let cancelled = false
     setLoading(true); setErr(''); setCommitted(false)
     setFoundCurrentPrompt(false)
+    setDraft(run.optimized_prompt)
+    setEditing(false)
     listPipelines(projectId)
       .then(pipelines => {
         if (cancelled) return
@@ -1422,14 +1453,22 @@ function UseImprovedPromptCard({
     return () => { cancelled = true }
   }, [projectId, run.id, run.dimension_name])
 
-  const alreadyApplied = currentPrompt.trim() === run.optimized_prompt.trim()
+  const alreadyApplied = currentPrompt.trim() === draft.trim()
   const canCommit = !!run.optimized_prompt && !alreadyApplied && !loading && !saving
+  const draftDirty = draft !== run.optimized_prompt
 
   const handleCommit = async () => {
     setSaving(true); setErr('')
     try {
-      await commitPrompt(projectId, run.dimension_name, run.optimized_prompt)
-      setCurrentPrompt(run.optimized_prompt)
+      const promptToApply = draft
+      if (draftDirty) {
+        const updated = await patchOptimizerRun(projectId, run.id, { optimized_prompt: promptToApply })
+        onUpdate(updated)
+      }
+      await commitPrompt(projectId, run.dimension_name, promptToApply)
+      await onApplied()
+      setCurrentPrompt(promptToApply)
+      setEditing(false)
       setCommitted(true)
     } catch (e: any) {
       setErr(fmtError(e))
@@ -1438,18 +1477,40 @@ function UseImprovedPromptCard({
     }
   }
 
+  const saveDraftOnly = async () => {
+    setSavingDraft(true); setErr('')
+    try {
+      const updated = await patchOptimizerRun(projectId, run.id, { optimized_prompt: draft })
+      onUpdate(updated)
+      setEditing(false)
+    } catch (e: any) {
+      setErr(fmtError(e))
+    } finally {
+      setSavingDraft(false)
+    }
+  }
+
   return (
     <div className="px-3 pb-3">
       <Card
         title="Apply improved prompt"
         rightSlot={
-          <button
-            onClick={handleCommit}
-            disabled={!canCommit}
-            className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition"
-          >
-            {saving ? 'Applying…' : alreadyApplied || committed ? 'Applied' : 'Apply'}
-          </button>
+          <div className="flex items-center gap-2">
+            {draftDirty && <span className="font-mono-editorial text-amber-700 text-[11px]">edited</span>}
+            <button
+              onClick={() => { setEditing(v => !v); setErr('') }}
+              className="px-3 py-1.5 border border-ink bg-white text-ink text-xs font-medium hover:bg-paper transition"
+            >
+              {editing ? 'Review diff' : 'Edit'}
+            </button>
+            <button
+              onClick={handleCommit}
+              disabled={!canCommit}
+              className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition"
+            >
+              {saving ? 'Applying…' : alreadyApplied || committed ? 'Applied' : 'Apply'}
+            </button>
+          </div>
         }
       >
         <div className="space-y-2">
@@ -1467,16 +1528,42 @@ function UseImprovedPromptCard({
             <div className="border border-amber-200 bg-amber-50/50 px-3 py-2 text-xs text-amber-800">
               Could not find the current active prompt for this dimension, so the diff is unavailable.
             </div>
+          ) : editing ? (
+            <div className="space-y-3">
+              <textarea
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                rows={Math.min(28, Math.max(10, draft.split('\n').length + 1))}
+                className="w-full bg-white border border-seam focus:border-ink focus:outline-none p-3 font-mono text-xs leading-relaxed resize-y"
+              />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={saveDraftOnly}
+                  disabled={savingDraft || !draftDirty}
+                  className="px-3 py-1.5 bg-ink text-cream text-xs font-medium disabled:opacity-40"
+                >
+                  {savingDraft ? 'Saving…' : 'Save edit'}
+                </button>
+                <button
+                  onClick={() => { setDraft(run.optimized_prompt); setEditing(false); setErr('') }}
+                  disabled={savingDraft}
+                  className="font-mono-editorial text-xs text-stone-500 hover:text-ink"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           ) : (
             <details className="border border-seam bg-paper/40">
               <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-stone-700 hover:text-ink">
                 Review changes
               </summary>
               <div className="border-t border-seam">
-                <DiffView oldText={currentPrompt} newText={run.optimized_prompt} />
+                <DiffView oldText={currentPrompt} newText={draft} />
               </div>
             </details>
           )}
+          {err && <div className="text-xs text-red-700">{err}</div>}
         </div>
       </Card>
     </div>
