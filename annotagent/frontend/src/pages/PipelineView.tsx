@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  listPipelines, listDatasets, startJob, uploadDataset,
+  listPipelines, listDatasets, startJob, uploadDataset, estimateAnnotationRun,
   listSeedDatasets, loadSeedDataset, listCodebooks,
-  type SeedDatasetInfo,
+  type AnnotationCostEstimate, type SeedDatasetInfo,
 } from '../lib/api'
 import type { Pipeline, PipelineStep, Dataset, Codebook } from '../types'
 
@@ -26,6 +26,9 @@ export default function PipelineView() {
   const [expandedStep, setExpandedStep] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingSeed, setLoadingSeed] = useState<string | null>(null)
+  const [estimate, setEstimate] = useState<AnnotationCostEstimate | null>(null)
+  const [estimateLoading, setEstimateLoading] = useState(false)
+  const [estimateError, setEstimateError] = useState('')
 
   const reload = () => Promise.all([
     listPipelines(projectId),
@@ -45,6 +48,27 @@ export default function PipelineView() {
   })
 
   useEffect(() => { reload() }, [projectId])
+
+  useEffect(() => {
+    if (!pipeline || !selectedDataset) {
+      setEstimate(null)
+      setEstimateError('')
+      return
+    }
+    let cancelled = false
+    setEstimateLoading(true)
+    setEstimateError('')
+    estimateAnnotationRun(projectId, pipeline.id, selectedDataset)
+      .then(res => { if (!cancelled) setEstimate(res) })
+      .catch(() => {
+        if (!cancelled) {
+          setEstimate(null)
+          setEstimateError('Could not estimate this run yet.')
+        }
+      })
+      .finally(() => { if (!cancelled) setEstimateLoading(false) })
+    return () => { cancelled = true }
+  }, [pipeline, selectedDataset, projectId])
 
   const handleLoadTestSeed = async (seedId: string) => {
     setLoadingSeed(seedId)
@@ -108,34 +132,44 @@ export default function PipelineView() {
 
       {/* Prompt structure */}
       <section>
-        <div className="mb-3">
+        <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="font-mono-editorial text-stone-500">Prompt structure</div>
+            <div className="font-mono-editorial text-stone-500">Selected prompts for labeling</div>
             <p className="mt-1 text-xs text-stone-500">
-              AnnotAgent uses one calibrated prompt for each codebook dimension.
+              The annotation run will use these active pipeline prompts, one for each codebook dimension.
             </p>
           </div>
+          <Link
+            to={`/projects/${projectId}/prompt-lab?tab=prompts`}
+            className="text-xs font-medium text-violet-700 hover:text-violet-900"
+          >
+            Review or edit prompts →
+          </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2 pb-3">
           {steps.map((step, i) => {
             const title = step.dimensions.length === 1 ? step.dimensions[0] : step.name
             const showDimensionChips = step.dimensions.length > 1
+            const promptTokens = approxTokens(step.prompt)
             return (
               <button
                 key={i}
                 onClick={() => setExpandedStep(expandedStep === i ? null : i)}
-                className={`text-left bg-white border border-seam p-5 min-h-[132px] transition-all hover:border-ink ${
-                  expandedStep === i ? 'border-ink shadow-[4px_4px_0_0_rgba(11,11,10,0.08)]' : ''
+                className={`text-left bg-white border p-3 min-h-[92px] transition-all hover:border-ink ${
+                  expandedStep === i ? 'border-ink shadow-[4px_4px_0_0_rgba(11,11,10,0.08)]' : 'border-emerald-200'
                 }`}
               >
-                <div className="flex items-center justify-between gap-3 mb-2">
+                <div className="flex items-center justify-between gap-3 mb-1.5">
                   <div className="font-mono-editorial text-stone-400">Dimension prompt</div>
-                  <div className="font-mono-editorial text-violet-700">View prompt</div>
+                  <div className="font-mono-editorial text-violet-700">View</div>
                 </div>
-                <div className="font-medium mb-3 tracking-tight">{title}</div>
+                <div className="font-medium tracking-tight truncate" title={title}>{title}</div>
+                <div className="mt-1 font-mono text-[11px] text-stone-400">
+                  Active prompt · ~{formatTokens(promptTokens)} tokens
+                </div>
                 {showDimensionChips && (
-                  <div className="flex flex-wrap gap-1.5 mb-2">
+                  <div className="flex flex-wrap gap-1.5 mt-2">
                     {step.dimensions.map(dim => (
                       <span key={dim} className="px-2 py-0.5 bg-paper border border-seam text-stone-700 text-xs">
                         {dim}
@@ -177,15 +211,54 @@ export default function PipelineView() {
 
       {/* Run */}
       <section className="border-t border-seam pt-8 space-y-8">
-        <div className="font-mono-editorial text-stone-500">Pick the data to annotate</div>
+        <div className="border-l-4 border-ink bg-white px-4 py-3">
+          <div className="text-xl font-medium text-ink">Data to label</div>
+          <p className="mt-1 text-sm text-stone-600">
+            Select or upload the unlabeled dataset AnnotAgent should annotate with these prompts.
+          </p>
+        </div>
+
+        {/* Upload-your-own */}
+        <div className="border border-violet-200 bg-violet-50/70 p-5">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between mb-4">
+            <div className="font-mono-editorial text-violet-700">Upload your own data</div>
+            <div className="text-xs text-violet-900/70">Recommended for real annotation runs</div>
+          </div>
+          <label className="block border-2 border-dashed border-violet-300 bg-white px-5 py-6 cursor-pointer hover:border-violet-500 hover:bg-violet-50/50 transition">
+            <input type="file" accept=".csv,.json" className="hidden" onChange={handleUpload} />
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-lg font-medium text-ink">Choose a CSV or JSON file to label</div>
+                <p className="text-sm text-stone-600 mt-1">Each row or item becomes one annotation target. After upload, AnnotAgent selects it and shows the run cost estimate.</p>
+              </div>
+              <span className="shrink-0 px-4 py-2 bg-ink text-cream text-sm font-medium">Choose file →</span>
+            </div>
+          </label>
+          <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <FormatNote
+              title="Input format"
+              body="CSV: include a text column named sentence, text, content, message, input, or utterance. Add context if you have it. JSON: use a list of strings or objects, or an object with items/data/rows/examples."
+              sample={`text,context\n"I want to lose weight","health chat"`}
+            />
+            <FormatNote
+              title="Output format"
+              body="After annotation, results can be exported as CSV or JSON. Each output row keeps the original item and adds predicted labels across all codebook dimensions."
+              sample={`item_id,content,Level Of Disclosure,Depth Of Disclosure\n42,"I want to lose weight",Low,Peripheral`}
+            />
+          </div>
+        </div>
 
         {/* Bundled unseen test sets — only relevant for the self-disclosure
             project (the rest of the test corpus belongs to that codebook). */}
         {testSeeds.length > 0 && isSelfDisclosure(activeCb) && (
           <div>
-            <div className="font-mono-editorial text-stone-500 mb-3">
-              Bundled unseen test sets <code className="ml-2 font-mono text-[11px] normal-case tracking-normal bg-paper px-1.5 py-0.5 border border-seam">assets/data/test/cleaned/</code>
+            <div className="font-mono-editorial text-stone-500 mb-1">
+              Self-disclosure demo test sets
+              <code className="ml-2 font-mono text-[11px] normal-case tracking-normal bg-paper px-1.5 py-0.5 border border-seam">assets/data/test/cleaned/</code>
             </div>
+            <p className="mb-3 text-xs text-stone-500">
+              Built-in held-out examples for the self-disclosure codebook. These are not files you uploaded.
+            </p>
             <ul className="divide-y divide-seam border-y border-seam">
               {testSeeds.map(s => {
                 const loaded = datasets.find(d => d.name === s.label)
@@ -232,27 +305,21 @@ export default function PipelineView() {
           </div>
         )}
 
-        {/* Upload-your-own */}
-        <div>
-          <div className="font-mono-editorial text-stone-500 mb-3">Upload your own data</div>
-          <label className="block border border-dashed border-seam bg-paper/40 px-5 py-6 cursor-pointer hover:border-stone-400">
-            <input type="file" accept=".csv,.json" className="hidden" onChange={handleUpload} />
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="font-medium text-ink">Click to upload CSV or JSON</div>
-                <p className="text-xs text-stone-500 mt-0.5">Each row / item is one annotation target. Goes straight into the dataset list below.</p>
-              </div>
-              <span className="font-mono-editorial text-stone-500">choose file →</span>
-            </div>
-          </label>
-        </div>
-
         {/* Run */}
         <div className="flex items-end justify-between gap-6 flex-wrap">
-          <div className="font-mono-editorial text-stone-500">
+          <div className="space-y-3">
+            <div className="font-mono-editorial text-stone-500">
             {selectedDataset
-              ? <>Selected · <span className="text-ink">{datasets.find(d => d.id === selectedDataset)?.name ?? '—'}</span></>
-              : 'Pick or upload a dataset above'}
+              ? <>Selected data · <span className="text-ink">{datasets.find(d => d.id === selectedDataset)?.name ?? '—'}</span></>
+              : 'Select or upload data above'}
+            </div>
+            {selectedDataset && (
+              <CostEstimatePanel
+                estimate={estimate}
+                loading={estimateLoading}
+                error={estimateError}
+              />
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Link
@@ -274,4 +341,86 @@ export default function PipelineView() {
       </section>
     </div>
   )
+}
+
+function CostEstimatePanel({
+  estimate, loading, error,
+}: {
+  estimate: AnnotationCostEstimate | null
+  loading: boolean
+  error: string
+}) {
+  if (loading) {
+    return (
+      <div className="border border-seam bg-paper/40 px-4 py-3 text-xs text-stone-500">
+        Estimating tokens and cost…
+      </div>
+    )
+  }
+  if (error) {
+    return (
+      <div className="border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+        {error}
+      </div>
+    )
+  }
+  if (!estimate) return null
+
+  return (
+    <div className="border border-violet-200 bg-violet-50/70 px-4 py-3 max-w-3xl">
+      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
+        <div>
+          <div className="font-mono-editorial text-violet-700">Conservative estimated cost</div>
+          <div className="text-xl font-semibold text-violet-950">{formatCost(estimate.estimated_cost)}</div>
+        </div>
+        <EstimateMetric label="LLM calls" value={estimate.n_calls.toLocaleString()} />
+        <EstimateMetric label="Model" value={estimate.model} />
+      </div>
+      <p className="mt-2 text-xs leading-relaxed text-violet-900/75">
+        Conservative pre-run estimate based on {estimate.n_items.toLocaleString()} items × {estimate.n_prompts} prompt{estimate.n_prompts === 1 ? '' : 's'}, prompt length, and a {estimate.sample_size}-item input sample. The final cost shown after annotation is measured from actual model usage.
+      </p>
+    </div>
+  )
+}
+
+function EstimateMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="font-mono-editorial text-violet-700">{label}</div>
+      <div className="text-sm font-medium text-violet-950">{value}</div>
+    </div>
+  )
+}
+
+function FormatNote({
+  title, body, sample,
+}: {
+  title: string
+  body: string
+  sample: string
+}) {
+  return (
+    <div className="border border-violet-200 bg-white/80 p-3">
+      <div className="font-mono-editorial text-violet-700 mb-1">{title}</div>
+      <p className="text-xs leading-relaxed text-stone-600">{body}</p>
+      <pre className="mt-2 overflow-auto bg-paper px-3 py-2 font-mono text-[11px] leading-relaxed text-stone-700 border border-seam">
+        {sample}
+      </pre>
+    </div>
+  )
+}
+
+function formatCost(cost: number): string {
+  if (cost < 0.01) return `$${cost.toFixed(4)}`
+  return `$${cost.toFixed(2)}`
+}
+
+function formatTokens(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`
+  return tokens.toLocaleString()
+}
+
+function approxTokens(text: string): number {
+  return Math.max(1, Math.ceil((text || '').length / 4))
 }
