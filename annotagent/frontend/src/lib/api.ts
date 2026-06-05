@@ -61,6 +61,25 @@ export const listPipelines = (projectId: number) =>
   api.get<Pipeline[]>(`/projects/${projectId}/pipelines`).then(r => r.data)
 export const getPipeline = (projectId: number, pipelineId: number) =>
   api.get<Pipeline>(`/projects/${projectId}/pipelines/${pipelineId}`).then(r => r.data)
+export interface AnnotationCostEstimate {
+  dataset_id: number
+  dataset_name: string
+  model: string
+  provider: string
+  n_items: number
+  n_prompts: number
+  n_calls: number
+  prompt_tokens_per_item: number
+  avg_user_tokens_per_step: number
+  estimated_input_tokens: number
+  estimated_output_tokens: number
+  estimated_total_tokens: number
+  estimated_cost: number
+  sample_size: number
+  assumptions: Record<string, string | number>
+}
+export const estimateAnnotationRun = (projectId: number, pipelineId: number, datasetId: number) =>
+  api.get<AnnotationCostEstimate>(`/projects/${projectId}/pipelines/${pipelineId}/estimate`, { params: { dataset_id: datasetId } }).then(r => r.data)
 export const updatePipeline = (projectId: number, pipelineId: number, steps: object[]) =>
   api.put<Pipeline>(`/projects/${projectId}/pipelines/${pipelineId}`, { steps }).then(r => r.data)
 
