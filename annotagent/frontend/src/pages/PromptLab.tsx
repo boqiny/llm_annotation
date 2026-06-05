@@ -6,7 +6,7 @@ import {
 import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
   listCodebooks, listDatasets, autoGeneratePrompt, patchOptimizerRun,
-  listJobs, getFeedbackEvidence, listPipelines, startJob,
+  listJobs, getFeedbackEvidence, listPipelines, startJob, uploadDataset,
   listMemoryVersions, deleteOptimizerRun, cancelOptimizerRun,
   previewFeedbackBatch, commitFeedbackBatch, deleteMemoryVersion, commitPrompt,
   type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion, type MemoryRule, type FeedbackEvidence,
@@ -346,6 +346,7 @@ export default function PromptLabV2() {
           dimensions={activeCb?.dimensions.map(d => d.name) ?? []}
           onRefresh={() => listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))}
           onJobsRefresh={() => listJobs(projectId).then(setJobs).catch(() => setJobs([]))}
+          onDatasetsRefresh={() => listDatasets(projectId).then(setDatasets).catch(() => setDatasets([]))}
           onPromptCommitted={() => handleTabChange('prompts')}
         />
       )}
@@ -1860,7 +1861,7 @@ function DiffView({ oldText, newText }: { oldText: string; newText: string }) {
 
 /* ─── Memory tab ────────────────────────────────────────────── */
 
-function MemoryTab({ memory, projectId, jobs, datasets, dimensions, onRefresh, onJobsRefresh, onPromptCommitted }: {
+function MemoryTab({ memory, projectId, jobs, datasets, dimensions, onRefresh, onJobsRefresh, onDatasetsRefresh, onPromptCommitted }: {
   memory: MemoryVersion[]
   projectId: number
   jobs: Job[]
@@ -1868,6 +1869,7 @@ function MemoryTab({ memory, projectId, jobs, datasets, dimensions, onRefresh, o
   dimensions: string[]
   onRefresh: () => void
   onJobsRefresh: () => void
+  onDatasetsRefresh: () => void
   onPromptCommitted: () => void
 }) {
   const byDim: Record<string, MemoryVersion[]> = {}
@@ -1903,6 +1905,7 @@ function MemoryTab({ memory, projectId, jobs, datasets, dimensions, onRefresh, o
         dimensionName={evidenceDim || allDims[0]}
         onDimensionChange={setEvidenceDim}
         onJobsRefresh={onJobsRefresh}
+        onDatasetsRefresh={onDatasetsRefresh}
       />
       {allDims.map(d => (
         <div key={d}>
@@ -1946,7 +1949,7 @@ type ApplyState = 'idle' | 'loading' | 'preview' | 'committing' | 'done' | 'erro
 
 type DraftFeedback = { id: string; text: string }
 
-function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, onDimensionChange, onJobsRefresh }: {
+function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, onDimensionChange, onJobsRefresh, onDatasetsRefresh }: {
   projectId: number
   jobs: Job[]
   datasets: Dataset[]
@@ -1954,6 +1957,7 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
   dimensionName: string
   onDimensionChange: (dimensionName: string) => void
   onJobsRefresh: () => void
+  onDatasetsRefresh: () => void
 }) {
   const completedJobs = jobs.filter(j => normStatus(j.status) === 'completed' && j.source === 'human_feedback')
   const [jobId, setJobId] = useState<number | ''>('')
@@ -1964,6 +1968,7 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
   const [launchingJob, setLaunchingJob] = useState(false)
   const [launchStatus, setLaunchStatus] = useState('')
   const [mismatchesOnly, setMismatchesOnly] = useState(false)
+  const [uploadingDataset, setUploadingDataset] = useState(false)
 
   useEffect(() => {
     if (jobId || completedJobs.length === 0) return
@@ -2038,21 +2043,75 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
     }
   }
 
+  const handleUploadRunDataset = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingDataset(true)
+    setError('')
+    try {
+      const dataset = await uploadDataset(projectId, file, false)
+      setRunDatasetId(dataset.id)
+      onDatasetsRefresh()
+    } catch (err: any) {
+      setError(fmtError(err))
+    } finally {
+      setUploadingDataset(false)
+      e.target.value = ''
+    }
+  }
+
   return (
     <div className="border border-seam bg-paper/20">
-      <div className="flex flex-wrap items-center gap-3 border-b border-seam px-3 py-2">
-        <div className="font-mono-editorial text-xs text-stone-500">Annotated examples</div>
-        <select
-          value={dimensionName}
-          onChange={e => onDimensionChange(e.target.value)}
-          className="bg-white border border-seam px-2 py-1 text-xs focus:outline-none focus:border-ink"
-        >
-          {dimensions.map(d => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </select>
-        <div className="ml-auto flex items-center gap-1.5">
-          <span className="font-mono-editorial text-xs text-stone-500">Completed run</span>
+      <div className="grid gap-0 border-b border-seam lg:grid-cols-[220px_minmax(0,1fr)_minmax(280px,420px)]">
+        <div className="border-b border-seam px-3 py-3 lg:border-b-0 lg:border-r">
+          <div className="font-mono-editorial text-xs text-stone-500 mb-1.5">1. Dimension</div>
+          <select
+            value={dimensionName}
+            onChange={e => onDimensionChange(e.target.value)}
+            className="w-full bg-white border border-seam px-2 py-1.5 text-xs focus:outline-none focus:border-ink"
+          >
+            {dimensions.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="border-b border-seam px-3 py-3 lg:border-b-0 lg:border-r">
+          <div className="font-mono-editorial text-xs text-stone-500 mb-1.5">2. Create feedback examples</div>
+          <p className="mb-2 text-xs text-stone-500 leading-relaxed">
+            Upload/select unlabeled data, then run annotation with the latest prompt to create examples for review.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {datasets.length > 0 && (
+              <select
+                value={runDatasetId}
+                onChange={e => setRunDatasetId(e.target.value ? Number(e.target.value) : '')}
+                className="max-w-full bg-white border border-seam px-2 py-1.5 text-xs focus:outline-none focus:border-ink"
+              >
+                {datasets.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} · {d.total_items}
+                  </option>
+                ))}
+              </select>
+            )}
+            <label className="inline-flex items-center gap-2 px-3 py-1.5 border border-ink bg-white text-ink text-xs font-medium hover:bg-paper cursor-pointer">
+              <input type="file" accept=".csv,.json" className="hidden" onChange={handleUploadRunDataset} />
+              {uploadingDataset ? 'Uploading…' : datasets.length > 0 ? 'Upload different data' : 'Upload data'}
+            </label>
+            <button
+              onClick={handleRunLatestPrompt}
+              disabled={launchingJob || !runDatasetId}
+              className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition"
+            >
+              {launchingJob ? 'Running…' : 'Run latest prompt'}
+            </button>
+          </div>
+        </div>
+
+        <div className="px-3 py-3">
+          <div className="font-mono-editorial text-xs text-stone-500 mb-1.5">3. Review feedback run</div>
+          <div className="flex flex-wrap items-center gap-2">
           <select
             value={jobId}
             onChange={e => setJobId(e.target.value ? Number(e.target.value) : '')}
@@ -2068,39 +2127,26 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
               )
             })}
           </select>
+            <label className="inline-flex items-center gap-1.5 font-mono-editorial text-xs text-stone-500">
+              <input
+                type="checkbox"
+                checked={mismatchesOnly}
+                onChange={e => setMismatchesOnly(e.target.checked)}
+                className="accent-ink"
+              />
+              Only items needing review
+            </label>
+          </div>
         </div>
-        <select
-          value={runDatasetId}
-          onChange={e => setRunDatasetId(e.target.value ? Number(e.target.value) : '')}
-          className="max-w-full bg-white border border-seam px-2 py-1 text-xs focus:outline-none focus:border-ink"
-        >
-          {datasets.length === 0 && <option value="">No datasets</option>}
-          {datasets.map(d => (
-            <option key={d.id} value={d.id}>
-              run on {d.name} · {d.total_items}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={handleRunLatestPrompt}
-          disabled={launchingJob || !runDatasetId}
-          className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition"
-        >
-          {launchingJob ? 'Running…' : 'Run annotation with latest prompt'}
-        </button>
-        <label className="inline-flex items-center gap-1.5 font-mono-editorial text-xs text-stone-500">
-          <input
-            type="checkbox"
-            checked={mismatchesOnly}
-            onChange={e => setMismatchesOnly(e.target.checked)}
-            className="accent-ink"
-          />
-          Show only items that need review
-        </label>
       </div>
       {launchStatus && (
         <div className="border-b border-seam px-3 py-2 text-xs text-stone-600 bg-white">
           {launchStatus}
+        </div>
+      )}
+      {datasets.length === 0 && (
+        <div className="border-b border-seam px-3 py-2 text-xs text-stone-600 bg-white">
+          Cold start: upload unlabeled data above to create examples for feedback review.
         </div>
       )}
       {loading ? (
@@ -2110,7 +2156,7 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
       ) : rows.length === 0 ? (
         <div className="px-3 py-3 text-xs text-stone-500 leading-relaxed">
           {completedJobs.length === 0
-            ? 'No human-feedback evidence runs yet. Use "Run annotation with latest prompt" here to create examples for feedback review.'
+            ? 'No human-feedback evidence runs yet. Create one above, then reviewed examples will appear here.'
             : 'No annotated examples found for this dimension in the selected job. Try another completed job, or run annotation again after applying the prompt.'
           }
         </div>
