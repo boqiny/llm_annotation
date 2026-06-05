@@ -83,6 +83,12 @@ export default function AnnotationMonitor() {
           <h1 className="text-4xl font-medium tracking-tight">Annotation in flight.</h1>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={() => navigate(`/projects/${projectId}/pipeline`)}
+            className="px-4 py-2 border border-ink bg-white text-ink text-sm font-medium hover:bg-paper transition-colors"
+          >
+            Back to annotation
+          </button>
           {isRunning && (
             <button onClick={handlePause} className="px-4 py-2 border border-amber-600 text-amber-700 text-sm font-medium hover:bg-amber-50 transition-colors">
               Pause
