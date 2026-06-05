@@ -63,6 +63,7 @@ export default function PromptLabV2() {
   // Improve tab state
   const [selectedDim, setSelectedDim] = useState('')
   const [selectedGold, setSelectedGold] = useState<number | null>(null)
+  const [selectedOptimizer, setSelectedOptimizer] = useState('reflect_agent')
   const [budget, setBudget] = useState(5)
   const [launching, setLaunching] = useState(false)
   const [launchError, setLaunchError] = useState('')
@@ -258,6 +259,9 @@ export default function PromptLabV2() {
           datasets={datasets}
           selectedDim={selectedDim} setSelectedDim={setSelectedDim}
           selectedGold={selectedGold} setSelectedGold={setSelectedGold}
+          optimizers={optimizers}
+          selectedOptimizer={selectedOptimizer}
+          setSelectedOptimizer={setSelectedOptimizer}
           budget={budget} setBudget={setBudget}
           launching={launching} launchError={launchError}
           projectId={projectId}
@@ -635,8 +639,42 @@ function PromptCard({
 
 /* ─── Improve tab ──────────────────────────────────────────── */
 
+function optimizerCopy(name: string) {
+  const copy: Record<string, { title: string; description: string; recommended?: boolean }> = {
+    reflect_agent: {
+      title: 'Guided prompt improvement',
+      description: 'Learns readable rules from labeled examples and rewrites the prompt in a way you can review.',
+      recommended: true,
+    },
+    gepa: {
+      title: 'Automatic prompt search',
+      description: 'Tries prompt variants using example feedback and keeps moving toward better performance.',
+    },
+    mipro: {
+      title: 'Programmatic optimizer',
+      description: 'Searches over instructions and examples for more technical prompt programs.',
+    },
+    opro: {
+      title: 'LLM prompt optimizer',
+      description: 'Asks an LLM to propose better prompts from previous prompt scores.',
+    },
+  }
+  return copy[name] ?? {
+    title: 'Advanced optimizer',
+    description: 'Experimental improvement method for labeled examples.',
+  }
+}
+
+function optimizerChoices(optimizers: OptimizerInfo[]) {
+  const available = optimizers.length > 0
+    ? optimizers
+    : [{ name: 'reflect_agent', label: 'ReflectAgent', description: '', role: 'method' }]
+  return available.map(opt => ({ ...opt, ...optimizerCopy(opt.name) }))
+}
+
 function ImproveTab({
   codebooks, datasets, selectedDim, setSelectedDim, selectedGold, setSelectedGold,
+  optimizers, selectedOptimizer, setSelectedOptimizer,
   budget, setBudget, launching, launchError, projectId, onLaunched,
   setLaunching, setLaunchError,
 }: {
@@ -646,6 +684,9 @@ function ImproveTab({
   setSelectedDim: (v: string) => void
   selectedGold: number | null
   setSelectedGold: (v: number) => void
+  optimizers: OptimizerInfo[]
+  selectedOptimizer: string
+  setSelectedOptimizer: (v: string) => void
   budget: number
   setBudget: (v: number) => void
   launching: boolean
@@ -656,6 +697,7 @@ function ImproveTab({
   setLaunchError: (v: string) => void
 }) {
   const activeCb = codebooks[codebooks.length - 1]
+  const [showOptimizers, setShowOptimizers] = useState(false)
 
   // Per-class peek
   const [classCounts, setClassCounts] = useState<Record<string, Record<string, number>>>({})
@@ -712,7 +754,7 @@ function ImproveTab({
     setLaunching(true); setLaunchError('')
     try {
       const run = await startOptimizerRun(projectId, {
-        optimizer_name: 'reflect_agent',
+        optimizer_name: selectedOptimizer,
         dimension_name: selectedDim,
         gold_dataset_id: selectedGold,
         budget,
@@ -760,6 +802,51 @@ function ImproveTab({
           <p className="mt-1 text-xs text-stone-500 leading-relaxed">
             Main optimization passes. Baseline scoring and final validation may appear separately in the run summary.
           </p>
+        </div>
+        <div className="border border-seam bg-paper/30">
+          <button
+            type="button"
+            onClick={() => setShowOptimizers(v => !v)}
+            className="w-full px-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-stone-50"
+          >
+            <span>
+              <span className="block text-sm font-medium text-ink">Explore optimizers</span>
+              <span className="block text-xs text-stone-500">{optimizerCopy(selectedOptimizer).title}</span>
+            </span>
+            <span className="text-xs font-mono text-stone-500">{showOptimizers ? 'Hide' : 'Show'}</span>
+          </button>
+          {showOptimizers && (
+            <div className="border-t border-seam p-2 space-y-2">
+              {optimizerChoices(optimizers).map(choice => {
+                const selected = selectedOptimizer === choice.name
+                return (
+                  <button
+                    key={choice.name}
+                    type="button"
+                    onClick={() => setSelectedOptimizer(choice.name)}
+                    className={`w-full p-3 text-left border transition ${
+                      selected ? 'border-ink bg-ink text-cream' : 'border-seam bg-paper hover:border-stone-400 text-ink'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-medium">{choice.title}</div>
+                      {choice.recommended && (
+                        <div className={`text-[10px] font-mono uppercase tracking-wide ${selected ? 'text-cream/70' : 'text-violet-700'}`}>
+                          Recommended
+                        </div>
+                      )}
+                    </div>
+                    <div className={`mt-1 text-xs leading-relaxed ${selected ? 'text-cream/75' : 'text-stone-600'}`}>
+                      {choice.description}
+                    </div>
+                    <div className={`mt-2 text-[11px] font-mono ${selected ? 'text-cream/55' : 'text-stone-400'}`}>
+                      {choice.label}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
         <button onClick={handleLaunch} disabled={launching || noLabels || tooFew}
                 className="w-full py-2.5 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40">
