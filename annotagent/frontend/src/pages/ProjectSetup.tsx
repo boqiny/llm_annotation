@@ -105,6 +105,7 @@ export default function ProjectSetupV2() {
   const missing: string[] = []
   if (!activeCb) missing.push('codebook')
   if (!keyOK) missing.push(`${llmProvider === 'anthropic' ? 'anthropic' : 'openai'} key`)
+  const replacingCodebook = step === 'codebook' && wizardMode
 
   return (
     <div className="space-y-4 pb-24">
@@ -179,23 +180,25 @@ export default function ProjectSetupV2() {
       </div>
 
       {/* Sticky footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-cream border-t border-seam">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
-          <div className="font-mono-editorial text-stone-500 text-xs">
-            {missing.length === 0
-              ? <span className="text-emerald-700">Ready to generate pipeline.</span>
-              : <>Still need: <span className="text-ink">{missing.join(' · ')}</span></>
-            }
+      {!replacingCodebook && (
+        <div className="fixed bottom-0 left-0 right-0 bg-cream border-t border-seam">
+          <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
+            <div className="font-mono-editorial text-stone-500 text-xs">
+              {missing.length === 0
+                ? <span className="text-emerald-700">Ready to generate pipeline.</span>
+                : <>Still need: <span className="text-ink">{missing.join(' · ')}</span></>
+              }
+            </div>
+            <button
+              onClick={handleGeneratePipeline}
+              disabled={!canGenerate || loading}
+              className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40"
+            >
+              {loading ? 'Generating…' : 'Generate pipeline →'}
+            </button>
           </div>
-          <button
-            onClick={handleGeneratePipeline}
-            disabled={!canGenerate || loading}
-            className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40"
-          >
-            {loading ? 'Generating…' : 'Generate pipeline →'}
-          </button>
         </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -236,6 +239,12 @@ function CodebookStep({
   if (activeCb && !wizardMode) {
     return (
       <div className="border border-seam bg-white">
+        <div className="border-b border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
+          <div className="font-medium">Review this codebook carefully before generating prompts.</div>
+          <p className="mt-1 text-xs leading-relaxed text-violet-900/80">
+            The codebook defines the dimensions, labels, and label meanings used by every prompt, improvement run, annotation run, and result export. If parsing looks off, edit or replace it before continuing.
+          </p>
+        </div>
         {/* Top toolbar: actions on the right, info underneath. Two rows so
             buttons never collide with the heading on narrow widths. */}
         <div className="px-4 pt-3 pb-4 border-b border-seam">
@@ -267,10 +276,13 @@ function CodebookStep({
             </li>
           ))}
         </ul>
-        <div className="px-4 py-3 border-t border-seam flex justify-end">
+        <div className="px-4 py-3 border-t border-seam">
+          <div className="mb-3 border border-violet-200 bg-violet-50 px-3 py-2 text-xs leading-relaxed text-violet-900">
+            Final check: make sure the labels match your intended annotation task. Prompt quality depends directly on this codebook.
+          </div>
           <button
             onClick={onContinue}
-            className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
+            className="ml-auto block px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
           >
             Continue to data →
           </button>
@@ -281,12 +293,22 @@ function CodebookStep({
   return (
     <>
       {activeCb && wizardMode && (
-        <div className="mb-3 flex items-center justify-between text-xs border border-amber-200 bg-amber-50/60 px-3 py-2">
-          <div>Replacing <span className="font-medium">{activeCb.name}</span></div>
-          <button onClick={() => setWizardMode(false)} className="font-mono-editorial text-stone-500 hover:text-ink">cancel</button>
+        <div className="mb-3 border border-violet-200 bg-violet-50/70 px-3 py-3">
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <div className="font-medium text-violet-950">Replacing <span>{activeCb.name}</span></div>
+            <button onClick={() => setWizardMode(false)} className="font-mono-editorial text-stone-500 hover:text-ink">cancel</button>
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-violet-900/80">
+            Please inspect the parsed dimensions and labels before accepting. A codebook mistake will affect prompt generation, improvement, annotation, and exported results.
+          </p>
         </div>
       )}
-      <CodebookDraftWizard projectId={projectId} presets={presets} onAccepted={onAccepted} />
+      <CodebookDraftWizard
+        projectId={projectId}
+        presets={presets}
+        onAccepted={onAccepted}
+        replacingName={activeCb && wizardMode ? activeCb.name : undefined}
+      />
     </>
   )
 }
@@ -312,6 +334,22 @@ function DataStep({
     <div className="space-y-4">
       <div className="border-l-2 border-violet-700 bg-violet-50 px-4 py-3 text-sm text-violet-950 leading-relaxed">
         Upload existing labeled data if you have it. AnnotAgent can learn from those correct labels to improve the prompts and check annotation quality.
+      </div>
+      <div className="border border-violet-200 bg-violet-50/70 px-4 py-3 text-sm text-violet-950">
+        <div className="font-medium">Expected labeled-data format</div>
+        <p className="mt-1 text-xs leading-relaxed text-violet-900/85">
+          The labels should match the active codebook dimensions and label names. For annotator spreadsheets, use one row per quote-label pair with columns like
+          <span className="font-mono text-[11px]"> Relevant quotes </span>,
+          <span className="font-mono text-[11px]"> Coding theme </span>, and
+          <span className="font-mono text-[11px]"> Level </span>.
+          AnnotAgent groups repeated quotes and reads each Coding theme as a dimension and each Level as its correct label.
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-violet-900/85">
+          JSON or CSV files can also include a
+          <span className="font-mono text-[11px]"> labels </span> or
+          <span className="font-mono text-[11px]"> gold_labels </span>
+          object, for example <span className="font-mono text-[11px]">{'{"Listening strategy": "Question-asking"}'}</span>.
+        </p>
       </div>
 
       {seeds.length > 0 && isSelfDisclosure(activeCb) && (
@@ -358,12 +396,12 @@ function DataStep({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FileField
             label="Labeled data (CSV/JSON)"
-            description="Examples that already have labels. AnnotAgent can learn from them to improve future annotations."
+            description="Examples that already have correct labels. CSV can use Relevant quotes + Coding theme + Level, or a labels/gold_labels object."
             onChange={e => onUpload(e, true)}
           />
           <FileField
             label="Gold standard (CSV/JSON)"
-            description="Your most trusted labels, such as expert-reviewed answers. AnnotAgent uses these to check quality."
+            description="Your most trusted labels, such as expert-reviewed answers, using the same labeled-data format."
             onChange={e => onUpload(e, true)}
           />
         </div>

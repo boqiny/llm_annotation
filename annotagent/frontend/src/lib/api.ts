@@ -115,6 +115,7 @@ export interface FeedbackEvidence {
   predicted_label: string
   reasoning: string
   is_mismatch: boolean
+  match_status?: 'missing' | 'match' | 'partial' | 'mismatch'
 }
 export const getFeedbackEvidence = (
   projectId: number,
