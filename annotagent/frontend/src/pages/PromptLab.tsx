@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend,
 } from 'recharts'
@@ -39,6 +39,7 @@ function normStatus(value: string): string {
 export default function PromptLabV2() {
   const { id } = useParams<{ id: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const projectId = Number(id)
 
   const [tab, setTab] = useState<Tab>(() => parseTab(searchParams.get('tab')))
@@ -52,6 +53,7 @@ export default function PromptLabV2() {
   const [autoPrompt, setAutoPrompt] = useState<AutoPromptResponse | null>(null)
   const [autoPromptLoading, setAutoPromptLoading] = useState(false)
   const [autoPromptError, setAutoPromptError] = useState('')
+  const [preparingAnnotation, setPreparingAnnotation] = useState(false)
 
   // Improve tab state
   const [selectedDim, setSelectedDim] = useState('')
@@ -69,6 +71,31 @@ export default function PromptLabV2() {
   const handleTabChange = (next: Tab) => {
     setTab(next)
     setSearchParams({ tab: next }, { replace: true })
+  }
+
+  const latestReflectRunByDimension = () => {
+    const byDim: Record<string, OptimizerRun> = {}
+    for (const run of runs) {
+      if (run.optimizer_name !== 'reflect_agent' || normStatus(run.status) !== 'completed' || !run.optimized_prompt) continue
+      const key = normDimensionName(run.dimension_name)
+      if (!byDim[key] || run.id > byDim[key].id) byDim[key] = run
+    }
+    return byDim
+  }
+
+  const handleAnnotateWithBestPrompts = async () => {
+    setPreparingAnnotation(true)
+    try {
+      const latestRuns = latestReflectRunByDimension()
+      await Promise.all(Object.values(latestRuns).map(run =>
+        commitPrompt(projectId, run.dimension_name, run.optimized_prompt)
+      ))
+      navigate(`/projects/${projectId}/pipeline`)
+    } catch (e: any) {
+      alert(`Could not prepare prompts for annotation: ${fmtError(e)}`)
+    } finally {
+      setPreparingAnnotation(false)
+    }
   }
 
   useEffect(() => {
@@ -182,6 +209,8 @@ export default function PromptLabV2() {
           }}
           onJumpToRun={(id) => { setSelectedRunId(id); handleTabChange('runs') }}
           onContinue={() => handleTabChange('improve')}
+          onAnnotate={handleAnnotateWithBestPrompts}
+          preparingAnnotation={preparingAnnotation}
         />
       )}
 
@@ -284,7 +313,7 @@ function Tabs<T extends string>({
 /* ─── Prompts tab ──────────────────────────────────────────── */
 
 function PromptsTab({
-  activeCb, autoPrompt, loading, error, runs, onRegenerate, onJumpToRun, onContinue,
+  activeCb, autoPrompt, loading, error, runs, onRegenerate, onJumpToRun, onContinue, onAnnotate, preparingAnnotation,
 }: {
   activeCb?: Codebook
   autoPrompt: AutoPromptResponse | null
@@ -294,6 +323,8 @@ function PromptsTab({
   onRegenerate: () => void
   onJumpToRun: (runId: number) => void
   onContinue: () => void
+  onAnnotate: () => void
+  preparingAnnotation: boolean
 }) {
   if (!activeCb) {
     return <Empty>Load a codebook on Setup first.</Empty>
@@ -343,13 +374,25 @@ function PromptsTab({
           return <PromptCard key={p.dimension_name} dp={p} optimizedRun={optimized} onJumpToRun={onJumpToRun} />
         })}
       </div>
-      <div className="flex justify-end border-t border-seam pt-4">
-        <button
-          onClick={onContinue}
-          className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
-        >
-          Continue to improve →
-        </button>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-seam pt-4">
+        <p className="border-l-2 border-ink bg-white px-3 py-2 text-sm font-medium text-stone-800">
+          Ready to annotate? This will save the latest improved prompts to the pipeline before opening the annotation page.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={onContinue}
+            className="px-4 py-2 border border-ink bg-white text-ink text-sm font-medium hover:bg-paper transition"
+          >
+            Improve with labeled data →
+          </button>
+          <button
+            onClick={onAnnotate}
+            disabled={preparingAnnotation}
+            className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40 transition"
+          >
+            {preparingAnnotation ? 'Preparing prompts…' : 'Use prompts for annotation →'}
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -109,7 +109,7 @@ export default function PipelineView() {
   return (
     <div className="space-y-12">
       {/* Masthead */}
-      <header className="border-b border-seam pb-6 flex items-end justify-between gap-6 flex-wrap">
+      <header className="border-b border-seam pb-6">
         <div>
           <div className="font-mono-editorial text-stone-500 mb-2">
             Annotate · {steps.length} step{steps.length !== 1 ? 's' : ''} · {currentMode.replace('_', ' ')}
@@ -118,12 +118,6 @@ export default function PipelineView() {
             Run the calibrated prompts on your data.
           </h1>
         </div>
-        <Link
-          to={`/projects/${projectId}/codebook`}
-          className="px-4 py-2 text-sm font-medium text-ink border border-ink hover:bg-ink hover:text-cream transition-colors"
-        >
-          View codebook →
-        </Link>
       </header>
 
       {/* Decomposition strategy switch */}
@@ -281,14 +275,22 @@ export default function PipelineView() {
               ? <>Selected · <span className="text-ink">{datasets.find(d => d.id === selectedDataset)?.name ?? '—'}</span></>
               : 'Pick or upload a dataset above'}
           </div>
-          <button
-            onClick={handleRunAnnotation}
-            disabled={!selectedDataset || loading}
-            className="group inline-flex items-center gap-3 px-6 py-3 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40 transition-colors"
-          >
-            <span>{loading ? 'Starting…' : 'Run annotation'}</span>
-            <span className="transition-transform group-enabled:group-hover:translate-x-1">→</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              to={`/projects/${projectId}/prompt-lab?tab=prompts`}
+              className="px-5 py-3 border border-ink bg-white text-ink text-sm font-medium hover:bg-paper transition-colors"
+            >
+              Back to prompts
+            </Link>
+            <button
+              onClick={handleRunAnnotation}
+              disabled={!selectedDataset || loading}
+              className="group inline-flex items-center gap-3 px-6 py-3 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40 transition-colors"
+            >
+              <span>{loading ? 'Starting…' : 'Run annotation'}</span>
+              <span className="transition-transform group-enabled:group-hover:translate-x-1">→</span>
+            </button>
+          </div>
         </div>
       </section>
     </div>
