@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -236,7 +237,10 @@ async def _per_dimension_steps_for_prompt_commit(
 
 
 def _norm_dimension_name(value: str) -> str:
-    return " ".join(str(value or "").split()).casefold()
+    text = str(value or "")
+    text = re.sub(r"\([^)]*\)", " ", text)
+    text = re.sub(r"[^0-9a-zA-Z]+", " ", text)
+    return " ".join(text.split()).casefold()
 
 
 def _label_for_dimension(labels: dict, dimension_name: str):
@@ -247,6 +251,24 @@ def _label_for_dimension(labels: dict, dimension_name: str):
         if _norm_dimension_name(key) == target:
             return value
     return None
+
+
+def _norm_label_name(value: str) -> str:
+    text = str(value or "")
+    text = re.sub(r"[^0-9a-zA-Z]+", " ", text)
+    return " ".join(text.split()).casefold()
+
+
+def _canonical_gold_labels(value: Any, valid_labels: list[str]) -> list[str]:
+    raw_values = value if isinstance(value, list) else [value]
+    by_norm = {_norm_label_name(label): label for label in valid_labels}
+    canonical: list[str] = []
+    for raw in raw_values:
+        key = _norm_label_name(str(raw))
+        label = by_norm.get(key)
+        if label and label not in canonical:
+            canonical.append(label)
+    return canonical
 
 
 async def _latest_memory(
@@ -866,11 +888,12 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
             gold_label = _label_for_dimension(labels, run.dimension_name)
             if gold_label is None:
                 continue
-            examples.append(Example(
-                sentence=it.content,
-                gold=str(gold_label).strip(),
-                context=it.context or "",
-            ))
+            for canonical_label in _canonical_gold_labels(gold_label, valid_labels):
+                examples.append(Example(
+                    sentence=it.content,
+                    gold=canonical_label,
+                    context=it.context or "",
+                ))
 
         if len(examples) < 15:
             async with async_session() as session:

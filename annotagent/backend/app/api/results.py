@@ -20,7 +20,10 @@ router = APIRouter(prefix="/api/projects/{project_id}/jobs/{job_id}/results", ta
 
 
 def _norm_dimension_name(value: str) -> str:
-    return " ".join(str(value or "").split()).casefold()
+    text = str(value or "")
+    text = re.sub(r"\([^)]*\)", " ", text)
+    text = re.sub(r"[^0-9a-zA-Z]+", " ", text)
+    return " ".join(text.split()).casefold()
 
 
 def _label_for_dimension(labels: dict, dimension: str):
@@ -47,6 +50,16 @@ def _labels_agree(predicted: str, gold: str) -> bool:
     if not predicted or not gold:
         return False
     return _norm_label(predicted) == _norm_label(gold)
+
+
+def _match_status(predicted: str, gold: object) -> str:
+    if not gold:
+        return "missing"
+    if isinstance(gold, list):
+        if not predicted:
+            return "mismatch"
+        return "partial" if any(_labels_agree(predicted, str(g)) for g in gold) else "mismatch"
+    return "match" if _labels_agree(predicted, str(gold)) else "mismatch"
 
 
 def _metadata_value(metadata: dict, candidates: tuple[str, ...]) -> str:
@@ -233,9 +246,11 @@ async def get_feedback_evidence(
         gold_label = ", ".join(map(str, gold)) if isinstance(gold, list) else (str(gold) if gold is not None else "")
         if not gold_label:
             gold_label = _gold_from_coding_metadata(item.metadata_ or {}, dimension)
+            gold = gold_label
         predicted = ann.predicted_label or ""
-        is_mismatch = bool(gold_label) and not _labels_agree(predicted, gold_label)
-        if mismatches_only and not is_mismatch:
+        match_status = _match_status(predicted, gold)
+        is_mismatch = match_status == "mismatch"
+        if mismatches_only and match_status not in {"mismatch", "partial"}:
             continue
         rows.append({
             "result_id": ann.id,
@@ -246,6 +261,7 @@ async def get_feedback_evidence(
             "predicted_label": predicted,
             "reasoning": ann.reasoning or "",
             "is_mismatch": is_mismatch,
+            "match_status": match_status,
         })
 
     rows.sort(key=lambda r: (not r["is_mismatch"], r["item_id"]))

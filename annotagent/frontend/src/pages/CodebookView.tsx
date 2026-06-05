@@ -127,6 +127,22 @@ export default function CodebookView() {
         </div>
       </section>
 
+      <section className="border border-violet-200 bg-violet-50 px-5 py-4">
+        <div className="font-medium text-violet-950">Final codebook check</div>
+        <p className="mt-1 max-w-4xl text-sm leading-relaxed text-violet-900">
+          Review the dimensions, labels, and definitions carefully before generating prompts or running annotation.
+          This codebook controls the prompts, improvement behavior, annotation labels, and exported result columns.
+          If anything looks wrong, go back to setup and replace or edit the codebook first.
+        </p>
+        <Link
+          to={`/projects/${projectId}/setup`}
+          className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
+        >
+          <span aria-hidden="true">←</span>
+          Back to setup
+        </Link>
+      </section>
+
       {/* Footer */}
       <footer className="pt-8 border-t border-seam flex items-baseline justify-between font-mono-editorial text-stone-400">
         <span>CodebookAgent artifact</span>
