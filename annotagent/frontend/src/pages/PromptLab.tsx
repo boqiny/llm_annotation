@@ -218,12 +218,23 @@ export default function PromptLabV2() {
         </div>
       </header>
 
-      <Tabs value={tab} onChange={handleTabChange} items={[
-        { id: 'prompts', label: 'Prompts',  count: autoPrompt?.prompts.length },
-        { id: 'improve', label: 'Improve',                                     },
-        { id: 'runs',    label: 'Runs',     count: runs.length                 },
-        { id: 'memory',  label: 'Human feedback', count: memory.length          },
-      ]} />
+      <div className="flex items-end justify-between gap-4 border-b border-seam">
+        <Tabs value={tab} onChange={handleTabChange} items={[
+          { id: 'prompts', label: 'Prompts',  count: autoPrompt?.prompts.length },
+          { id: 'improve', label: 'Improve',                                     },
+          { id: 'runs',    label: 'Runs',     count: runs.length                 },
+          { id: 'memory',  label: 'Human feedback', count: memory.length          },
+        ]} />
+        {tab !== 'prompts' && (
+          <button
+            type="button"
+            onClick={() => handleTabChange('prompts')}
+            className="mb-2 shrink-0 px-4 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
+          >
+            Back to prompts
+          </button>
+        )}
+      </div>
 
       {tab === 'prompts' && (
         <PromptsTab
@@ -329,7 +340,7 @@ function Tabs<T extends string>({
   items: { id: T; label: string; count?: number }[]
 }) {
   return (
-    <div className="flex border-b border-seam">
+    <div className="flex">
       {items.map(it => {
         const active = it.id === value
         return (
