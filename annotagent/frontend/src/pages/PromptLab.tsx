@@ -197,6 +197,7 @@ export default function PromptLabV2() {
           loading={autoPromptLoading}
           error={autoPromptError}
           runs={runs}
+          projectId={projectId}
           onRegenerate={async () => {
             if (!activeCb || !autoPromptCacheKey) return
             setAutoPromptLoading(true); setAutoPromptError('')
@@ -209,6 +210,7 @@ export default function PromptLabV2() {
           }}
           onJumpToRun={(id) => { setSelectedRunId(id); handleTabChange('runs') }}
           onContinue={() => handleTabChange('improve')}
+          onHumanFeedback={() => handleTabChange('memory')}
           onAnnotate={handleAnnotateWithBestPrompts}
           preparingAnnotation={preparingAnnotation}
         />
@@ -313,16 +315,18 @@ function Tabs<T extends string>({
 /* ─── Prompts tab ──────────────────────────────────────────── */
 
 function PromptsTab({
-  activeCb, autoPrompt, loading, error, runs, onRegenerate, onJumpToRun, onContinue, onAnnotate, preparingAnnotation,
+  activeCb, autoPrompt, loading, error, runs, projectId, onRegenerate, onJumpToRun, onContinue, onHumanFeedback, onAnnotate, preparingAnnotation,
 }: {
   activeCb?: Codebook
   autoPrompt: AutoPromptResponse | null
   loading: boolean
   error: string
   runs: OptimizerRun[]
+  projectId: number
   onRegenerate: () => void
   onJumpToRun: (runId: number) => void
   onContinue: () => void
+  onHumanFeedback: () => void
   onAnnotate: () => void
   preparingAnnotation: boolean
 }) {
@@ -371,45 +375,129 @@ function PromptsTab({
           const optimized = runs.filter(r => r.dimension_name === p.dimension_name
             && r.optimizer_name === 'reflect_agent' && r.status === 'completed')
             .sort((a, b) => b.id - a.id)[0]
-          return <PromptCard key={p.dimension_name} dp={p} optimizedRun={optimized} onJumpToRun={onJumpToRun} />
+          return <PromptCard key={p.dimension_name} dp={p} optimizedRun={optimized} onJumpToRun={onJumpToRun} projectId={projectId} />
         })}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-seam pt-4">
-        <p className="border-l-2 border-ink bg-white px-3 py-2 text-sm font-medium text-stone-800">
-          Ready to annotate? This will save the latest improved prompts to the pipeline before opening the annotation page.
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
+      <div className="border-t border-seam pt-4">
+        <div className="mb-3 border-l-2 border-ink bg-white px-3 py-2 text-sm font-medium text-stone-800">
+          Choose the next step for these prompts.
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <NextStepButton
+            title="📓 Improve with labeled data"
+            description="Use existing correct labels to test and refine the prompts."
             onClick={onContinue}
-            className="px-4 py-2 border border-ink bg-white text-ink text-sm font-medium hover:bg-paper transition"
-          >
-            Improve with labeled data →
-          </button>
-          <button
+            variant="secondary"
+          />
+          <NextStepButton
+            title="💬 Cold-start with human feedback"
+            description="No labeled data yet? Write corrections directly and update prompts."
+            onClick={onHumanFeedback}
+            variant="secondary"
+          />
+          <NextStepButton
+            title={preparingAnnotation ? '🚀 Preparing prompts...' : '🚀 Use prompts for annotation'}
+            description="Save the latest improved prompts and annotate your full dataset."
             onClick={onAnnotate}
             disabled={preparingAnnotation}
-            className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40 transition"
-          >
-            {preparingAnnotation ? 'Preparing prompts…' : 'Use prompts for annotation →'}
-          </button>
+            variant="secondary"
+          />
         </div>
       </div>
     </div>
   )
 }
 
+function NextStepButton({
+  title,
+  description,
+  onClick,
+  variant,
+  disabled = false,
+}: {
+  title: string
+  description: string
+  onClick: () => void
+  variant: 'primary' | 'secondary'
+  disabled?: boolean
+}) {
+  const primary = variant === 'primary'
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`min-h-28 border px-4 py-3 text-left transition disabled:opacity-40 ${
+        primary
+          ? 'border-ink bg-ink text-cream hover:bg-stone-800'
+          : 'border-seam bg-white text-ink hover:border-ink hover:bg-paper'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm font-semibold">{title}</div>
+        <span className={primary ? 'text-cream/70' : 'text-stone-400'}>→</span>
+      </div>
+      <p className={`mt-2 text-xs leading-relaxed ${primary ? 'text-cream/75' : 'text-stone-600'}`}>
+        {description}
+      </p>
+    </button>
+  )
+}
+
 function PromptCard({
-  dp, optimizedRun, onJumpToRun,
+  dp, optimizedRun, onJumpToRun, projectId,
 }: {
   dp: { dimension_name: string; prompt: string; version: string; path: string; error: string | null }
   optimizedRun?: OptimizerRun
   onJumpToRun: (runId: number) => void
+  projectId: number
 }) {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<'starting' | 'optimized'>(optimizedRun ? 'optimized' : 'starting')
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [copied, setCopied] = useState(false)
   const test = (optimizedRun?.artifact as any)?.test as { final_score?: number } | undefined
   const score = test?.final_score ?? optimizedRun?.final_score
   const text = view === 'optimized' && optimizedRun ? optimizedRun.optimized_prompt : dp.prompt
+  const dirty = draft !== text
+
+  useEffect(() => {
+    if (!editing) setDraft(text)
+  }, [text, editing])
+
+  const startEdit = () => {
+    setOpen(true)
+    setEditing(true)
+    setDraft(text)
+    setErr('')
+    setSaved(false)
+  }
+
+  const save = async () => {
+    setSaving(true); setErr('')
+    try {
+      await commitPrompt(projectId, dp.dimension_name, draft)
+      setEditing(false)
+      setSaved(true)
+    } catch (e: any) {
+      setErr(fmtError(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1600)
+    } catch {
+      setErr('Copy failed')
+    }
+  }
 
   return (
     <div className="border border-seam bg-white">
@@ -418,24 +506,67 @@ function PromptCard({
           <span className="font-mono-editorial text-stone-400 w-3">{open ? '−' : '+'}</span>
           <span className="font-medium truncate">{dp.dimension_name}</span>
         </div>
-        <div className="font-mono-editorial text-xs">
+        <div className="font-mono-editorial text-xs flex items-center gap-2 shrink-0">
           {optimizedRun
             ? <span className="text-violet-700">run {String(optimizedRun.id).padStart(4, '0')}{typeof score === 'number' ? ` · ${(score * 100).toFixed(0)}%` : ''}</span>
             : <span className="text-stone-400">{dp.version}</span>
           }
+          {saved && <span className="text-emerald-700">saved</span>}
         </div>
       </button>
+      <div className="px-4 py-2 border-t border-seam bg-paper/30 flex items-center justify-end gap-2">
+        <button
+          onClick={copyPrompt}
+          className="px-3 py-1.5 border border-ink bg-white text-ink text-xs font-medium hover:bg-paper transition"
+        >
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+        <button
+          onClick={startEdit}
+          className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 transition"
+        >
+          Edit prompt
+        </button>
+      </div>
       {open && !dp.error && (
         <div className="border-t border-seam">
           {optimizedRun && (
             <div className="px-4 py-1.5 flex items-center gap-3 border-b border-seam bg-paper/40">
-              <button onClick={() => setView('starting')} className={`text-xs font-mono-editorial ${view === 'starting' ? 'text-ink underline' : 'text-stone-500 hover:text-ink'}`}>starting</button>
+              <button onClick={() => { setView('starting'); setEditing(false); setErr('') }} className={`text-xs font-mono-editorial ${view === 'starting' ? 'text-ink underline' : 'text-stone-500 hover:text-ink'}`}>starting</button>
               <span className="text-stone-300">·</span>
-              <button onClick={() => setView('optimized')} className={`text-xs font-mono-editorial ${view === 'optimized' ? 'text-violet-700 underline' : 'text-stone-500 hover:text-ink'}`}>optimized</button>
+              <button onClick={() => { setView('optimized'); setEditing(false); setErr('') }} className={`text-xs font-mono-editorial ${view === 'optimized' ? 'text-violet-700 underline' : 'text-stone-500 hover:text-ink'}`}>optimized</button>
               <button onClick={() => onJumpToRun(optimizedRun.id)} className="ml-auto text-xs font-mono-editorial text-stone-500 hover:text-ink">open run →</button>
             </div>
           )}
-          <pre className="px-4 py-3 text-xs text-stone-800 whitespace-pre-wrap font-mono leading-relaxed max-h-[360px] overflow-auto">{text}</pre>
+          {editing ? (
+            <div className="p-4 space-y-3">
+              <textarea
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                rows={Math.min(28, Math.max(10, draft.split('\n').length + 1))}
+                className="w-full bg-white border border-seam focus:border-ink focus:outline-none p-3 font-mono text-xs leading-relaxed resize-y"
+              />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={save}
+                  disabled={saving || !dirty}
+                  className="px-3 py-1.5 bg-ink text-cream text-xs font-medium disabled:opacity-40"
+                >
+                  {saving ? 'Saving…' : 'Save to annotation pipeline'}
+                </button>
+                <button
+                  onClick={() => { setEditing(false); setDraft(text); setErr('') }}
+                  disabled={saving}
+                  className="font-mono-editorial text-xs text-stone-500 hover:text-ink"
+                >
+                  Cancel
+                </button>
+                {err && <span className="text-xs text-red-700">{err}</span>}
+              </div>
+            </div>
+          ) : (
+            <pre className="px-4 py-3 text-xs text-stone-800 whitespace-pre-wrap font-mono leading-relaxed max-h-[360px] overflow-auto">{text}</pre>
+          )}
         </div>
       )}
       {open && dp.error && <div className="border-t border-seam px-4 py-3 text-xs text-red-700">{dp.error}</div>}
