@@ -897,6 +897,18 @@ function ImproveTab({
             </div>
           )}
         </div>
+        <div className="border border-amber-200 bg-amber-50/70 px-3 py-3">
+          <div className="font-mono-editorial text-amber-800 mb-2">Cost awareness</div>
+          <div className="flex flex-wrap gap-2">
+            <RunInputLabel label="Optimizer" value={optimizerCopy(selectedOptimizer).title} />
+            <RunInputLabel label="Rounds" value={budget.toLocaleString()} />
+            <RunInputLabel label="Examples" value={total > 0 ? total.toLocaleString() : '—'} />
+            <RunInputLabel label="Dimension" value={selectedDim || '—'} />
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-amber-900/80">
+            Improvement can make many LLM calls. Actual tokens and cost depend on optimizer behavior, prompt/output length, retries, and provider pricing. AnnotAgent tracks measured tokens and cost in the run summary.
+          </p>
+        </div>
         <button onClick={handleLaunch} disabled={launching || noLabels || tooFew}
                 className="w-full py-2.5 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40">
           {launching ? 'Starting…' : 'Run improvement →'}
@@ -960,6 +972,15 @@ function ImproveTab({
         )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function RunInputLabel({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border border-amber-200 bg-white/70 px-2.5 py-1.5">
+      <div className="font-mono-editorial text-[10px] text-amber-700">{label}</div>
+      <div className="text-xs font-medium text-amber-950 max-w-[180px] truncate" title={value}>{value}</div>
     </div>
   )
 }
@@ -1916,7 +1937,7 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
   onDimensionChange: (dimensionName: string) => void
   onJobsRefresh: () => void
 }) {
-  const completedJobs = jobs.filter(j => normStatus(j.status) === 'completed')
+  const completedJobs = jobs.filter(j => normStatus(j.status) === 'completed' && j.source === 'human_feedback')
   const [jobId, setJobId] = useState<number | ''>('')
   const [runDatasetId, setRunDatasetId] = useState<number | ''>('')
   const [rows, setRows] = useState<FeedbackEvidence[]>([])
@@ -1988,7 +2009,7 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
       const pipelines = await listPipelines(projectId)
       const latest = pipelines.slice().sort((a, b) => b.id - a.id)[0]
       if (!latest) throw new Error('No pipeline found. Generate a pipeline first.')
-      const job = await startJob(projectId, Number(runDatasetId), latest.id)
+      const job = await startJob(projectId, Number(runDatasetId), latest.id, 'human_feedback')
       onJobsRefresh()
       setJobId('')
       refreshUntilDone(job.id)
@@ -2012,18 +2033,24 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
             <option key={d} value={d}>{d}</option>
           ))}
         </select>
-        <select
-          value={jobId}
-          onChange={e => setJobId(e.target.value ? Number(e.target.value) : '')}
-          className="ml-auto max-w-full bg-white border border-seam px-2 py-1 text-xs focus:outline-none focus:border-ink"
-        >
-          {completedJobs.length === 0 && <option value="">No completed jobs</option>}
-          {completedJobs.map(j => (
-            <option key={j.id} value={j.id}>
-              job {String(j.id).padStart(4, '0')} · {j.completed_items}/{j.total_items}
-            </option>
-          ))}
-        </select>
+        <div className="ml-auto flex items-center gap-1.5">
+          <span className="font-mono-editorial text-xs text-stone-500">Completed run</span>
+          <select
+            value={jobId}
+            onChange={e => setJobId(e.target.value ? Number(e.target.value) : '')}
+            className="max-w-full bg-white border border-seam px-2 py-1 text-xs focus:outline-none focus:border-ink"
+          >
+            {completedJobs.length === 0 && <option value="">No feedback runs</option>}
+            {completedJobs.map(j => {
+              const dataset = datasets.find(d => d.id === j.dataset_id)
+              return (
+                <option key={j.id} value={j.id}>
+                  job {String(j.id).padStart(4, '0')} · {dataset?.name ?? `dataset ${j.dataset_id}`} · {j.completed_items}/{j.total_items}
+                </option>
+              )
+            })}
+          </select>
+        </div>
         <select
           value={runDatasetId}
           onChange={e => setRunDatasetId(e.target.value ? Number(e.target.value) : '')}
@@ -2065,7 +2092,7 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
       ) : rows.length === 0 ? (
         <div className="px-3 py-3 text-xs text-stone-500 leading-relaxed">
           {completedJobs.length === 0
-            ? 'No completed annotation jobs yet. A finished improvement run updates the prompt, but annotated examples appear here only after you run annotation on a dataset.'
+            ? 'No human-feedback evidence runs yet. Use "Run annotation with latest prompt" here to create examples for feedback review.'
             : 'No annotated examples found for this dimension in the selected job. Try another completed job, or run annotation again after applying the prompt.'
           }
         </div>
