@@ -303,6 +303,11 @@ function DataStep({
   onRemoveDataset: (id: number) => void
   onUpload: (e: React.ChangeEvent<HTMLInputElement>, isGold: boolean) => void
 }) {
+  const labeledDatasets = datasets.filter(ds =>
+    ds.is_gold
+    || seeds.some(s => s.role !== 'test' && s.label === ds.name)
+  )
+
   return (
     <div className="space-y-4">
       <div className="border-l-2 border-violet-700 bg-violet-50 px-4 py-3 text-sm text-violet-950 leading-relaxed">
@@ -354,7 +359,7 @@ function DataStep({
           <FileField
             label="Labeled data (CSV/JSON)"
             description="Examples that already have labels. AnnotAgent can learn from them to improve future annotations."
-            onChange={e => onUpload(e, false)}
+            onChange={e => onUpload(e, true)}
           />
           <FileField
             label="Gold standard (CSV/JSON)"
@@ -364,9 +369,9 @@ function DataStep({
         </div>
       </div>
 
-      {datasets.length > 0 && (
+      {labeledDatasets.length > 0 && (
         <div>
-          <div className="font-mono-editorial text-stone-500 text-xs mb-2">Loaded labeled data · {datasets.length}</div>
+          <div className="font-mono-editorial text-stone-500 text-xs mb-2">Loaded labeled data · {labeledDatasets.length}</div>
           <ul className="divide-y divide-seam border-y border-seam">
             <li className="flex items-baseline gap-4 py-2 bg-paper/70 text-[11px] font-mono-editorial text-stone-500 uppercase tracking-wide">
               <span className="flex-1 min-w-0">File</span>
@@ -375,7 +380,7 @@ function DataStep({
               <span className="shrink-0 w-28 text-right">Type</span>
               <span className="shrink-0 w-[72px] text-right">Action</span>
             </li>
-            {datasets.map(ds => (
+            {labeledDatasets.map(ds => (
               <li key={ds.id} className="flex items-baseline gap-4 py-2">
                 <span className="flex-1 min-w-0 font-medium truncate">{ds.name}</span>
                 <span className="shrink-0 w-24 text-right font-mono text-xs text-stone-600">{ds.total_items} items</span>
