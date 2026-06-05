@@ -32,6 +32,10 @@ function normDimensionName(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
+function normLabelName(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
 function normStatus(value: string): string {
   return String(value || '').toLowerCase()
 }
@@ -678,8 +682,28 @@ function ImproveTab({
   const selectedLabelKey = Object.keys(classCounts).find(k => normDimensionName(k) === normDimensionName(selectedDim)) ?? selectedDim
   const classes = classCounts[selectedLabelKey] ?? {}
   const total = Object.values(classes).reduce((a, b) => a + b, 0)
-  const split = useMemo(() => stratifiedPreview(classes, 15, 42), [classes])
-  const sorted = Object.keys(classes).sort((a, b) => classes[b] - classes[a])
+  const selectedDimension = activeCb?.dimensions.find(d => normDimensionName(d.name) === normDimensionName(selectedDim))
+  const expectedLabels = useMemo(() => selectedDimension?.labels.map(l => l.name) ?? [], [selectedDimension])
+  const displayedClasses = useMemo(() => {
+    const merged: Record<string, number> = {}
+    for (const expected of expectedLabels) {
+      const actualKey = Object.keys(classes).find(label => normLabelName(label) === normLabelName(expected))
+      merged[expected] = actualKey ? classes[actualKey] : 0
+    }
+    for (const [label, count] of Object.entries(classes)) {
+      const alreadyShown = Object.keys(merged).some(existing => normLabelName(existing) === normLabelName(label))
+      if (!alreadyShown) merged[label] = count
+    }
+    return merged
+  }, [classes, expectedLabels])
+  const missingLabels = expectedLabels.filter(label => (displayedClasses[label] ?? 0) === 0)
+  const split = useMemo(() => stratifiedPreview(displayedClasses, 15, 42), [displayedClasses])
+  const sorted = Object.keys(displayedClasses).sort((a, b) => {
+    const aExpected = expectedLabels.findIndex(label => normLabelName(label) === normLabelName(a))
+    const bExpected = expectedLabels.findIndex(label => normLabelName(label) === normLabelName(b))
+    if (aExpected !== -1 || bExpected !== -1) return (aExpected === -1 ? 999 : aExpected) - (bExpected === -1 ? 999 : bExpected)
+    return displayedClasses[b] - displayedClasses[a]
+  })
   const tooFew = total > 0 && total < 15
   const noLabels = total === 0
 
@@ -709,7 +733,9 @@ function ImproveTab({
           <select value={selectedDim} onChange={e => setSelectedDim(e.target.value)}
                   className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-medium">
             {activeCb?.dimensions.map(d => (
-              <option key={d.id} value={d.name}>{d.name} ({d.labels.length})</option>
+              <option key={d.id} value={d.name}>
+                {d.name} ({d.labels.length} label{d.labels.length === 1 ? '' : 's'})
+              </option>
             ))}
           </select>
         </div>
@@ -727,10 +753,13 @@ function ImproveTab({
             )}
         </div>
         <div>
-          <Label>Rounds</Label>
+          <Label>Improvement rounds</Label>
           <input type="number" min={1} max={20} value={budget}
                  onChange={e => setBudget(Math.max(1, Math.min(20, Number(e.target.value) || 5)))}
                  className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-mono text-sm" />
+          <p className="mt-1 text-xs text-stone-500 leading-relaxed">
+            Main optimization passes. Baseline scoring and final validation may appear separately in the run summary.
+          </p>
         </div>
         <button onClick={handleLaunch} disabled={launching || noLabels || tooFew}
                 className="w-full py-2.5 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40">
@@ -760,6 +789,11 @@ function ImproveTab({
                 {split.n_train} train · {split.n_val} val · {split.n_test} test
               </div>
             </div>
+            {missingLabels.length > 0 && (
+              <div className="mb-3 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                No labeled examples for: <span className="font-semibold">{missingLabels.join(', ')}</span>. Improvement can still run, but it cannot learn or validate those labels from this dataset.
+              </div>
+            )}
             <table className="w-full text-xs font-mono">
               <thead>
                 <tr className="border-b border-seam font-mono-editorial text-stone-500">
@@ -1002,12 +1036,12 @@ function RunDetailV2({
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-              {/* Compact round-by-round list — shows every action including
-                  val_consolidation and demos_appended after the run finishes. */}
+              {/* Compact step-by-step list — separates requested improvement
+                  rounds from baseline/final bookkeeping passes. */}
               <ul className="text-xs font-mono divide-y divide-seam border-t border-seam max-h-40 overflow-auto">
                 {traj.map((t: any, i: number) => (
                   <li key={i} className="flex items-baseline gap-2 px-1 py-1">
-                    <span className="font-mono-editorial text-stone-400 w-10 shrink-0">r{t.round}</span>
+                    <span className="font-mono-editorial text-stone-400 w-24 shrink-0">{trajectoryStepLabel(t, budget)}</span>
                     <span className={
                       t.action === 'accept' || t.action === 'baseline' || t.action === 'baseline_seeded' || t.action === 'converged'
                         ? 'text-emerald-700'
@@ -1036,7 +1070,7 @@ function RunDetailV2({
           {test?.final_metrics
             ? <PerClassMini initial={test.initial_metrics} final={test.final_metrics} />
             : isRunning
-              ? <SkeletonTable label={`Held-out test scored once after round ${budget}.`} />
+              ? <SkeletonTable label="Held-out test is scored after the improvement rounds." />
               : <Empty>{test ? 'Old run — no per-class.' : 'Test eval pending.'}</Empty>}
         </Card>
 
@@ -1192,7 +1226,7 @@ function LiveStrip({
 
       {/* Round counter + progress bar */}
       <div className="flex items-center justify-between mb-1.5 text-xs font-mono-editorial">
-        <span className="text-blue-700">Round {currentRound} / {budget}</span>
+        <span className="text-blue-700">{progressStepLabel(currentRound, budget)}</span>
         <span className="text-stone-500">{Math.round(progressPct)}%</span>
       </div>
       <div className="w-full h-[3px] bg-seam overflow-hidden relative">
@@ -1214,7 +1248,7 @@ function LiveStrip({
               className="flex items-baseline gap-2 animate-[fadeIn_300ms_ease-out]"
               style={{ animationDelay: `${i * 30}ms` }}
             >
-              <span className="font-mono-editorial text-stone-400 w-12 shrink-0">r{t.round}</span>
+              <span className="font-mono-editorial text-stone-400 w-24 shrink-0">{trajectoryStepLabel(t, budget)}</span>
               <span className={
                 t.action === 'accept' || t.action === 'baseline' || t.action === 'baseline_seeded'
                   ? 'text-emerald-700'
@@ -1338,6 +1372,23 @@ function humanAction(action: string | undefined): string {
     case 'prompt_integrated':  return 'rules integrated into prompt'
     default:                   return action || '—'
   }
+}
+
+function trajectoryStepLabel(t: any, budget: number): string {
+  const action = t?.action
+  const round = Number(t?.round ?? 0)
+  if (action === 'baseline' || action === 'baseline_seeded' || round === 0) return 'Baseline'
+  if (action === 'val_consolidation') return 'Final validation'
+  if (action === 'demos_appended') return 'Final examples'
+  if (action === 'prompt_integrated') return 'Prompt rewrite'
+  if (round <= budget) return `Round ${round}`
+  return 'Final pass'
+}
+
+function progressStepLabel(currentRound: number, budget: number): string {
+  if (currentRound <= 0) return 'Baseline'
+  if (currentRound <= budget) return `Improvement round ${currentRound} / ${budget}`
+  return 'Final validation and prompt rewrite'
 }
 
 function AuditBadge({ run }: { run: OptimizerRun }) {
