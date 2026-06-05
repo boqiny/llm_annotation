@@ -1092,6 +1092,7 @@ function humanAction(action: string | undefined): string {
     case 'converged':          return 'converged · no failures'
     case 'val_consolidation':  return 'val consolidated into rules'
     case 'demos_appended':     return 'worked examples added'
+    case 'prompt_integrated':  return 'rules integrated into prompt'
     default:                   return action || '—'
   }
 }

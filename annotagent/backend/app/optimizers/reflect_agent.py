@@ -26,39 +26,13 @@ from typing import Optional
 
 from app.engine.llm_client import call_llm
 from app.engine.metrics import compute_metrics
+from app.agents.reflect_memory import apply_calibration_evidence, apply_rules_to_prompt
 from app.optimizers.base import (
     Example, OptimizationResult, ProgressCB, PromptOptimizer,
     _emit, evaluate_prompt,
 )
 
 logger = logging.getLogger(__name__)
-
-
-_PATTERN_EXTRACTOR_SYSTEM = """You are a senior annotation quality analyst refining a codebook.
-
-You will see a dimension's label definitions, the current rule library, and a batch of
-annotation failures (gold label vs model prediction). Your job is to distil
-GENERALIZABLE RULES that would prevent the systematic confusions you observe.
-
-HARD CONSTRAINTS:
-1. Do NOT quote full failure sentences verbatim. Rules must abstract the pattern.
-2. Each rule MUST include a `boundary` field stating the distinction in your own words.
-3. If a failure is idiosyncratic (one-off, doesn't generalize), SKIP it — don't create a rule for every error.
-4. Do NOT duplicate existing rules in the library. If an existing rule is almost right, return an UPDATED version instead.
-5. Prefer 2-5 tight, high-leverage rules over 10 narrow ones.
-
-Output ONLY valid JSON array of rules with this schema:
-[
-  {
-    "id": "short_slug",
-    "target_labels": ["label_a", "label_b"],
-    "boundary": "one-sentence distinction between these labels",
-    "positive_cues": ["phrase or pattern that signals label_a"],
-    "negative_cues": ["phrase or pattern that should NOT trigger label_a"],
-    "rule": "instruction an annotator would read"
-  }
-]
-"""
 
 
 async def _extract_patterns(
@@ -74,41 +48,34 @@ async def _extract_patterns(
         f"- Gold=[{f['gold']}]  Pred=[{f['pred']}]  Sent=\"{f['sentence'][:180]}\""
         for f in failures[:40]  # cap
     )
-    existing_summary = json.dumps(existing_rules, indent=2) if existing_rules else "(empty)"
-
-    user_msg = f"""Dimension: {dimension}
-
-Label definitions:
-{label_defs}
-
-Existing rule library:
-{existing_summary}
-
-Failure batch ({len(failures)} items):
+    evidence_text = f"""Failure batch ({len(failures)} items):
 {failures_summary}
 
-Return JSON array of NEW or UPDATED rules."""
+Gold is the correct label. Pred is the model prediction. Produce general calibration rules
+that would prevent systematic confusions in this batch."""
 
-    try:
-        resp = await call_llm(
-            messages=[
-                {"role": "system", "content": _PATTERN_EXTRACTOR_SYSTEM},
-                {"role": "user", "content": user_msg},
-            ],
-            provider=provider, model=model, api_key=api_key, max_tokens=2048,
+    merged_rules = await apply_calibration_evidence(
+        evidence_text=evidence_text,
+        dimension_name=dimension,
+        label_defs=label_defs,
+        existing_rules=existing_rules,
+        provider=provider,
+        model=model,
+        api_key=api_key,
+        evidence_label="Optimizer failure evidence",
+    )
+    existing_by_id = {r.get("id"): r for r in existing_rules}
+    return [
+        r for r in merged_rules
+        if (
+            isinstance(r, dict)
+            and r.get("boundary")
+            and (
+                r.get("id") not in existing_by_id
+                or r != existing_by_id.get(r.get("id"))
+            )
         )
-        # Strip common wrappers
-        text = resp.text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0]
-        rules = json.loads(text)
-        if not isinstance(rules, list):
-            return []
-        # Basic schema guard
-        return [r for r in rules if isinstance(r, dict) and r.get("rule") and r.get("boundary")]
-    except (json.JSONDecodeError, KeyError, IndexError, Exception) as e:
-        logger.warning(f"PatternExtractor failed to emit valid JSON: {e}")
-        return []
+    ]
 
 
 _DEDUP_SYSTEM = """You are auditing an annotation rule library for redundant DUPLICATES.
@@ -223,6 +190,29 @@ def _compile_rules(rules: list[dict]) -> str:
     return "\n".join(lines)
 
 
+async def _integrate_rules_into_prompt(
+    *,
+    initial_prompt: str,
+    rules: list[dict],
+    dimension: str,
+    provider: str,
+    model: str,
+    api_key: str,
+) -> str:
+    """Use the same natural rewrite mechanism as human feedback for the final prompt."""
+    if not rules:
+        return initial_prompt
+    rewritten = await apply_rules_to_prompt(
+        base_prompt=initial_prompt,
+        rules=rules,
+        dimension_name=dimension,
+        provider=provider,
+        model=model,
+        api_key=api_key,
+    )
+    return rewritten or (initial_prompt + _compile_rules(rules))
+
+
 class ReflectAgent(PromptOptimizer):
     """Rule-distillation prompt optimizer. See module docstring."""
     name = "reflect_agent"
@@ -237,7 +227,7 @@ class ReflectAgent(PromptOptimizer):
         rollback_epsilon: float = 0.005,  # val F1 regression tolerance
         label_defs: str = "",
         seed_rules: list[dict] | None = None,
-        use_few_shot_demos: bool = True,
+        use_few_shot_demos: bool = False,
         max_demos_per_rule: int = 1,
         max_total_demos: int = 8,
         use_val_consolidation: bool = True,
@@ -485,11 +475,38 @@ class ReflectAgent(PromptOptimizer):
                     "delta": round(val_acc - base_acc, 4),
                 })
 
+        final_prompt = await _integrate_rules_into_prompt(
+            initial_prompt=initial_prompt,
+            rules=rules,
+            dimension=dimension,
+            provider=self.provider,
+            model=self.model,
+            api_key=self.api_key,
+        )
+
+        if final_prompt != current_prompt:
+            val_acc, val_preds, t, c = await evaluate_prompt(
+                final_prompt, valset, valid_labels,
+                provider=self.provider, model=self.model, api_key=self.api_key,
+            )
+            total_tokens += t
+            total_cost += c
+            final_metrics = compute_metrics(val_y_true, val_preds)
+            current_val_acc = val_acc
+            await record({
+                "round": consolidation_round + 2 if self.use_val_consolidation and valset else self.budget + 2,
+                "val_acc": val_acc,
+                "val_macro_f1": round(final_metrics.get("macro_f1", 0.0), 4),
+                "n_rules": len(rules), "n_demos": n_demos,
+                "action": "prompt_integrated",
+                "delta": round(val_acc - base_acc, 4),
+            })
+
         return OptimizationResult(
             optimizer_name=self.name,
             dimension=dimension,
             initial_prompt=initial_prompt,
-            optimized_prompt=current_prompt,
+            optimized_prompt=final_prompt,
             initial_score=base_acc,
             final_score=current_val_acc,
             trajectory=trajectory,
