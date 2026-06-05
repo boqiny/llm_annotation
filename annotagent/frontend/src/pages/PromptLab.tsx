@@ -457,20 +457,20 @@ function PromptsTab({
             title="📓 Improve with labeled data"
             description="Use existing correct labels to test and refine the prompts."
             onClick={onContinue}
-            variant="secondary"
+            tone="violet"
           />
           <NextStepButton
             title="💬 Cold-start with human feedback"
             description="No labeled data yet? Write corrections directly and update prompts."
             onClick={onHumanFeedback}
-            variant="secondary"
+            tone="sky"
           />
           <NextStepButton
             title={preparingAnnotation ? '🚀 Preparing prompts...' : '🚀 Use prompts for annotation'}
             description="Save the latest improved prompts and annotate your full dataset."
             onClick={onAnnotate}
             disabled={preparingAnnotation}
-            variant="secondary"
+            tone="emerald"
           />
         </div>
       </div>
@@ -482,31 +482,47 @@ function NextStepButton({
   title,
   description,
   onClick,
-  variant,
+  tone,
   disabled = false,
 }: {
   title: string
   description: string
   onClick: () => void
-  variant: 'primary' | 'secondary'
+  tone: 'violet' | 'sky' | 'emerald'
   disabled?: boolean
 }) {
-  const primary = variant === 'primary'
+  const styles = {
+    violet: {
+      button: 'border-violet-200 bg-violet-50 text-violet-950 hover:border-violet-400 hover:bg-violet-100',
+      arrow: 'text-violet-500',
+      body: 'text-violet-900/75',
+      stripe: 'bg-violet-500',
+    },
+    sky: {
+      button: 'border-sky-200 bg-sky-50 text-sky-950 hover:border-sky-400 hover:bg-sky-100',
+      arrow: 'text-sky-500',
+      body: 'text-sky-900/75',
+      stripe: 'bg-sky-500',
+    },
+    emerald: {
+      button: 'border-emerald-200 bg-emerald-50 text-emerald-950 hover:border-emerald-400 hover:bg-emerald-100',
+      arrow: 'text-emerald-500',
+      body: 'text-emerald-900/75',
+      stripe: 'bg-emerald-500',
+    },
+  }[tone]
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`min-h-28 border px-4 py-3 text-left transition disabled:opacity-40 ${
-        primary
-          ? 'border-ink bg-ink text-cream hover:bg-stone-800'
-          : 'border-seam bg-white text-ink hover:border-ink hover:bg-paper'
-      }`}
+      className={`relative min-h-28 overflow-hidden border px-4 py-3 text-left transition disabled:opacity-40 ${styles.button}`}
     >
+      <span className={`absolute inset-y-0 left-0 w-1 ${styles.stripe}`} />
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm font-semibold">{title}</div>
-        <span className={primary ? 'text-cream/70' : 'text-stone-400'}>→</span>
+        <span className={styles.arrow}>→</span>
       </div>
-      <p className={`mt-2 text-xs leading-relaxed ${primary ? 'text-cream/75' : 'text-stone-600'}`}>
+      <p className={`mt-2 text-xs leading-relaxed ${styles.body}`}>
         {description}
       </p>
     </button>
