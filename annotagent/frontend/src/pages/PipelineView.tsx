@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  listPipelines, listDatasets, startJob, decomposePipeline, uploadDataset,
+  listPipelines, listDatasets, startJob, uploadDataset,
   listSeedDatasets, loadSeedDataset, listCodebooks,
-  type SeedDatasetInfo, type DecomposeMode,
+  type SeedDatasetInfo,
 } from '../lib/api'
 import type { Pipeline, PipelineStep, Dataset, Codebook } from '../types'
 
@@ -26,7 +26,6 @@ export default function PipelineView() {
   const [expandedStep, setExpandedStep] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingSeed, setLoadingSeed] = useState<string | null>(null)
-  const [decomposing, setDecomposing] = useState<DecomposeMode | null>(null)
 
   const reload = () => Promise.all([
     listPipelines(projectId),
@@ -80,16 +79,6 @@ export default function PipelineView() {
     }
   }
 
-  const handleDecompose = async (mode: DecomposeMode) => {
-    setDecomposing(mode)
-    try {
-      const p = await decomposePipeline(projectId, mode)
-      setPipeline(p)
-    } finally {
-      setDecomposing(null)
-    }
-  }
-
   if (!pipeline) {
     return (
       <div className="border border-dashed border-seam bg-paper/40 py-16 text-center">
@@ -102,9 +91,6 @@ export default function PipelineView() {
   }
 
   const steps = pipeline.steps as PipelineStep[]
-  const currentMode: DecomposeMode = steps.length === 1
-    ? 'all_together'
-    : steps.every(s => s.dimensions.length === 1) ? 'per_dimension' : 'auto'
 
   return (
     <div className="space-y-12">
@@ -112,7 +98,7 @@ export default function PipelineView() {
       <header className="border-b border-seam pb-6">
         <div>
           <div className="font-mono-editorial text-stone-500 mb-2">
-            Annotate · {steps.length} step{steps.length !== 1 ? 's' : ''} · {currentMode.replace('_', ' ')}
+            Annotate · {steps.length} prompt{steps.length !== 1 ? 's' : ''}
           </div>
           <h1 className="text-4xl font-medium tracking-tight">
             Run the calibrated prompts on your data.
@@ -120,56 +106,49 @@ export default function PipelineView() {
         </div>
       </header>
 
-      {/* Decomposition strategy switch */}
+      {/* Prompt structure */}
       <section>
-        <div className="flex items-baseline justify-between mb-3">
-          <div className="font-mono-editorial text-stone-500">Decomposition</div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="font-mono-editorial text-stone-500">label as:</span>
-            <ModeButton
-              active={currentMode === 'per_dimension'}
-              busy={decomposing === 'per_dimension'}
-              onClick={() => handleDecompose('per_dimension')}
-              label="one dimension at a time"
-            />
-            <ModeButton
-              active={currentMode === 'all_together'}
-              busy={decomposing === 'all_together'}
-              onClick={() => handleDecompose('all_together')}
-              label="all together"
-            />
+        <div className="mb-3">
+          <div>
+            <div className="font-mono-editorial text-stone-500">Prompt structure</div>
+            <p className="mt-1 text-xs text-stone-500">
+              AnnotAgent uses one calibrated prompt for each codebook dimension.
+            </p>
           </div>
         </div>
 
-        <div className="flex items-stretch gap-0 overflow-x-auto pb-3">
-          {steps.map((step, i) => (
-            <div key={i} className="flex items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-3">
+          {steps.map((step, i) => {
+            const title = step.dimensions.length === 1 ? step.dimensions[0] : step.name
+            const showDimensionChips = step.dimensions.length > 1
+            return (
               <button
+                key={i}
                 onClick={() => setExpandedStep(expandedStep === i ? null : i)}
-                className={`text-left bg-white border border-seam p-5 min-w-[240px] transition-all hover:border-ink ${
+                className={`text-left bg-white border border-seam p-5 min-h-[132px] transition-all hover:border-ink ${
                   expandedStep === i ? 'border-ink shadow-[4px_4px_0_0_rgba(11,11,10,0.08)]' : ''
                 }`}
               >
-                <div className="font-mono-editorial text-stone-400 mb-2">
-                  Step {(i + 1).toString().padStart(2, '0')}
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <div className="font-mono-editorial text-stone-400">Dimension prompt</div>
+                  <div className="font-mono-editorial text-violet-700">View prompt</div>
                 </div>
-                <div className="font-medium mb-3 tracking-tight">{step.name}</div>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {step.dimensions.map(dim => (
-                    <span key={dim} className="px-2 py-0.5 bg-paper border border-seam text-stone-700 text-xs">
-                      {dim}
-                    </span>
-                  ))}
-                </div>
+                <div className="font-medium mb-3 tracking-tight">{title}</div>
+                {showDimensionChips && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {step.dimensions.map(dim => (
+                      <span key={dim} className="px-2 py-0.5 bg-paper border border-seam text-stone-700 text-xs">
+                        {dim}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 {step.gate && (
                   <div className="font-mono-editorial text-amber-700 mt-2">Gate · {step.gate}</div>
                 )}
               </button>
-              {i < steps.length - 1 && (
-                <div className="self-center px-3 font-mono text-stone-300 text-xl">→</div>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       </section>
 
@@ -179,7 +158,7 @@ export default function PipelineView() {
           <div className="flex items-center justify-between p-5 border-b border-seam">
             <div>
               <div className="font-mono-editorial text-stone-500 mb-1">
-                Prompt · step {(expandedStep + 1).toString().padStart(2, '0')}
+                Prompt
               </div>
               <h3 className="text-lg font-medium">{steps[expandedStep].name}</h3>
             </div>
@@ -294,22 +273,5 @@ export default function PipelineView() {
         </div>
       </section>
     </div>
-  )
-}
-
-function ModeButton({
-  active, busy, onClick, label,
-}: { active: boolean; busy: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={busy}
-      className={`px-2 py-1 border ${
-        active ? 'border-ink bg-ink text-cream' : 'border-seam text-stone-600 hover:border-stone-400 hover:text-ink'
-      } disabled:opacity-50 transition-colors`}
-    >
-      {busy ? 'switching…' : label}
-    </button>
   )
 }

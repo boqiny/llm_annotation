@@ -55,9 +55,8 @@ export const deleteDataset = (projectId: number, datasetId: number) =>
   api.delete(`/projects/${projectId}/datasets/${datasetId}`)
 
 // Pipelines
-export type DecomposeMode = 'per_dimension' | 'all_together' | 'auto'
-export const decomposePipeline = (projectId: number, mode: DecomposeMode = 'per_dimension') =>
-  api.post<Pipeline>(`/projects/${projectId}/pipelines/decompose`, null, { params: { mode } }).then(r => r.data)
+export const decomposePipeline = (projectId: number) =>
+  api.post<Pipeline>(`/projects/${projectId}/pipelines/decompose`).then(r => r.data)
 export const listPipelines = (projectId: number) =>
   api.get<Pipeline[]>(`/projects/${projectId}/pipelines`).then(r => r.data)
 export const getPipeline = (projectId: number, pipelineId: number) =>

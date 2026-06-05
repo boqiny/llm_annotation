@@ -180,6 +180,61 @@ def _find_pipeline_step(steps: list[dict], dimension_name: str) -> dict | None:
     return None
 
 
+async def _per_dimension_steps_for_prompt_commit(
+    db: AsyncSession,
+    project_id: int,
+    existing_steps: list[dict],
+    dimension_name: str,
+    new_prompt: str,
+) -> list[dict]:
+    """Build one prompt per dimension and preserve known optimized prompts.
+
+    A dimension-level prompt should never replace a multi-dimension step prompt.
+    If the active pipeline is grouped/combined, split it before committing.
+    """
+    codebook = (await db.execute(
+        select(Codebook).where(Codebook.project_id == project_id).order_by(Codebook.id.desc()).limit(1)
+    )).scalars().first()
+    if not codebook:
+        raise HTTPException(400, "No codebook uploaded for this project")
+
+    parsed = parse_codebook(codebook.raw_json)
+    existing_by_dim: dict[str, str] = {}
+    for step in existing_steps:
+        dims = step.get("dimensions") or []
+        if len(dims) == 1 and step.get("prompt"):
+            existing_by_dim[_norm_dimension_name(dims[0])] = str(step["prompt"])
+
+    latest_runs = (await db.execute(
+        select(OptimizerRun)
+        .where(
+            OptimizerRun.project_id == project_id,
+            OptimizerRun.status == "completed",
+            OptimizerRun.optimized_prompt.is_not(None),
+        )
+        .order_by(OptimizerRun.id.desc())
+    )).scalars().all()
+    optimized_by_dim: dict[str, str] = {}
+    for run in latest_runs:
+        if not run.optimized_prompt:
+            continue
+        key = _norm_dimension_name(run.dimension_name)
+        if key not in optimized_by_dim:
+            optimized_by_dim[key] = run.optimized_prompt
+
+    target = _norm_dimension_name(dimension_name)
+    steps: list[dict] = []
+    for dim in parsed.dimensions:
+        key = _norm_dimension_name(dim.name)
+        steps.append({
+            "name": dim.name,
+            "dimensions": [dim.name],
+            "prompt": new_prompt if key == target else optimized_by_dim.get(key) or existing_by_dim.get(key) or generate_dimension_prompt(dim),
+            "gate": None,
+        })
+    return steps
+
+
 def _norm_dimension_name(value: str) -> str:
     return " ".join(str(value or "").split()).casefold()
 
@@ -401,11 +456,19 @@ async def commit_prompt(
     updated = False
     step = _find_pipeline_step(steps, body.dimension_name)
     if step:
-        step["prompt"] = body.new_prompt
+        if len(step.get("dimensions") or []) > 1:
+            steps = await _per_dimension_steps_for_prompt_commit(
+                db, project_id, steps, body.dimension_name, body.new_prompt
+            )
+        else:
+            step["prompt"] = body.new_prompt
         updated = True
 
     if not updated:
-        raise HTTPException(400, f"No pipeline step found for dimension '{body.dimension_name}'.")
+        steps = await _per_dimension_steps_for_prompt_commit(
+            db, project_id, steps, body.dimension_name, body.new_prompt
+        )
+        updated = True
 
     pipeline.steps = steps
     await db.commit()
@@ -470,11 +533,19 @@ async def commit_feedback_batch(
     updated = False
     step = _find_pipeline_step(steps, body.dimension_name)
     if step:
-        step["prompt"] = body.new_prompt
+        if len(step.get("dimensions") or []) > 1:
+            steps = await _per_dimension_steps_for_prompt_commit(
+                db, project_id, steps, body.dimension_name, body.new_prompt
+            )
+        else:
+            step["prompt"] = body.new_prompt
         updated = True
 
     if not updated:
-        raise HTTPException(400, f"No pipeline step found for dimension '{body.dimension_name}'.")
+        steps = await _per_dimension_steps_for_prompt_commit(
+            db, project_id, steps, body.dimension_name, body.new_prompt
+        )
+        updated = True
 
     pipeline.steps = steps
     await db.commit()

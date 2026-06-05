@@ -50,7 +50,6 @@ or spreadsheet dumps), extract a STRUCTURED CODEBOOK with:
   - name, description, top-level mode ("single_label" | "multi_label" | "mixed")
   - dimensions: list of {name, type ("single_label" or "multi_label"),
       instructions, labels: [{name, definition, examples: []}]}
-  - decomposition_hints: {groups: [[dim_name, ...]], order: [step_name, ...]}
   - _rationale_per_dim: {dim_name: "why you chose this mode + any ambiguities"}
 
 MODE INFERENCE:
@@ -65,8 +64,7 @@ RULES:
      columns), synthesize the schema from the OBSERVED labels per theme.
   3. Use canonical casing (Title Case for labels; lowercase with underscores in IDs).
   4. 2-6 dimensions is typical; 3-8 labels per dimension is typical.
-  5. Always include a plausible decomposition_hints with at least one group.
-  6. Output STRICT JSON. No prose, no markdown fences, no comments."""
+  5. Output STRICT JSON. No prose, no markdown fences, no comments."""
 
 
 async def run_codebook_agent(
