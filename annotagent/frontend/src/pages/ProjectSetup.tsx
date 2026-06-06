@@ -2,14 +2,19 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   getProject, updateProject, listPresets, listCodebooks,
-  uploadDataset, listDatasets, decomposePipeline,
+  uploadDataset, listDatasets, deleteDataset, decomposePipeline,
   listSeedDatasets, loadSeedDataset, getBackendConfig,
   type SeedDatasetInfo, type BackendConfig,
 } from '../lib/api'
 import type { Project, Codebook, Dataset, PresetInfo } from '../types'
 import CodebookDraftWizard from '../components/CodebookDraftWizard'
 
-type Step = 'codebook' | 'data' | 'model'
+type Step = 'model' | 'codebook' | 'data'
+
+const MODEL_OPTIONS: Record<string, string[]> = {
+  openai: ['gpt-5.4-mini', 'gpt-5.4', 'gpt-4.1-mini'],
+  anthropic: ['claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805', 'claude-3-5-haiku-20241022'],
+}
 
 function isSelfDisclosure(cb: Codebook | undefined | null): boolean {
   if (!cb) return false
@@ -31,9 +36,10 @@ export default function ProjectSetupV2() {
   const [llmProvider, setLlmProvider] = useState('openai')
   const [llmModel, setLlmModel] = useState('gpt-5.4-mini')
   const [apiKey, setApiKey] = useState('')
-  const [step, setStep] = useState<Step>('codebook')
+  const [step, setStep] = useState<Step>('model')
   const [loading, setLoading] = useState(false)
   const [loadingSeed, setLoadingSeed] = useState<string | null>(null)
+  const [removingDataset, setRemovingDataset] = useState<number | null>(null)
   const [wizardMode, setWizardMode] = useState(false)
 
   const loadData = useCallback(async () => {
@@ -61,17 +67,32 @@ export default function ProjectSetupV2() {
     try { await loadSeedDataset(projectId, seedId); setDatasets(await listDatasets(projectId)) }
     finally { setLoadingSeed(null) }
   }
+  const handleRemoveDataset = async (datasetId: number) => {
+    setRemovingDataset(datasetId)
+    try {
+      await deleteDataset(projectId, datasetId)
+      setDatasets(await listDatasets(projectId))
+    } finally { setRemovingDataset(null) }
+  }
   const handleSaveLLM = async () => {
     const patch: Record<string, string> = { llm_provider: llmProvider, llm_model: llmModel }
     if (apiKey) patch.api_key = apiKey
     await updateProject(projectId, patch)
+    setProject(prev => prev ? { ...prev, llm_provider: llmProvider, llm_model: llmModel } : prev)
+  }
+  const handleSaveModelAndContinue = async () => {
+    setLoading(true)
+    try {
+      await handleSaveLLM()
+      setStep('codebook')
+    } finally { setLoading(false) }
   }
   const handleGeneratePipeline = async () => {
     setLoading(true)
     try {
       await handleSaveLLM()
       await decomposePipeline(projectId)
-      navigate(`/projects/${projectId}/prompt-lab`)
+      navigate(`/projects/${projectId}/prompt-lab?tab=prompts`)
     } finally { setLoading(false) }
   }
 
@@ -84,6 +105,7 @@ export default function ProjectSetupV2() {
   const missing: string[] = []
   if (!activeCb) missing.push('codebook')
   if (!keyOK) missing.push(`${llmProvider === 'anthropic' ? 'anthropic' : 'openai'} key`)
+  const replacingCodebook = step === 'codebook' && wizardMode
 
   return (
     <div className="space-y-4 pb-24">
@@ -107,12 +129,12 @@ export default function ProjectSetupV2() {
         {/* Step rail */}
         <aside className="md:w-52 shrink-0">
           <ol className="space-y-1">
-            <StepLink n="01" label="Codebook" hint="label schema"
-                      active={step === 'codebook'} done={!!activeCb} onClick={() => setStep('codebook')} />
-            <StepLink n="02" label="Data" hint="optional"
-                      active={step === 'data'} done={hasDataset} onClick={() => setStep('data')} />
-            <StepLink n="03" label="Model" hint="LLM + key"
+            <StepLink n="01" label="Model" hint="LLM + key"
                       active={step === 'model'} done={keyOK} onClick={() => setStep('model')} />
+            <StepLink n="02" label="Codebook" hint="label schema"
+                      active={step === 'codebook'} done={!!activeCb} onClick={() => setStep('codebook')} />
+            <StepLink n="03" label="Labeled data" hint="optional"
+                      active={step === 'data'} done={hasDataset} onClick={() => setStep('data')} />
           </ol>
         </aside>
 
@@ -125,7 +147,8 @@ export default function ProjectSetupV2() {
               setWizardMode={setWizardMode}
               presets={presets}
               projectId={projectId}
-              onAccepted={() => { setWizardMode(false); loadData() }}
+              onAccepted={() => { setWizardMode(false); loadData(); setStep('data') }}
+              onContinue={() => setStep('data')}
             />
           )}
           {step === 'data' && (
@@ -134,7 +157,9 @@ export default function ProjectSetupV2() {
               seeds={seeds}
               datasets={datasets}
               loadingSeed={loadingSeed}
+              removingDataset={removingDataset}
               onLoadSeed={handleLoadSeed}
+              onRemoveDataset={handleRemoveDataset}
               onUpload={handleDataUpload}
             />
           )}
@@ -147,29 +172,33 @@ export default function ProjectSetupV2() {
               setLlmProvider={setLlmProvider}
               setLlmModel={setLlmModel}
               setApiKey={setApiKey}
+              onSaveAndContinue={handleSaveModelAndContinue}
+              saving={loading}
             />
           )}
         </main>
       </div>
 
       {/* Sticky footer */}
-      <div className="fixed bottom-0 left-0 right-0 bg-cream border-t border-seam">
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
-          <div className="font-mono-editorial text-stone-500 text-xs">
-            {missing.length === 0
-              ? <span className="text-emerald-700">Ready to generate pipeline.</span>
-              : <>Still need: <span className="text-ink">{missing.join(' · ')}</span></>
-            }
+      {!replacingCodebook && (
+        <div className="fixed bottom-0 left-0 right-0 bg-cream border-t border-seam">
+          <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
+            <div className="font-mono-editorial text-stone-500 text-xs">
+              {missing.length === 0
+                ? <span className="text-emerald-700">Ready to generate pipeline.</span>
+                : <>Still need: <span className="text-ink">{missing.join(' · ')}</span></>
+              }
+            </div>
+            <button
+              onClick={handleGeneratePipeline}
+              disabled={!canGenerate || loading}
+              className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40"
+            >
+              {loading ? 'Generating…' : 'Generate pipeline →'}
+            </button>
           </div>
-          <button
-            onClick={handleGeneratePipeline}
-            disabled={!canGenerate || loading}
-            className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40"
-          >
-            {loading ? 'Generating…' : 'Generate pipeline →'}
-          </button>
         </div>
-      </div>
+      )}
     </div>
   )
 }
@@ -197,7 +226,7 @@ function StepLink({
 /* ─── Steps ─────────────────────────────────────────────────── */
 
 function CodebookStep({
-  activeCb, wizardMode, setWizardMode, presets, projectId, onAccepted,
+  activeCb, wizardMode, setWizardMode, presets, projectId, onAccepted, onContinue,
 }: {
   activeCb?: Codebook
   wizardMode: boolean
@@ -205,10 +234,17 @@ function CodebookStep({
   presets: PresetInfo[]
   projectId: number
   onAccepted: () => void
+  onContinue: () => void
 }) {
   if (activeCb && !wizardMode) {
     return (
       <div className="border border-seam bg-white">
+        <div className="border-b border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
+          <div className="font-medium">Review this codebook carefully before generating prompts.</div>
+          <p className="mt-1 text-xs leading-relaxed text-violet-900/80">
+            The codebook defines the dimensions, labels, and label meanings used by every prompt, improvement run, annotation run, and result export. If parsing looks off, edit or replace it before continuing.
+          </p>
+        </div>
         {/* Top toolbar: actions on the right, info underneath. Two rows so
             buttons never collide with the heading on narrow widths. */}
         <div className="px-4 pt-3 pb-4 border-b border-seam">
@@ -240,44 +276,88 @@ function CodebookStep({
             </li>
           ))}
         </ul>
+        <div className="px-4 py-3 border-t border-seam">
+          <div className="mb-3 border border-violet-200 bg-violet-50 px-3 py-2 text-xs leading-relaxed text-violet-900">
+            Final check: make sure the labels match your intended annotation task. Prompt quality depends directly on this codebook.
+          </div>
+          <button
+            onClick={onContinue}
+            className="ml-auto block px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
+          >
+            Continue to data →
+          </button>
+        </div>
       </div>
     )
   }
   return (
     <>
       {activeCb && wizardMode && (
-        <div className="mb-3 flex items-center justify-between text-xs border border-amber-200 bg-amber-50/60 px-3 py-2">
-          <div>Replacing <span className="font-medium">{activeCb.name}</span></div>
-          <button onClick={() => setWizardMode(false)} className="font-mono-editorial text-stone-500 hover:text-ink">cancel</button>
+        <div className="mb-3 border border-violet-200 bg-violet-50/70 px-3 py-3">
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <div className="font-medium text-violet-950">Replacing <span>{activeCb.name}</span></div>
+            <button onClick={() => setWizardMode(false)} className="font-mono-editorial text-stone-500 hover:text-ink">cancel</button>
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-violet-900/80">
+            Please inspect the parsed dimensions and labels before accepting. A codebook mistake will affect prompt generation, improvement, annotation, and exported results.
+          </p>
         </div>
       )}
-      <CodebookDraftWizard projectId={projectId} presets={presets} onAccepted={onAccepted} />
+      <CodebookDraftWizard
+        projectId={projectId}
+        presets={presets}
+        onAccepted={onAccepted}
+        replacingName={activeCb && wizardMode ? activeCb.name : undefined}
+      />
     </>
   )
 }
 
 function DataStep({
-  activeCb, seeds, datasets, loadingSeed, onLoadSeed, onUpload,
+  activeCb, seeds, datasets, loadingSeed, removingDataset, onLoadSeed, onRemoveDataset, onUpload,
 }: {
   activeCb?: Codebook
   seeds: SeedDatasetInfo[]
   datasets: Dataset[]
   loadingSeed: string | null
+  removingDataset: number | null
   onLoadSeed: (id: string) => void
+  onRemoveDataset: (id: number) => void
   onUpload: (e: React.ChangeEvent<HTMLInputElement>, isGold: boolean) => void
 }) {
+  const labeledDatasets = datasets.filter(ds =>
+    ds.is_gold
+    || seeds.some(s => s.role !== 'test' && s.label === ds.name)
+  )
+
   return (
     <div className="space-y-4">
-      <div className="font-mono-editorial text-stone-500 text-xs">
-        Labeled examples drive the Improve step. Skip if you'll add later.
+      <div className="border-l-2 border-violet-700 bg-violet-50 px-4 py-3 text-sm text-violet-950 leading-relaxed">
+        Upload existing labeled data if you have it. AnnotAgent can learn from those correct labels to improve the prompts and check annotation quality.
+      </div>
+      <div className="border border-violet-200 bg-violet-50/70 px-4 py-3 text-sm text-violet-950">
+        <div className="font-medium">Expected labeled-data format</div>
+        <p className="mt-1 text-xs leading-relaxed text-violet-900/85">
+          The labels should match the active codebook dimensions and label names. For annotator spreadsheets, use one row per quote-label pair with columns like
+          <span className="font-mono text-[11px]"> Relevant quotes </span>,
+          <span className="font-mono text-[11px]"> Coding theme </span>, and
+          <span className="font-mono text-[11px]"> Level </span>.
+          AnnotAgent groups repeated quotes and reads each Coding theme as a dimension and each Level as its correct label.
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-violet-900/85">
+          JSON or CSV files can also include a
+          <span className="font-mono text-[11px]"> labels </span> or
+          <span className="font-mono text-[11px]"> gold_labels </span>
+          object, for example <span className="font-mono text-[11px]">{'{"Listening strategy": "Question-asking"}'}</span>.
+        </p>
       </div>
 
       {seeds.length > 0 && isSelfDisclosure(activeCb) && (
         <div>
-          <div className="font-mono-editorial text-stone-500 text-xs mb-2">Bundled · self-disclosure</div>
+          <div className="font-mono-editorial text-stone-500 text-xs mb-2">Bundled labeled data · self-disclosure</div>
           <ul className="divide-y divide-seam border-y border-seam">
             {seeds.filter(s => s.role !== 'test').map(s => {
-              const loaded = datasets.some(d => d.name === s.label)
+              const loadedDataset = datasets.find(d => d.name === s.label)
               return (
                 <li key={s.id} className={`flex items-center gap-4 py-2.5 ${s.available ? '' : 'opacity-50'}`}>
                   <div className="flex-1 min-w-0">
@@ -287,9 +367,17 @@ function DataStep({
                     </div>
                     <div className="text-xs text-stone-500 truncate">{s.description}</div>
                   </div>
-                  <div className="shrink-0 w-24 text-right">
+                  <div className="shrink-0 w-28 text-right">
                     {!s.available ? <span className="font-mono-editorial text-stone-400 text-xs">missing</span>
-                      : loaded ? <span className="font-mono-editorial text-emerald-700 text-xs">loaded ✓</span>
+                      : loadedDataset ? (
+                        <button
+                          onClick={() => onRemoveDataset(loadedDataset.id)}
+                          disabled={removingDataset === loadedDataset.id}
+                          className="px-2 py-1 text-xs font-medium border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {removingDataset === loadedDataset.id ? 'Removing…' : 'Remove'}
+                        </button>
+                      )
                       : <button onClick={() => onLoadSeed(s.id)} disabled={loadingSeed === s.id}
                                 className="px-2 py-1 text-xs font-medium border border-ink hover:bg-ink hover:text-cream disabled:opacity-50">
                           {loadingSeed === s.id ? '…' : 'Load'}
@@ -304,22 +392,45 @@ function DataStep({
       )}
 
       <div>
-        <div className="font-mono-editorial text-stone-500 text-xs mb-2">Upload your own</div>
+        <div className="font-mono-editorial text-stone-500 text-xs mb-2">Upload labeled data</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FileField label="Data (CSV/JSON)" onChange={e => onUpload(e, false)} />
-          <FileField label="Gold standard (CSV/JSON)" onChange={e => onUpload(e, true)} />
+          <FileField
+            label="Labeled data (CSV/JSON)"
+            description="Examples that already have correct labels. CSV can use Relevant quotes + Coding theme + Level, or a labels/gold_labels object."
+            onChange={e => onUpload(e, true)}
+          />
+          <FileField
+            label="Gold standard (CSV/JSON)"
+            description="Your most trusted labels, such as expert-reviewed answers, using the same labeled-data format."
+            onChange={e => onUpload(e, true)}
+          />
         </div>
       </div>
 
-      {datasets.length > 0 && (
+      {labeledDatasets.length > 0 && (
         <div>
-          <div className="font-mono-editorial text-stone-500 text-xs mb-2">Loaded · {datasets.length}</div>
+          <div className="font-mono-editorial text-stone-500 text-xs mb-2">Loaded labeled data · {labeledDatasets.length}</div>
           <ul className="divide-y divide-seam border-y border-seam">
-            {datasets.map(ds => (
+            <li className="flex items-baseline gap-4 py-2 bg-paper/70 text-[11px] font-mono-editorial text-stone-500 uppercase tracking-wide">
+              <span className="flex-1 min-w-0">File</span>
+              <span className="shrink-0 w-24 text-right">Items</span>
+              <span className="shrink-0 w-16 text-right">Format</span>
+              <span className="shrink-0 w-28 text-right">Type</span>
+              <span className="shrink-0 w-[72px] text-right">Action</span>
+            </li>
+            {labeledDatasets.map(ds => (
               <li key={ds.id} className="flex items-baseline gap-4 py-2">
                 <span className="flex-1 min-w-0 font-medium truncate">{ds.name}</span>
                 <span className="shrink-0 w-24 text-right font-mono text-xs text-stone-600">{ds.total_items} items</span>
                 <span className="shrink-0 w-16 text-right font-mono-editorial text-stone-400 text-[11px]">{ds.file_type}</span>
+                <span className="shrink-0 w-28 text-right text-xs text-stone-700">{ds.is_gold ? 'Gold standard' : 'Reference labels'}</span>
+                <button
+                  onClick={() => onRemoveDataset(ds.id)}
+                  disabled={removingDataset === ds.id}
+                  className="shrink-0 w-[72px] px-2 py-1 text-xs font-medium border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  {removingDataset === ds.id ? 'Removing…' : 'Remove'}
+                </button>
               </li>
             ))}
           </ul>
@@ -330,7 +441,7 @@ function DataStep({
 }
 
 function ModelStep({
-  backendCfg, llmProvider, llmModel, apiKey, setLlmProvider, setLlmModel, setApiKey,
+  backendCfg, llmProvider, llmModel, apiKey, setLlmProvider, setLlmModel, setApiKey, onSaveAndContinue, saving,
 }: {
   backendCfg: BackendConfig | null
   llmProvider: string
@@ -339,14 +450,24 @@ function ModelStep({
   setLlmProvider: (v: string) => void
   setLlmModel: (v: string) => void
   setApiKey: (v: string) => void
+  onSaveAndContinue: () => void
+  saving: boolean
 }) {
   const envOK = envKeyAvailable(backendCfg, llmProvider)
+  const modelOptions = MODEL_OPTIONS[llmProvider] || []
+  const modelChoices = modelOptions.includes(llmModel) ? modelOptions : [llmModel, ...modelOptions].filter(Boolean)
+  const handleProviderChange = (provider: string) => {
+    setLlmProvider(provider)
+    const defaults = MODEL_OPTIONS[provider]
+    if (defaults?.length) setLlmModel(defaults[0])
+  }
+  const keyPlaceholder = llmProvider === 'anthropic' ? 'sk-ant-...' : 'sk-...'
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
         <div className="md:col-span-4">
           <LabelV2>Provider</LabelV2>
-          <select value={llmProvider} onChange={e => setLlmProvider(e.target.value)}
+          <select value={llmProvider} onChange={e => handleProviderChange(e.target.value)}
                   className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-medium">
             <option value="openai">OpenAI</option>
             <option value="anthropic">Anthropic</option>
@@ -354,13 +475,17 @@ function ModelStep({
         </div>
         <div className="md:col-span-4">
           <LabelV2>Model</LabelV2>
-          <input value={llmModel} onChange={e => setLlmModel(e.target.value)}
-                 className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-mono text-sm" />
+          <select value={llmModel} onChange={e => setLlmModel(e.target.value)}
+                  className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-mono text-sm">
+            {modelChoices.map(model => (
+              <option key={model} value={model}>{model}</option>
+            ))}
+          </select>
         </div>
         <div className="md:col-span-4">
           <LabelV2>API key {envOK && <span className="text-emerald-700 ml-1 normal-case tracking-normal text-[10px]">.env loaded</span>}</LabelV2>
           <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)}
-                 placeholder={envOK ? 'leave blank to use .env' : 'sk-…'}
+                 placeholder={envOK ? 'leave blank to use .env' : keyPlaceholder}
                  className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-mono text-sm" />
         </div>
       </div>
@@ -370,6 +495,15 @@ function ModelStep({
           <KeyBadge label="Anthropic" loaded={backendCfg.anthropic_key_loaded} />
         </div>
       )}
+      <div className="flex justify-end">
+        <button
+          onClick={onSaveAndContinue}
+          disabled={saving || (!envOK && !apiKey)}
+          className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40"
+        >
+          {saving ? 'Saving…' : 'Save model & continue →'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -380,10 +514,19 @@ function LabelV2({ children }: { children: React.ReactNode }) {
   return <span className="font-mono-editorial text-stone-500 block mb-1 text-xs">{children}</span>
 }
 
-function FileField({ label, onChange }: { label: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void }) {
+function FileField({
+  label,
+  description,
+  onChange,
+}: {
+  label: string
+  description?: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+}) {
   return (
-    <label className="block">
-      <LabelV2>{label}</LabelV2>
+    <label className="block border border-seam bg-white px-4 py-3 hover:border-stone-300 transition">
+      <span className="block text-sm font-semibold text-ink mb-1">{label}</span>
+      {description && <p className="mb-2 text-xs text-stone-600 leading-relaxed">{description}</p>}
       <input type="file" accept=".csv,.json" onChange={onChange} className="text-sm pt-1" />
     </label>
   )

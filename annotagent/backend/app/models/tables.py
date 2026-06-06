@@ -163,6 +163,7 @@ class AnnotationJob(Base):
     failed_items = Column(Integer, default=0)
     total_tokens = Column(Integer, default=0)
     total_cost = Column(Float, default=0.0)
+    source = Column(String(32), default="unknown")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

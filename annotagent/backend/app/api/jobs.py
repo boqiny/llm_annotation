@@ -41,6 +41,7 @@ async def start_job(
         project_id=project_id,
         dataset_id=body.dataset_id,
         pipeline_id=body.pipeline_id,
+        source=body.source if body.source in {"annotation", "human_feedback"} else "annotation",
         total_items=dataset.total_items,
     )
     db.add(job)

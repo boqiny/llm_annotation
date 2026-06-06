@@ -56,6 +56,23 @@ _ALLOWED_EXTS = {"pdf", "docx", "xlsx", "xlsm", "csv", "json", "txt", "md"}
 PRESETS_DIR = Path(__file__).parent.parent / "presets"
 
 
+async def _project_llm_config(project_id: int | None, db: AsyncSession) -> tuple[str, str, str]:
+    if project_id is None:
+        raise HTTPException(400, "project_id is required so CodebookAgent can use this project's model settings.")
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    provider = project.llm_provider or "openai"
+    model = project.llm_model or ("claude-sonnet-4-5-20250929" if provider == "anthropic" else "gpt-5.4-mini")
+    api_key = resolve_api_key(provider, project.api_key_encrypted)
+    if not api_key:
+        raise HTTPException(
+            400,
+            f"No {provider} API key available. Configure the model/API key before drafting a codebook.",
+        )
+    return provider, model, api_key
+
+
 def _draft_to_out(draft: CodebookDraft) -> CodebookDraftOut:
     return CodebookDraftOut(
         id=draft.id,
@@ -79,6 +96,7 @@ def _draft_to_out(draft: CodebookDraft) -> CodebookDraftOut:
 @router.post("/upload", response_model=CodebookDraftOut, status_code=201)
 async def create_draft_from_upload(
     file: UploadFile = File(...),
+    project_id: int = Form(...),
     db: AsyncSession = Depends(get_db),
 ):
     """Door A — upload a file. Ingestor + Drafter run inline (they're bounded
@@ -111,14 +129,13 @@ async def create_draft_from_upload(
     await db.commit()
     await db.refresh(draft)
 
-    # Resolve an API key — Drafter needs one. Fall back to env.
-    api_key = resolve_api_key("openai", "") or resolve_api_key("anthropic", "")
+    provider, model, api_key = await _project_llm_config(project_id, db)
 
     try:
         result = await run_codebook_agent(
             file_bytes=data, filename=filename, mime=mime,
-            provider="openai",
-            model="gpt-5.4-mini",
+            provider=provider,
+            model=model,
             api_key=api_key,
         )
     except Exception as e:
@@ -201,11 +218,11 @@ async def create_draft_from_json(
         await db.commit()
         await db.refresh(draft)
 
-        api_key = resolve_api_key("openai", "") or resolve_api_key("anthropic", "")
+        provider, model, api_key = await _project_llm_config(body.project_id, db)
         try:
             result = await run_codebook_agent(
                 pasted_text=body.text, filename="pasted.txt",
-                provider="openai", model="gpt-5.4-mini", api_key=api_key,
+                provider=provider, model=model, api_key=api_key,
             )
         except Exception as e:
             logger.exception(f"CodebookAgent crashed on paste draft {draft.id}")

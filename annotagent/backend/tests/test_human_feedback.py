@@ -9,7 +9,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.agents.reflect_memory import apply_human_feedback, apply_rules_to_prompt
 from app.api import optimizers
-from app.models.tables import Base, Pipeline, Project, ReflectMemoryVersion
+from app.api import results
+from app.models.tables import AnnotationJob, AnnotationResult, Base, DataItem, Dataset, JobStatus, Pipeline, Project, ReflectMemoryVersion
 
 
 @pytest.fixture
@@ -269,6 +270,213 @@ async def test_feedback_batch_preview_is_dry_run_and_commit_saves_memory_and_pro
     updated = await db_session.get(Pipeline, pipeline.id)
     assert updated.steps[0]["prompt"] == "Batch-updated prompt."
     assert (tmp_path / "prompts" / "self_disclosure" / "human_memory" / "v001.txt").read_text() == "Batch-updated prompt."
+
+
+async def test_feedback_evidence_returns_content_gold_prediction_and_mismatches(db_session):
+    project = Project(name="Evidence test")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    dataset = Dataset(project_id=project.id, name="Gold", total_items=2, is_gold=True)
+    pipeline = Pipeline(project_id=project.id, steps=[], auto_generated=True)
+    db_session.add_all([dataset, pipeline])
+    await db_session.commit()
+    await db_session.refresh(dataset)
+    await db_session.refresh(pipeline)
+
+    item_match = DataItem(
+        dataset_id=dataset.id,
+        index=0,
+        content="I feel calm today.",
+        gold_labels={"self_disclosure": "High"},
+    )
+    item_mismatch = DataItem(
+        dataset_id=dataset.id,
+        index=1,
+        content="If I felt calm, I would say so.",
+        gold_labels={"self_disclosure": "Low"},
+    )
+    db_session.add_all([item_match, item_mismatch])
+    await db_session.commit()
+    await db_session.refresh(item_match)
+    await db_session.refresh(item_mismatch)
+
+    job = AnnotationJob(
+        project_id=project.id,
+        dataset_id=dataset.id,
+        pipeline_id=pipeline.id,
+        status=JobStatus.COMPLETED,
+        total_items=2,
+        completed_items=2,
+    )
+    db_session.add(job)
+    await db_session.commit()
+    await db_session.refresh(job)
+
+    db_session.add_all([
+        AnnotationResult(
+            job_id=job.id,
+            data_item_id=item_match.id,
+            dimension_name="self_disclosure",
+            predicted_label="High",
+            reasoning="Current personal state.",
+        ),
+        AnnotationResult(
+            job_id=job.id,
+            data_item_id=item_mismatch.id,
+            dimension_name="self_disclosure",
+            predicted_label="High",
+            reasoning="Mistakenly treated hypothetical as disclosure.",
+        ),
+    ])
+    await db_session.commit()
+
+    evidence = await results.get_feedback_evidence(
+        project_id=project.id,
+        job_id=job.id,
+        dimension="self_disclosure",
+        db=db_session,
+    )
+
+    assert [row["is_mismatch"] for row in evidence] == [True, False]
+    assert evidence[0]["content"] == "If I felt calm, I would say so."
+    assert evidence[0]["gold_label"] == "Low"
+    assert evidence[0]["predicted_label"] == "High"
+    assert evidence[0]["reasoning"] == "Mistakenly treated hypothetical as disclosure."
+
+    mismatches = await results.get_feedback_evidence(
+        project_id=project.id,
+        job_id=job.id,
+        dimension="self_disclosure",
+        mismatches_only=True,
+        db=db_session,
+    )
+
+    assert len(mismatches) == 1
+    assert mismatches[0]["item_id"] == item_mismatch.id
+
+
+async def test_feedback_evidence_uses_project_gold_dataset_when_job_dataset_has_no_labels(db_session):
+    project = Project(name="Evidence fallback test")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    unlabeled_dataset = Dataset(project_id=project.id, name="Annotation inputs", total_items=1, is_gold=False)
+    gold_dataset = Dataset(project_id=project.id, name="Gold labels", total_items=1, is_gold=True)
+    pipeline = Pipeline(project_id=project.id, steps=[], auto_generated=True)
+    db_session.add_all([unlabeled_dataset, gold_dataset, pipeline])
+    await db_session.commit()
+    await db_session.refresh(unlabeled_dataset)
+    await db_session.refresh(gold_dataset)
+    await db_session.refresh(pipeline)
+
+    content = "The same example appears in the annotation and gold datasets."
+    unlabeled_item = DataItem(dataset_id=unlabeled_dataset.id, index=0, content=content, gold_labels={})
+    gold_item = DataItem(
+        dataset_id=gold_dataset.id,
+        index=0,
+        content=content,
+        gold_labels={"Interaction": "Peripheral"},
+    )
+    db_session.add_all([unlabeled_item, gold_item])
+    await db_session.commit()
+    await db_session.refresh(unlabeled_item)
+
+    job = AnnotationJob(
+        project_id=project.id,
+        dataset_id=unlabeled_dataset.id,
+        pipeline_id=pipeline.id,
+        status=JobStatus.COMPLETED,
+        total_items=1,
+        completed_items=1,
+    )
+    db_session.add(job)
+    await db_session.commit()
+    await db_session.refresh(job)
+
+    db_session.add(AnnotationResult(
+        job_id=job.id,
+        data_item_id=unlabeled_item.id,
+        dimension_name="Interaction",
+        predicted_label="Intermediate",
+        reasoning="Predicted from unlabeled input dataset.",
+    ))
+    await db_session.commit()
+
+    evidence = await results.get_feedback_evidence(
+        project_id=project.id,
+        job_id=job.id,
+        dimension="Interaction",
+        db=db_session,
+    )
+
+    assert evidence[0]["gold_label"] == "Peripheral"
+    assert evidence[0]["predicted_label"] == "Intermediate"
+    assert evidence[0]["is_mismatch"] is True
+
+
+async def test_feedback_evidence_reads_coder_csv_metadata_labels(db_session):
+    project = Project(name="Coder CSV evidence test")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    dataset = Dataset(project_id=project.id, name="Coder.csv", total_items=1, is_gold=True)
+    pipeline = Pipeline(project_id=project.id, steps=[], auto_generated=True)
+    db_session.add_all([dataset, pipeline])
+    await db_session.commit()
+    await db_session.refresh(dataset)
+    await db_session.refresh(pipeline)
+
+    item = DataItem(
+        dataset_id=dataset.id,
+        index=0,
+        content="R_123",
+        metadata_={
+            "Unnamed: 3": "Interaction",
+            "Unnamed: 4": "Peripheral",
+            "Unnamed: 6": "This is the actual annotated quote.",
+        },
+        gold_labels={},
+    )
+    db_session.add(item)
+    await db_session.commit()
+    await db_session.refresh(item)
+
+    job = AnnotationJob(
+        project_id=project.id,
+        dataset_id=dataset.id,
+        pipeline_id=pipeline.id,
+        status=JobStatus.COMPLETED,
+        total_items=1,
+        completed_items=1,
+    )
+    db_session.add(job)
+    await db_session.commit()
+    await db_session.refresh(job)
+
+    db_session.add(AnnotationResult(
+        job_id=job.id,
+        data_item_id=item.id,
+        dimension_name="Interaction",
+        predicted_label="Intermediate",
+        reasoning="Predicted from coder CSV row.",
+    ))
+    await db_session.commit()
+
+    evidence = await results.get_feedback_evidence(
+        project_id=project.id,
+        job_id=job.id,
+        dimension="Interaction",
+        db=db_session,
+    )
+
+    assert evidence[0]["gold_label"] == "Peripheral"
+    assert evidence[0]["predicted_label"] == "Intermediate"
+    assert evidence[0]["content"] == "This is the actual annotated quote."
+    assert evidence[0]["is_mismatch"] is True
 
 
 async def test_delete_memory_version_removes_only_matching_project_row(db_session):

@@ -21,6 +21,10 @@ def _label_names(dim: DimensionDef) -> str:
     return ", ".join(f'"{lbl.name}"' for lbl in dim.labels)
 
 
+def _has_no_label(dim: DimensionDef) -> bool:
+    return any(lbl.name.strip().lower() in {"no label", "none", "n/a", "not applicable"} for lbl in dim.labels)
+
+
 def _label_block(dim: DimensionDef) -> str:
     return "\n".join(
         f"- **{lbl.name}**: {lbl.definition}"
@@ -35,6 +39,15 @@ def generate_dimension_prompt(dim: DimensionDef) -> str:
     instructions_block = (
         f"\n## Additional Instructions\n{dim.instructions}\n" if dim.instructions else ""
     )
+    if _has_no_label(dim):
+        no_label_instruction = (
+            'If none of the substantive labels apply to the input, use "No label". '
+            'Do not force a substantive label just because the output format requires an answer.'
+        )
+        instructions_block = (
+            f"\n## Additional Instructions\n{dim.instructions}\n{no_label_instruction}\n"
+            if dim.instructions else f"\n## Additional Instructions\n{no_label_instruction}\n"
+        )
     if _is_binary(dim):
         output_format_block = (
             "\n## Output Format\n"

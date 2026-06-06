@@ -7,10 +7,9 @@ itself how to structure the codebook. This avoids the failure modes of the
 one-shot approach (label hallucination on sparse dims, missed sub-categories
 in deep sheets, generic codebook names, mode field omissions).
 
-Backend: OpenAI's native function-calling API (chat.completions with
-``tools`` + ``tool_calls``). Anthropic uses a similar but separately-shaped
-API; for now this module is OpenAI-only and the rest of CodebookAgent falls
-back to the legacy single-shot path for non-OpenAI providers.
+Backend: provider-native tool use. OpenAI uses chat.completions with
+``tools`` + ``tool_calls``; Anthropic uses messages content blocks with
+``tool_use`` / ``tool_result``.
 """
 from __future__ import annotations
 
@@ -21,6 +20,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
 
 from app.engine.codebook_parser import validate_codebook
@@ -297,7 +297,7 @@ TOOLS: list[dict[str, Any]] = [
                 "properties": {
                     "codebook_json": {
                         "type": "string",
-                        "description": "STRICT JSON string with: name, description, mode (single_label/multi_label/mixed), dimensions [{name, type, instructions, labels:[{name, definition, examples:[]}]}], decomposition_hints {groups, order}.",
+                        "description": "STRICT JSON string with: name, description, mode (single_label/multi_label/mixed), dimensions [{name, type, instructions, labels:[{name, definition, examples:[]}]}].",
                     },
                 },
                 "required": ["codebook_json"], "additionalProperties": False,
@@ -352,10 +352,6 @@ Output schema (when calling propose_codebook):
       "labels": [{"name": "...", "definition": "...", "examples": []}]
     }
   ],
-  "decomposition_hints": {
-    "groups": [["dim_a", "dim_b"], ["dim_c"]],
-    "order": ["Step 1: …", "Step 2: …"]
-  },
   "_rationale_per_dim": {"dim_a": "why I chose this mode + any ambiguity"}
 }
 
@@ -364,8 +360,9 @@ Rules:
 - Each dimension should have 2-10 labels (binary is OK for a 1-label source).
 - Definitions: copy verbatim from the file when present; paraphrase only if
   the source is fragmentary.
-- decomposition_hints: group dimensions that share scope (e.g. all
-  self-disclosure dims in one step, all AI-behavior dims in another).
+- If a dimension may not apply to every item, include an explicit "No label"
+  label with a definition like "Use when none of the substantive labels apply."
+  Do not represent non-applicability by omitting the dimension or leaving cells blank.
 - Stop calling exploration tools once you have everything you need —
   unnecessary calls are wasteful."""
 
@@ -388,11 +385,37 @@ async def run_orchestrator(
     *,
     explorer: FileExplorer,
     api_key: str,
+    provider: str = "openai",
     model: str = "gpt-5.4-mini",
     max_iterations: int = MAX_ITERATIONS,
     initial_hint: str = "",
 ) -> OrchestratorResult:
     """Run the tool-calling loop until the agent submits a valid codebook."""
+    if (provider or "").lower() == "anthropic":
+        return await _run_anthropic_orchestrator(
+            explorer=explorer,
+            api_key=api_key,
+            model=model,
+            max_iterations=max_iterations,
+            initial_hint=initial_hint,
+        )
+    return await _run_openai_orchestrator(
+        explorer=explorer,
+        api_key=api_key,
+        model=model,
+        max_iterations=max_iterations,
+        initial_hint=initial_hint,
+    )
+
+
+async def _run_openai_orchestrator(
+    *,
+    explorer: FileExplorer,
+    api_key: str,
+    model: str,
+    max_iterations: int,
+    initial_hint: str,
+) -> OrchestratorResult:
     client = AsyncOpenAI(api_key=api_key)
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": ORCHESTRATOR_SYSTEM},
@@ -486,6 +509,112 @@ async def run_orchestrator(
     )
 
 
+async def _run_anthropic_orchestrator(
+    *,
+    explorer: FileExplorer,
+    api_key: str,
+    model: str,
+    max_iterations: int,
+    initial_hint: str,
+) -> OrchestratorResult:
+    client = AsyncAnthropic(api_key=api_key)
+    messages: list[dict[str, Any]] = [
+        {"role": "user", "content": (
+            f"File: {explorer.filename!r} (kind={explorer._kind!r}).\n"
+            f"{initial_hint}\n\n"
+            "Start by orienting yourself — list sheets if XLSX, otherwise read the text. "
+            "Then build the codebook and call propose_codebook."
+        )},
+    ]
+
+    n_tool_calls = 0
+    final_codebook: dict[str, Any] | None = None
+    last_validation_error = ""
+    tools = _anthropic_tools()
+
+    for it in range(max_iterations):
+        try:
+            resp = await client.messages.create(
+                model=model,
+                system=ORCHESTRATOR_SYSTEM,
+                messages=messages,
+                tools=tools,
+                tool_choice={"type": "auto"},
+                max_tokens=4096,
+                temperature=0,
+            )
+        except Exception as e:
+            return OrchestratorResult(error=f"Anthropic call failed: {e}", iterations=it, tool_calls=n_tool_calls, transcript=messages)
+
+        assistant_blocks: list[dict[str, Any]] = []
+        tool_uses: list[Any] = []
+        for block in resp.content:
+            btype = getattr(block, "type", "")
+            if btype == "text":
+                text = getattr(block, "text", "")
+                if text:
+                    assistant_blocks.append({"type": "text", "text": text})
+            elif btype == "tool_use":
+                tool_uses.append(block)
+                assistant_blocks.append({
+                    "type": "tool_use",
+                    "id": block.id,
+                    "name": block.name,
+                    "input": block.input or {},
+                })
+
+        messages.append({"role": "assistant", "content": assistant_blocks})
+
+        if not tool_uses:
+            last_text = "\n".join(b.get("text", "") for b in assistant_blocks if b.get("type") == "text")
+            return OrchestratorResult(
+                error=f"Agent stopped without calling propose_codebook. Last reply: {last_text[:300]}",
+                iterations=it + 1, tool_calls=n_tool_calls, transcript=messages,
+            )
+
+        tool_results: list[dict[str, Any]] = []
+        for tool_use in tool_uses:
+            n_tool_calls += 1
+            name = tool_use.name
+            args = tool_use.input or {}
+
+            if name == "propose_codebook":
+                raw = args.get("codebook_json", "")
+                parsed = _safe_json(raw)
+                if parsed is None:
+                    out = "ERROR: codebook_json was not valid JSON. Return strict JSON object."
+                else:
+                    errs = list(validate_codebook(parsed))
+                    errs.extend(_extra_critic(parsed))
+                    if errs:
+                        last_validation_error = "; ".join(errs[:5])
+                        out = "VALIDATION FAILED:\n- " + "\n- ".join(errs) + "\n\nFix and call propose_codebook again."
+                    else:
+                        final_codebook = parsed
+                        out = "OK: codebook accepted."
+            else:
+                out = _dispatch(explorer, name, args)
+
+            tool_results.append({
+                "type": "tool_result",
+                "tool_use_id": tool_use.id,
+                "content": _truncate(out),
+            })
+
+        messages.append({"role": "user", "content": tool_results})
+
+        if final_codebook is not None:
+            return OrchestratorResult(
+                ok=True, codebook=final_codebook,
+                iterations=it + 1, tool_calls=n_tool_calls, transcript=messages,
+            )
+
+    return OrchestratorResult(
+        error=f"Hit max_iterations={max_iterations} without a valid codebook. Last validation: {last_validation_error or '(none)'}",
+        iterations=max_iterations, tool_calls=n_tool_calls, transcript=messages,
+    )
+
+
 def _dispatch(explorer: FileExplorer, name: str, args: dict[str, Any]) -> str:
     """Call the named tool on the explorer with sanitized args."""
     try:
@@ -526,6 +655,19 @@ def _md_row(cells: list[str]) -> str:
 
 def _truncate(s: str) -> str:
     return s if len(s) <= MAX_TOOL_OUTPUT_CHARS else s[:MAX_TOOL_OUTPUT_CHARS] + TOOL_OUTPUT_TRUNC_NOTE
+
+
+def _anthropic_tools() -> list[dict[str, Any]]:
+    """Convert OpenAI function-tool declarations to Anthropic tool schema."""
+    converted = []
+    for tool in TOOLS:
+        fn = tool["function"]
+        converted.append({
+            "name": fn["name"],
+            "description": fn.get("description", ""),
+            "input_schema": fn.get("parameters", {"type": "object", "properties": {}}),
+        })
+    return converted
 
 
 def _extra_critic(draft: dict[str, Any]) -> list[str]:

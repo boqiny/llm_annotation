@@ -1,18 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend,
 } from 'recharts'
 import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
   listCodebooks, listDatasets, autoGeneratePrompt, patchOptimizerRun,
+  listJobs, getFeedbackEvidence, listPipelines, startJob, uploadDataset,
   listMemoryVersions, deleteOptimizerRun, cancelOptimizerRun,
-  previewFeedbackBatch, commitFeedbackBatch, deleteMemoryVersion,
-  type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion, type MemoryRule,
+  previewFeedbackBatch, commitFeedbackBatch, deleteMemoryVersion, commitPrompt,
+  type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion, type MemoryRule, type FeedbackEvidence,
 } from '../lib/api'
-import type { Codebook, Dataset } from '../types'
+import type { Codebook, Dataset, Job, Pipeline } from '../types'
 
 type Tab = 'prompts' | 'improve' | 'runs' | 'memory'
+const TABS: Tab[] = ['prompts', 'improve', 'runs', 'memory']
+
+function parseTab(value: string | null): Tab {
+  return TABS.includes(value as Tab) ? value as Tab : 'prompts'
+}
 
 function fmtError(e: any): string {
   const d = e?.response?.data?.detail
@@ -22,24 +28,42 @@ function fmtError(e: any): string {
   return e?.message || 'Unknown error'
 }
 
+function normDimensionName(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+function normLabelName(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+function normStatus(value: string): string {
+  return String(value || '').toLowerCase()
+}
+
 export default function PromptLabV2() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const projectId = Number(id)
 
-  const [tab, setTab] = useState<Tab>('runs')
+  const [tab, setTab] = useState<Tab>(() => parseTab(searchParams.get('tab')))
   const [codebooks, setCodebooks] = useState<Codebook[]>([])
   const [datasets, setDatasets] = useState<Dataset[]>([])
   const [runs, setRuns] = useState<OptimizerRun[]>([])
   const [optimizers, setOptimizers] = useState<OptimizerInfo[]>([])
   const [memory, setMemory] = useState<MemoryVersion[]>([])
+  const [jobs, setJobs] = useState<Job[]>([])
+  const [pipelines, setPipelines] = useState<Pipeline[]>([])
 
   const [autoPrompt, setAutoPrompt] = useState<AutoPromptResponse | null>(null)
   const [autoPromptLoading, setAutoPromptLoading] = useState(false)
   const [autoPromptError, setAutoPromptError] = useState('')
+  const [preparingAnnotation, setPreparingAnnotation] = useState(false)
 
   // Improve tab state
   const [selectedDim, setSelectedDim] = useState('')
   const [selectedGold, setSelectedGold] = useState<number | null>(null)
+  const [selectedOptimizer, setSelectedOptimizer] = useState('reflect_agent')
   const [budget, setBudget] = useState(5)
   const [launching, setLaunching] = useState(false)
   const [launchError, setLaunchError] = useState('')
@@ -50,14 +74,98 @@ export default function PromptLabV2() {
 
   const activeCb = codebooks[codebooks.length - 1]
 
+  const handleTabChange = (next: Tab) => {
+    setTab(next)
+    setSearchParams({ tab: next }, { replace: true })
+  }
+
+  const latestPipeline = pipelines.slice().sort((a, b) => b.id - a.id)[0] ?? null
+
+  const pipelinePromptForDimension = (dimensionName: string): string => {
+    const step = (latestPipeline?.steps || []).find((s: any) =>
+      normDimensionName(s?.name || '') === normDimensionName(dimensionName)
+      || (Array.isArray(s?.dimensions) && s.dimensions.some((d: string) => normDimensionName(d) === normDimensionName(dimensionName)))
+    )
+    return String((step as any)?.prompt || '')
+  }
+
+  const completedRunsForDimension = (dimensionName: string) => runs.filter(run =>
+    normDimensionName(run.dimension_name) === normDimensionName(dimensionName)
+    && normStatus(run.status) === 'completed'
+    && !!run.optimized_prompt
+  ).sort((a, b) => b.id - a.id)
+
+  const selectedPromptForAnnotation = (dimensionName: string, startingPrompt: string): string => {
+    const completed = completedRunsForDimension(dimensionName)
+    const appliedPrompt = pipelinePromptForDimension(dimensionName).trim()
+    const appliedRun = completed.find(run => appliedPrompt && run.optimized_prompt.trim() === appliedPrompt)
+    return appliedRun?.optimized_prompt ?? completed[0]?.optimized_prompt ?? (appliedPrompt || startingPrompt)
+  }
+
+  const bestRunByDimension = () => {
+    const byDim: Record<string, OptimizerRun> = {}
+    const completed = runs.filter(run =>
+      normStatus(run.status) === 'completed'
+      && !!run.optimized_prompt
+    )
+
+    for (const run of completed) {
+      const appliedPrompt = pipelinePromptForDimension(run.dimension_name).trim()
+      if (!appliedPrompt || appliedPrompt !== run.optimized_prompt.trim()) continue
+      const key = normDimensionName(run.dimension_name)
+      if (!byDim[key] || run.id > byDim[key].id) byDim[key] = run
+    }
+
+    for (const run of runs) {
+      if (normStatus(run.status) !== 'completed' || !run.optimized_prompt) continue
+      const key = normDimensionName(run.dimension_name)
+      if (byDim[key]) continue
+      byDim[key] = run
+    }
+    return byDim
+  }
+
+  const refreshPipelines = () => listPipelines(projectId).then(setPipelines).catch(() => setPipelines([]))
+
+  const handleAnnotateWithBestPrompts = async () => {
+    setPreparingAnnotation(true)
+    try {
+      const promptsToApply = autoPrompt?.prompts ?? []
+      if (promptsToApply.length > 0) {
+        await Promise.all(promptsToApply.map(prompt =>
+          commitPrompt(
+            projectId,
+            prompt.dimension_name,
+            selectedPromptForAnnotation(prompt.dimension_name, prompt.prompt),
+          )
+        ))
+      } else {
+        const latestRuns = bestRunByDimension()
+        await Promise.all(Object.values(latestRuns).map(run =>
+          commitPrompt(projectId, run.dimension_name, run.optimized_prompt)
+        ))
+      }
+      await refreshPipelines()
+      navigate(`/projects/${projectId}/pipeline`)
+    } catch (e: any) {
+      alert(`Could not prepare prompts for annotation: ${fmtError(e)}`)
+    } finally {
+      setPreparingAnnotation(false)
+    }
+  }
+
   useEffect(() => {
     Promise.all([
       listAvailableOptimizers(projectId),
       listCodebooks(projectId),
       listDatasets(projectId),
       listOptimizerRuns(projectId),
-    ]).then(([opts, cbs, dss, rs]) => {
+      listJobs(projectId),
+      listPipelines(projectId),
+    ]).then(([opts, cbs, dss, rs, js, ps]) => {
       setOptimizers(opts); setCodebooks(cbs); setDatasets(dss); setRuns(rs)
+      setJobs(js)
+      setPipelines(ps)
       if (cbs.length > 0 && cbs[cbs.length - 1].dimensions[0]) {
         setSelectedDim(cbs[cbs.length - 1].dimensions[0].name)
       }
@@ -95,6 +203,11 @@ export default function PromptLabV2() {
     listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))
   }, [projectId, runs.length, runs.map(r => r.status).join(',')])
 
+  useEffect(() => {
+    if (tab !== 'memory') return
+    listJobs(projectId).then(setJobs).catch(() => setJobs([]))
+  }, [tab, projectId])
+
   // Auto-prompt cache
   const autoPromptCacheKey = activeCb ? `annotagent.autoPrompt.${projectId}.${activeCb.id}` : null
   useEffect(() => {
@@ -128,12 +241,23 @@ export default function PromptLabV2() {
         </div>
       </header>
 
-      <Tabs value={tab} onChange={setTab} items={[
-        { id: 'prompts', label: 'Prompts',  count: autoPrompt?.prompts.length },
-        { id: 'improve', label: 'Improve',                                     },
-        { id: 'runs',    label: 'Runs',     count: runs.length                 },
-        { id: 'memory',  label: 'Human feedback', count: memory.length          },
-      ]} />
+      <div className="flex items-end justify-between gap-4 border-b border-seam">
+        <Tabs value={tab} onChange={handleTabChange} items={[
+          { id: 'prompts', label: 'Prompts',  count: autoPrompt?.prompts.length },
+          { id: 'improve', label: 'Improve',                                     },
+          { id: 'runs',    label: 'Runs',     count: runs.length                 },
+          { id: 'memory',  label: 'Human feedback', count: memory.length          },
+        ]} />
+        {tab !== 'prompts' && (
+          <button
+            type="button"
+            onClick={() => handleTabChange('prompts')}
+            className="mb-2 shrink-0 px-4 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
+          >
+            Back to prompts
+          </button>
+        )}
+      </div>
 
       {tab === 'prompts' && (
         <PromptsTab
@@ -142,6 +266,9 @@ export default function PromptLabV2() {
           loading={autoPromptLoading}
           error={autoPromptError}
           runs={runs}
+          projectId={projectId}
+          pipelinePromptForDimension={pipelinePromptForDimension}
+          onPipelinesRefresh={refreshPipelines}
           onRegenerate={async () => {
             if (!activeCb || !autoPromptCacheKey) return
             setAutoPromptLoading(true); setAutoPromptError('')
@@ -152,7 +279,11 @@ export default function PromptLabV2() {
             } catch (e: any) { setAutoPromptError(fmtError(e)) }
             finally { setAutoPromptLoading(false) }
           }}
-          onJumpToRun={(id) => { setSelectedRunId(id); setTab('runs') }}
+          onJumpToRun={(id) => { setSelectedRunId(id); handleTabChange('runs') }}
+          onContinue={() => handleTabChange('improve')}
+          onHumanFeedback={() => handleTabChange('memory')}
+          onAnnotate={handleAnnotateWithBestPrompts}
+          preparingAnnotation={preparingAnnotation}
         />
       )}
 
@@ -162,13 +293,16 @@ export default function PromptLabV2() {
           datasets={datasets}
           selectedDim={selectedDim} setSelectedDim={setSelectedDim}
           selectedGold={selectedGold} setSelectedGold={setSelectedGold}
+          optimizers={optimizers}
+          selectedOptimizer={selectedOptimizer}
+          setSelectedOptimizer={setSelectedOptimizer}
           budget={budget} setBudget={setBudget}
           launching={launching} launchError={launchError}
           projectId={projectId}
           onLaunched={(run) => {
             setRuns([run, ...runs])
             setSelectedRunId(run.id)
-            setTab('runs')
+            handleTabChange('runs')
           }}
           setLaunching={setLaunching} setLaunchError={setLaunchError}
         />
@@ -198,6 +332,8 @@ export default function PromptLabV2() {
             catch (e: any) { alert(`Cancel failed: ${fmtError(e)}`) }
           }}
           projectId={projectId}
+          onPipelinesRefresh={refreshPipelines}
+          onContinue={() => handleTabChange('memory')}
         />
       )}
 
@@ -205,9 +341,13 @@ export default function PromptLabV2() {
         <MemoryTab
           memory={memory}
           projectId={projectId}
+          jobs={jobs}
+          datasets={datasets}
           dimensions={activeCb?.dimensions.map(d => d.name) ?? []}
           onRefresh={() => listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))}
-          onPromptCommitted={() => setTab('prompts')}
+          onJobsRefresh={() => listJobs(projectId).then(setJobs).catch(() => setJobs([]))}
+          onDatasetsRefresh={() => listDatasets(projectId).then(setDatasets).catch(() => setDatasets([]))}
+          onPromptCommitted={() => handleTabChange('prompts')}
         />
       )}
     </div>
@@ -224,7 +364,7 @@ function Tabs<T extends string>({
   items: { id: T; label: string; count?: number }[]
 }) {
   return (
-    <div className="flex border-b border-seam">
+    <div className="flex">
       {items.map(it => {
         const active = it.id === value
         return (
@@ -251,15 +391,22 @@ function Tabs<T extends string>({
 /* ─── Prompts tab ──────────────────────────────────────────── */
 
 function PromptsTab({
-  activeCb, autoPrompt, loading, error, runs, onRegenerate, onJumpToRun,
+  activeCb, autoPrompt, loading, error, runs, projectId, pipelinePromptForDimension, onPipelinesRefresh, onRegenerate, onJumpToRun, onContinue, onHumanFeedback, onAnnotate, preparingAnnotation,
 }: {
   activeCb?: Codebook
   autoPrompt: AutoPromptResponse | null
   loading: boolean
   error: string
   runs: OptimizerRun[]
+  projectId: number
+  pipelinePromptForDimension: (dimensionName: string) => string
+  onPipelinesRefresh: () => Promise<void>
   onRegenerate: () => void
   onJumpToRun: (runId: number) => void
+  onContinue: () => void
+  onHumanFeedback: () => void
+  onAnnotate: () => void
+  preparingAnnotation: boolean
 }) {
   if (!activeCb) {
     return <Empty>Load a codebook on Setup first.</Empty>
@@ -286,40 +433,183 @@ function PromptsTab({
     )
   }
   return (
-    <div>
-      <div className="flex items-baseline justify-between mb-3">
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
         <div className="font-mono-editorial text-stone-500">
           {autoPrompt.prompts.length} prompts · {activeCb.name}
         </div>
-        <button onClick={onRegenerate} disabled={loading}
-                className="font-mono-editorial text-stone-500 hover:text-ink disabled:opacity-50">
-          {loading ? 're-generating…' : 're-generate all'}
-        </button>
+        <div className="sm:text-right">
+          <button onClick={onRegenerate} disabled={loading}
+                  className="px-3 py-1.5 border border-ink bg-white text-ink text-xs font-medium hover:bg-paper disabled:opacity-50 transition">
+            {loading ? 'Re-generating…' : 'Re-generate all'}
+          </button>
+          <p className="mt-1 text-xs text-stone-500 sm:whitespace-nowrap">
+            Use this after changing the codebook, or if you want a fresh starting draft.
+          </p>
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {autoPrompt.prompts.map(p => {
-          const optimized = runs.filter(r => r.dimension_name === p.dimension_name
-            && r.optimizer_name === 'reflect_agent' && r.status === 'completed')
-            .sort((a, b) => b.id - a.id)[0]
-          return <PromptCard key={p.dimension_name} dp={p} optimizedRun={optimized} onJumpToRun={onJumpToRun} />
+          const completedRuns = runs.filter(r =>
+            normDimensionName(r.dimension_name) === normDimensionName(p.dimension_name)
+            && normStatus(r.status) === 'completed'
+            && !!r.optimized_prompt
+          ).sort((a, b) => b.id - a.id)
+          const appliedPrompt = pipelinePromptForDimension(p.dimension_name).trim()
+          const appliedRun = completedRuns.find(r => appliedPrompt && r.optimized_prompt.trim() === appliedPrompt)
+          const optimized = appliedRun ?? completedRuns[0]
+          return (
+            <PromptCard
+              key={p.dimension_name}
+              dp={p}
+              optimizedRun={optimized}
+              appliedRunId={appliedRun?.id ?? null}
+              onJumpToRun={onJumpToRun}
+              projectId={projectId}
+              onPipelineSaved={onPipelinesRefresh}
+            />
+          )
         })}
+      </div>
+      <div className="border-t border-seam pt-4">
+        <div className="mb-3 border-l-2 border-ink bg-white px-3 py-2 text-sm font-medium text-stone-800">
+          Choose the next step for these prompts.
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <NextStepButton
+            title="📓 Improve with labeled data"
+            description="Use existing correct labels to test and refine the prompts."
+            onClick={onContinue}
+            tone="violet"
+          />
+          <NextStepButton
+            title="💬 Cold-start with human feedback"
+            description="No labeled data yet? Write corrections directly and update prompts."
+            onClick={onHumanFeedback}
+            tone="sky"
+          />
+          <NextStepButton
+            title={preparingAnnotation ? '🚀 Preparing prompts...' : '🚀 Use prompts for annotation'}
+            description="Save the latest improved prompts and annotate your full dataset."
+            onClick={onAnnotate}
+            disabled={preparingAnnotation}
+            tone="emerald"
+          />
+        </div>
       </div>
     </div>
   )
 }
 
+function NextStepButton({
+  title,
+  description,
+  onClick,
+  tone,
+  disabled = false,
+}: {
+  title: string
+  description: string
+  onClick: () => void
+  tone: 'violet' | 'sky' | 'emerald'
+  disabled?: boolean
+}) {
+  const styles = {
+    violet: {
+      button: 'border-violet-200 bg-violet-50 text-violet-950 hover:border-violet-400 hover:bg-violet-100',
+      arrow: 'text-violet-500',
+      body: 'text-violet-900/75',
+      stripe: 'bg-violet-500',
+    },
+    sky: {
+      button: 'border-sky-200 bg-sky-50 text-sky-950 hover:border-sky-400 hover:bg-sky-100',
+      arrow: 'text-sky-500',
+      body: 'text-sky-900/75',
+      stripe: 'bg-sky-500',
+    },
+    emerald: {
+      button: 'border-emerald-200 bg-emerald-50 text-emerald-950 hover:border-emerald-400 hover:bg-emerald-100',
+      arrow: 'text-emerald-500',
+      body: 'text-emerald-900/75',
+      stripe: 'bg-emerald-500',
+    },
+  }[tone]
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`relative min-h-28 overflow-hidden border px-4 py-3 text-left transition disabled:opacity-40 ${styles.button}`}
+    >
+      <span className={`absolute inset-y-0 left-0 w-1 ${styles.stripe}`} />
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-sm font-semibold">{title}</div>
+        <span className={styles.arrow}>→</span>
+      </div>
+      <p className={`mt-2 text-xs leading-relaxed ${styles.body}`}>
+        {description}
+      </p>
+    </button>
+  )
+}
+
 function PromptCard({
-  dp, optimizedRun, onJumpToRun,
+  dp, optimizedRun, appliedRunId, onJumpToRun, projectId, onPipelineSaved,
 }: {
   dp: { dimension_name: string; prompt: string; version: string; path: string; error: string | null }
   optimizedRun?: OptimizerRun
+  appliedRunId: number | null
   onJumpToRun: (runId: number) => void
+  projectId: number
+  onPipelineSaved: () => Promise<void>
 }) {
   const [open, setOpen] = useState(false)
   const [view, setView] = useState<'starting' | 'optimized'>(optimizedRun ? 'optimized' : 'starting')
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+  const [saved, setSaved] = useState(false)
+  const [copied, setCopied] = useState(false)
   const test = (optimizedRun?.artifact as any)?.test as { final_score?: number } | undefined
   const score = test?.final_score ?? optimizedRun?.final_score
   const text = view === 'optimized' && optimizedRun ? optimizedRun.optimized_prompt : dp.prompt
+  const dirty = draft !== text
+
+  useEffect(() => {
+    if (!editing) setDraft(text)
+  }, [text, editing])
+
+  const startEdit = () => {
+    setOpen(true)
+    setEditing(true)
+    setDraft(text)
+    setErr('')
+    setSaved(false)
+  }
+
+  const save = async () => {
+    setSaving(true); setErr('')
+    try {
+      await commitPrompt(projectId, dp.dimension_name, draft)
+      await onPipelineSaved()
+      setEditing(false)
+      setSaved(true)
+    } catch (e: any) {
+      setErr(fmtError(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1600)
+    } catch {
+      setErr('Copy failed')
+    }
+  }
 
   return (
     <div className="border border-seam bg-white">
@@ -328,24 +618,68 @@ function PromptCard({
           <span className="font-mono-editorial text-stone-400 w-3">{open ? '−' : '+'}</span>
           <span className="font-medium truncate">{dp.dimension_name}</span>
         </div>
-        <div className="font-mono-editorial text-xs">
+        <div className="font-mono-editorial text-xs flex items-center gap-2 shrink-0">
           {optimizedRun
             ? <span className="text-violet-700">run {String(optimizedRun.id).padStart(4, '0')}{typeof score === 'number' ? ` · ${(score * 100).toFixed(0)}%` : ''}</span>
             : <span className="text-stone-400">{dp.version}</span>
           }
+          {appliedRunId === optimizedRun?.id && <span className="text-emerald-700">applied</span>}
+          {saved && <span className="text-emerald-700">saved</span>}
         </div>
       </button>
+      <div className="px-4 py-2 border-t border-seam bg-paper/30 flex items-center justify-end gap-2">
+        <button
+          onClick={copyPrompt}
+          className="px-3 py-1.5 border border-ink bg-white text-ink text-xs font-medium hover:bg-paper transition"
+        >
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+        <button
+          onClick={startEdit}
+          className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 transition"
+        >
+          Edit prompt
+        </button>
+      </div>
       {open && !dp.error && (
         <div className="border-t border-seam">
           {optimizedRun && (
             <div className="px-4 py-1.5 flex items-center gap-3 border-b border-seam bg-paper/40">
-              <button onClick={() => setView('starting')} className={`text-xs font-mono-editorial ${view === 'starting' ? 'text-ink underline' : 'text-stone-500 hover:text-ink'}`}>starting</button>
+              <button onClick={() => { setView('starting'); setEditing(false); setErr('') }} className={`text-xs font-mono-editorial ${view === 'starting' ? 'text-ink underline' : 'text-stone-500 hover:text-ink'}`}>starting</button>
               <span className="text-stone-300">·</span>
-              <button onClick={() => setView('optimized')} className={`text-xs font-mono-editorial ${view === 'optimized' ? 'text-violet-700 underline' : 'text-stone-500 hover:text-ink'}`}>optimized</button>
+              <button onClick={() => { setView('optimized'); setEditing(false); setErr('') }} className={`text-xs font-mono-editorial ${view === 'optimized' ? 'text-violet-700 underline' : 'text-stone-500 hover:text-ink'}`}>optimized</button>
               <button onClick={() => onJumpToRun(optimizedRun.id)} className="ml-auto text-xs font-mono-editorial text-stone-500 hover:text-ink">open run →</button>
             </div>
           )}
-          <pre className="px-4 py-3 text-xs text-stone-800 whitespace-pre-wrap font-mono leading-relaxed max-h-[360px] overflow-auto">{text}</pre>
+          {editing ? (
+            <div className="p-4 space-y-3">
+              <textarea
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                rows={Math.min(28, Math.max(10, draft.split('\n').length + 1))}
+                className="w-full bg-white border border-seam focus:border-ink focus:outline-none p-3 font-mono text-xs leading-relaxed resize-y"
+              />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={save}
+                  disabled={saving || !dirty}
+                  className="px-3 py-1.5 bg-ink text-cream text-xs font-medium disabled:opacity-40"
+                >
+                  {saving ? 'Saving…' : 'Save to annotation pipeline'}
+                </button>
+                <button
+                  onClick={() => { setEditing(false); setDraft(text); setErr('') }}
+                  disabled={saving}
+                  className="font-mono-editorial text-xs text-stone-500 hover:text-ink"
+                >
+                  Cancel
+                </button>
+                {err && <span className="text-xs text-red-700">{err}</span>}
+              </div>
+            </div>
+          ) : (
+            <pre className="px-4 py-3 text-xs text-stone-800 whitespace-pre-wrap font-mono leading-relaxed max-h-[360px] overflow-auto">{text}</pre>
+          )}
         </div>
       )}
       {open && dp.error && <div className="border-t border-seam px-4 py-3 text-xs text-red-700">{dp.error}</div>}
@@ -355,8 +689,42 @@ function PromptCard({
 
 /* ─── Improve tab ──────────────────────────────────────────── */
 
+function optimizerCopy(name: string) {
+  const copy: Record<string, { title: string; description: string; recommended?: boolean }> = {
+    reflect_agent: {
+      title: 'Guided prompt improvement',
+      description: 'Learns readable rules from labeled examples and rewrites the prompt in a way you can review.',
+      recommended: true,
+    },
+    gepa: {
+      title: 'Automatic prompt search',
+      description: 'Tries prompt variants using example feedback and keeps moving toward better performance.',
+    },
+    mipro: {
+      title: 'Programmatic optimizer',
+      description: 'Searches over instructions and examples for more technical prompt programs.',
+    },
+    opro: {
+      title: 'LLM prompt optimizer',
+      description: 'Asks an LLM to propose better prompts from previous prompt scores.',
+    },
+  }
+  return copy[name] ?? {
+    title: 'Advanced optimizer',
+    description: 'Experimental improvement method for labeled examples.',
+  }
+}
+
+function optimizerChoices(optimizers: OptimizerInfo[]) {
+  const available = optimizers.length > 0
+    ? optimizers
+    : [{ name: 'reflect_agent', label: 'ReflectAgent', description: '', role: 'method' }]
+  return available.map(opt => ({ ...opt, ...optimizerCopy(opt.name) }))
+}
+
 function ImproveTab({
   codebooks, datasets, selectedDim, setSelectedDim, selectedGold, setSelectedGold,
+  optimizers, selectedOptimizer, setSelectedOptimizer,
   budget, setBudget, launching, launchError, projectId, onLaunched,
   setLaunching, setLaunchError,
 }: {
@@ -366,6 +734,9 @@ function ImproveTab({
   setSelectedDim: (v: string) => void
   selectedGold: number | null
   setSelectedGold: (v: number) => void
+  optimizers: OptimizerInfo[]
+  selectedOptimizer: string
+  setSelectedOptimizer: (v: string) => void
   budget: number
   setBudget: (v: number) => void
   launching: boolean
@@ -376,6 +747,7 @@ function ImproveTab({
   setLaunchError: (v: string) => void
 }) {
   const activeCb = codebooks[codebooks.length - 1]
+  const [showOptimizers, setShowOptimizers] = useState(false)
 
   // Per-class peek
   const [classCounts, setClassCounts] = useState<Record<string, Record<string, number>>>({})
@@ -399,10 +771,31 @@ function ImproveTab({
       .catch(() => setClassCounts({}))
   }, [selectedGold, projectId])
 
-  const classes = classCounts[selectedDim] ?? {}
+  const selectedLabelKey = Object.keys(classCounts).find(k => normDimensionName(k) === normDimensionName(selectedDim)) ?? selectedDim
+  const classes = classCounts[selectedLabelKey] ?? {}
   const total = Object.values(classes).reduce((a, b) => a + b, 0)
-  const split = useMemo(() => stratifiedPreview(classes, 15, 42), [classes])
-  const sorted = Object.keys(classes).sort((a, b) => classes[b] - classes[a])
+  const selectedDimension = activeCb?.dimensions.find(d => normDimensionName(d.name) === normDimensionName(selectedDim))
+  const expectedLabels = useMemo(() => selectedDimension?.labels.map(l => l.name) ?? [], [selectedDimension])
+  const displayedClasses = useMemo(() => {
+    const merged: Record<string, number> = {}
+    for (const expected of expectedLabels) {
+      const actualKey = Object.keys(classes).find(label => normLabelName(label) === normLabelName(expected))
+      merged[expected] = actualKey ? classes[actualKey] : 0
+    }
+    for (const [label, count] of Object.entries(classes)) {
+      const alreadyShown = Object.keys(merged).some(existing => normLabelName(existing) === normLabelName(label))
+      if (!alreadyShown) merged[label] = count
+    }
+    return merged
+  }, [classes, expectedLabels])
+  const missingLabels = expectedLabels.filter(label => (displayedClasses[label] ?? 0) === 0)
+  const split = useMemo(() => stratifiedPreview(displayedClasses, 15, 42), [displayedClasses])
+  const sorted = Object.keys(displayedClasses).sort((a, b) => {
+    const aExpected = expectedLabels.findIndex(label => normLabelName(label) === normLabelName(a))
+    const bExpected = expectedLabels.findIndex(label => normLabelName(label) === normLabelName(b))
+    if (aExpected !== -1 || bExpected !== -1) return (aExpected === -1 ? 999 : aExpected) - (bExpected === -1 ? 999 : bExpected)
+    return displayedClasses[b] - displayedClasses[a]
+  })
   const tooFew = total > 0 && total < 15
   const noLabels = total === 0
 
@@ -411,7 +804,7 @@ function ImproveTab({
     setLaunching(true); setLaunchError('')
     try {
       const run = await startOptimizerRun(projectId, {
-        optimizer_name: 'reflect_agent',
+        optimizer_name: selectedOptimizer,
         dimension_name: selectedDim,
         gold_dataset_id: selectedGold,
         budget,
@@ -423,22 +816,38 @@ function ImproveTab({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Left: pickers */}
-      <div className="lg:col-span-1 space-y-4">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: pickers */}
+        <div className="lg:col-span-1 space-y-4">
         <div>
           <Label>Dimension</Label>
           <select value={selectedDim} onChange={e => setSelectedDim(e.target.value)}
                   className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-medium">
             {activeCb?.dimensions.map(d => (
-              <option key={d.id} value={d.name}>{d.name} ({d.labels.length})</option>
+              <option key={d.id} value={d.name}>
+                {d.name} ({d.labels.length} label{d.labels.length === 1 ? '' : 's'})
+              </option>
             ))}
           </select>
         </div>
         <div>
           <Label>Labeled examples</Label>
           {datasets.length === 0
-            ? <p className="text-sm text-stone-500">None loaded.</p>
+            ? (
+              <div className="border border-amber-200 bg-amber-50 px-3 py-3">
+                <p className="text-sm font-medium text-amber-900">No labeled examples loaded.</p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                  To run improvement, upload labeled data in Setup first.
+                </p>
+                <a
+                  href={`/projects/${projectId}/setup`}
+                  className="mt-2 inline-flex px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 transition"
+                >
+                  Go to Setup →
+                </a>
+              </div>
+            )
             : (
               <select value={selectedGold ?? ''} onChange={e => setSelectedGold(Number(e.target.value))}
                       className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-medium">
@@ -449,21 +858,86 @@ function ImproveTab({
             )}
         </div>
         <div>
-          <Label>Rounds</Label>
+          <Label>Improvement rounds</Label>
           <input type="number" min={1} max={20} value={budget}
                  onChange={e => setBudget(Math.max(1, Math.min(20, Number(e.target.value) || 5)))}
                  className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-mono text-sm" />
+          <p className="mt-1 text-xs text-stone-500 leading-relaxed">
+            Main optimization passes. Baseline scoring and final validation may appear separately in the run summary.
+          </p>
+        </div>
+        <div className="border border-seam bg-paper/30">
+          <button
+            type="button"
+            onClick={() => setShowOptimizers(v => !v)}
+            className="w-full px-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-stone-50"
+          >
+            <span>
+              <span className="block text-sm font-medium text-ink">Explore optimizers</span>
+              <span className="block text-xs text-stone-500">{optimizerCopy(selectedOptimizer).title}</span>
+            </span>
+            <span className="text-xs font-mono text-stone-500">{showOptimizers ? 'Hide' : 'Show'}</span>
+          </button>
+          {showOptimizers && (
+            <div className="border-t border-seam p-2 space-y-2">
+              {optimizerChoices(optimizers).map(choice => {
+                const selected = selectedOptimizer === choice.name
+                return (
+                  <button
+                    key={choice.name}
+                    type="button"
+                    onClick={() => setSelectedOptimizer(choice.name)}
+                    className={`w-full p-3 text-left border transition ${
+                      selected ? 'border-ink bg-ink text-cream' : 'border-seam bg-paper hover:border-stone-400 text-ink'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm font-medium">{choice.title}</div>
+                      {choice.recommended && (
+                        <div className={`text-[10px] font-mono uppercase tracking-wide ${selected ? 'text-cream/70' : 'text-violet-700'}`}>
+                          Recommended
+                        </div>
+                      )}
+                    </div>
+                    <div className={`mt-1 text-xs leading-relaxed ${selected ? 'text-cream/75' : 'text-stone-600'}`}>
+                      {choice.description}
+                    </div>
+                    <div className={`mt-2 text-[11px] font-mono ${selected ? 'text-cream/55' : 'text-stone-400'}`}>
+                      {choice.label}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+        <div className="border border-amber-200 bg-amber-50/70 px-3 py-3">
+          <div className="font-mono-editorial text-amber-800 mb-2">Cost awareness</div>
+          <div className="flex flex-wrap gap-2">
+            <RunInputLabel label="Optimizer" value={optimizerCopy(selectedOptimizer).title} />
+            <RunInputLabel label="Rounds" value={budget.toLocaleString()} />
+            <RunInputLabel label="Examples" value={total > 0 ? total.toLocaleString() : '—'} />
+            <RunInputLabel label="Dimension" value={selectedDim || '—'} />
+          </div>
+          <p className="mt-2 text-xs leading-relaxed text-amber-900/80">
+            Improvement can make many LLM calls. Actual tokens and cost depend on optimizer behavior, prompt/output length, retries, and provider pricing. AnnotAgent tracks measured tokens and cost in the run summary.
+          </p>
         </div>
         <button onClick={handleLaunch} disabled={launching || noLabels || tooFew}
                 className="w-full py-2.5 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40">
-          {launching ? 'Starting…' : 'Improve from examples →'}
+          {launching ? 'Starting…' : 'Run improvement →'}
         </button>
         {launchError && <div className="text-xs text-red-700">{launchError}</div>}
-      </div>
+        </div>
 
-      {/* Right: split preview */}
-      <div className="lg:col-span-2">
-        {noLabels ? (
+        {/* Right: split preview */}
+        <div className="lg:col-span-2">
+        {datasets.length === 0 ? (
+          <div className="border border-amber-200 bg-amber-50/60 p-5 text-sm text-amber-900">
+            <div className="font-mono-editorial text-amber-700 mb-1">Labeled data required</div>
+            Improvement learns from examples that already have correct labels. Go back to Setup and upload labeled CSV/JSON before running this step.
+          </div>
+        ) : noLabels ? (
           <div className="border border-amber-200 bg-amber-50/50 p-4 text-sm text-amber-800">
             <div className="font-mono-editorial text-amber-700 mb-1">No labels for "{selectedDim}"</div>
             Available: {Object.keys(classCounts).filter(k => Object.keys(classCounts[k]).length > 0).join(', ') || '—'}.
@@ -482,6 +956,11 @@ function ImproveTab({
                 {split.n_train} train · {split.n_val} val · {split.n_test} test
               </div>
             </div>
+            {missingLabels.length > 0 && (
+              <div className="mb-3 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                No labeled examples for: <span className="font-semibold">{missingLabels.join(', ')}</span>. Improvement can still run, but it cannot learn or validate those labels from this dataset.
+              </div>
+            )}
             <table className="w-full text-xs font-mono">
               <thead>
                 <tr className="border-b border-seam font-mono-editorial text-stone-500">
@@ -510,7 +989,17 @@ function ImproveTab({
             </table>
           </div>
         )}
+        </div>
       </div>
+    </div>
+  )
+}
+
+function RunInputLabel({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border border-amber-200 bg-white/70 px-2.5 py-1.5">
+      <div className="font-mono-editorial text-[10px] text-amber-700">{label}</div>
+      <div className="text-xs font-medium text-amber-950 max-w-[180px] truncate" title={value}>{value}</div>
     </div>
   )
 }
@@ -535,7 +1024,7 @@ function stratifiedPreview(classes: Record<string, number>, trainPct: number, va
 /* ─── Runs tab (master-detail) ─────────────────────────────── */
 
 function RunsTab({
-  runs, selectedRunId, selectedRun, onSelect, onUpdate, onDelete, onCancel, projectId,
+  runs, selectedRunId, selectedRun, onSelect, onUpdate, onDelete, onCancel, projectId, onPipelinesRefresh, onContinue,
 }: {
   runs: OptimizerRun[]
   selectedRunId: number | null
@@ -545,14 +1034,29 @@ function RunsTab({
   onDelete: (r: OptimizerRun) => void
   onCancel: (r: OptimizerRun) => void
   projectId: number
+  onPipelinesRefresh: () => Promise<void>
+  onContinue: () => void
 }) {
   if (runs.length === 0) {
-    return <Empty>No runs yet. Launch one from <em>Improve</em>.</Empty>
+    return (
+      <div className="space-y-4">
+        <Empty>No runs yet. Launch one from <em>Improve</em>.</Empty>
+        <div className="flex justify-end border-t border-seam pt-4">
+          <button
+            onClick={onContinue}
+            className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
+          >
+            Continue to human feedback →
+          </button>
+        </div>
+      </div>
+    )
   }
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-      {/* Master: list */}
-      <div className="lg:col-span-4 border border-seam bg-white max-h-[78vh] overflow-auto">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Master: list */}
+        <div className="lg:col-span-4 border border-seam bg-white max-h-[78vh] overflow-auto">
         {runs.map(r => {
           const test = (r.artifact as any)?.test as { final_score?: number; delta?: number } | undefined
           const score = test?.final_score ?? r.final_score
@@ -594,22 +1098,31 @@ function RunsTab({
             </div>
           )
         })}
-      </div>
+        </div>
 
-      {/* Detail */}
-      <div className="lg:col-span-8 border border-seam bg-white max-h-[78vh] overflow-auto">
+        {/* Detail */}
+        <div className="lg:col-span-8 border border-seam bg-white max-h-[78vh] overflow-auto">
         {selectedRun
-          ? <RunDetailV2 run={selectedRun} projectId={projectId} onUpdate={onUpdate} />
+          ? <RunDetailV2 run={selectedRun} projectId={projectId} onUpdate={onUpdate} onPipelinesRefresh={onPipelinesRefresh} />
           : <Empty>Pick a run on the left.</Empty>
         }
+        </div>
+      </div>
+      <div className="flex justify-end border-t border-seam pt-4">
+        <button
+          onClick={onContinue}
+          className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
+        >
+          Continue to human feedback →
+        </button>
       </div>
     </div>
   )
 }
 
 function RunDetailV2({
-  run, projectId, onUpdate,
-}: { run: OptimizerRun; projectId: number; onUpdate: (r: OptimizerRun) => void }) {
+  run, projectId, onUpdate, onPipelinesRefresh,
+}: { run: OptimizerRun; projectId: number; onUpdate: (r: OptimizerRun) => void; onPipelinesRefresh: () => Promise<void> }) {
   const test = (run.artifact as any)?.test as
     | { initial_score: number; final_score: number; delta: number; n: number; initial_metrics?: any; final_metrics?: any }
     | undefined
@@ -625,6 +1138,7 @@ function RunDetailV2({
   const currentRound = traj.reduce((m, t) => Math.max(m, t?.round ?? 0), 0)
   const budget = run.budget || 1
   const progressPct = isRunning ? Math.max(4, Math.min(100, (currentRound / budget) * 100)) : 100
+  const [rulesOpen, setRulesOpen] = useState(false)
 
   return (
     <div>
@@ -698,12 +1212,12 @@ function RunDetailV2({
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-              {/* Compact round-by-round list — shows every action including
-                  val_consolidation and demos_appended after the run finishes. */}
+              {/* Compact step-by-step list — separates requested improvement
+                  rounds from baseline/final bookkeeping passes. */}
               <ul className="text-xs font-mono divide-y divide-seam border-t border-seam max-h-40 overflow-auto">
                 {traj.map((t: any, i: number) => (
                   <li key={i} className="flex items-baseline gap-2 px-1 py-1">
-                    <span className="font-mono-editorial text-stone-400 w-10 shrink-0">r{t.round}</span>
+                    <span className="font-mono-editorial text-stone-400 w-24 shrink-0">{trajectoryStepLabel(t, budget)}</span>
                     <span className={
                       t.action === 'accept' || t.action === 'baseline' || t.action === 'baseline_seeded' || t.action === 'converged'
                         ? 'text-emerald-700'
@@ -732,33 +1246,50 @@ function RunDetailV2({
           {test?.final_metrics
             ? <PerClassMini initial={test.initial_metrics} final={test.final_metrics} />
             : isRunning
-              ? <SkeletonTable label={`Held-out test scored once after round ${budget}.`} />
+              ? <SkeletonTable label="Held-out test is scored after the improvement rounds." />
               : <Empty>{test ? 'Old run — no per-class.' : 'Test eval pending.'}</Empty>}
         </Card>
 
-        <Card title={`Rule library · ${ruleLib.length}`} className="md:col-span-2">
-          {ruleLib.length === 0
-            ? isRunning
-              ? <SkeletonRules label="Rules accumulate as the optimizer mines failures from train each round." />
-              : <Empty>No rules yet.</Empty>
-            : <div className="space-y-2 max-h-56 overflow-auto pr-2">
-                {ruleLib.map((r: any, i: number) => (
-                  <div key={i} className="pl-3 border-l-2 border-violet-300">
-                    <div className="font-mono-editorial text-stone-400 text-[11px]">
-                      {String(i + 1).padStart(2, '0')} · {r.id || 'unnamed'}
-                      {r.target_labels?.length ? ` · ${r.target_labels.join(' / ')}` : ''}
+        <Card
+          title={`Rule library · ${ruleLib.length}`}
+          className="md:col-span-2"
+          rightSlot={
+            <button
+              onClick={() => setRulesOpen(v => !v)}
+              className="px-2 py-0.5 border border-seam bg-white text-xs font-medium text-stone-700 hover:border-ink hover:text-ink"
+            >
+              {rulesOpen ? 'Hide' : 'Show'}
+            </button>
+          }
+        >
+          {!rulesOpen ? (
+            <div className="text-xs text-stone-500">
+              Learned calibration rules are hidden to keep the run summary focused.
+            </div>
+          ) : ruleLib.length === 0
+              ? isRunning
+                ? <SkeletonRules label="Rules accumulate as the optimizer mines failures from train each round." />
+                : <Empty>No rules yet.</Empty>
+              : <div className="space-y-2 max-h-56 overflow-auto pr-2">
+                  {ruleLib.map((r: any, i: number) => (
+                    <div key={i} className="pl-3 border-l-2 border-violet-300">
+                      <div className="font-mono-editorial text-stone-400 text-[11px]">
+                        {String(i + 1).padStart(2, '0')} · {r.id || 'unnamed'}
+                        {r.target_labels?.length ? ` · ${r.target_labels.join(' / ')}` : ''}
+                      </div>
+                      <div className="text-sm">{r.boundary || r.rule || '(no boundary)'}</div>
                     </div>
-                    <div className="text-sm">{r.boundary || r.rule || '(no boundary)'}</div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
           }
         </Card>
       </div>
 
       {/* Editable prompt */}
       {run.optimized_prompt && (
-        <EditablePromptV2 run={run} projectId={projectId} onUpdate={onUpdate} />
+        run.status === 'completed' && (
+          <UseImprovedPromptCard run={run} projectId={projectId} onUpdate={onUpdate} onApplied={onPipelinesRefresh} />
+        )
       )}
     </div>
   )
@@ -871,7 +1402,7 @@ function LiveStrip({
 
       {/* Round counter + progress bar */}
       <div className="flex items-center justify-between mb-1.5 text-xs font-mono-editorial">
-        <span className="text-blue-700">Round {currentRound} / {budget}</span>
+        <span className="text-blue-700">{progressStepLabel(currentRound, budget)}</span>
         <span className="text-stone-500">{Math.round(progressPct)}%</span>
       </div>
       <div className="w-full h-[3px] bg-seam overflow-hidden relative">
@@ -893,7 +1424,7 @@ function LiveStrip({
               className="flex items-baseline gap-2 animate-[fadeIn_300ms_ease-out]"
               style={{ animationDelay: `${i * 30}ms` }}
             >
-              <span className="font-mono-editorial text-stone-400 w-12 shrink-0">r{t.round}</span>
+              <span className="font-mono-editorial text-stone-400 w-24 shrink-0">{trajectoryStepLabel(t, budget)}</span>
               <span className={
                 t.action === 'accept' || t.action === 'baseline' || t.action === 'baseline_seeded'
                   ? 'text-emerald-700'
@@ -1014,8 +1545,26 @@ function humanAction(action: string | undefined): string {
     case 'converged':          return 'converged · no failures'
     case 'val_consolidation':  return 'val consolidated into rules'
     case 'demos_appended':     return 'worked examples added'
+    case 'prompt_integrated':  return 'rules integrated into prompt'
     default:                   return action || '—'
   }
+}
+
+function trajectoryStepLabel(t: any, budget: number): string {
+  const action = t?.action
+  const round = Number(t?.round ?? 0)
+  if (action === 'baseline' || action === 'baseline_seeded' || round === 0) return 'Baseline'
+  if (action === 'val_consolidation') return 'Final validation'
+  if (action === 'demos_appended') return 'Final examples'
+  if (action === 'prompt_integrated') return 'Prompt rewrite'
+  if (round <= budget) return `Round ${round}`
+  return 'Final pass'
+}
+
+function progressStepLabel(currentRound: number, budget: number): string {
+  if (currentRound <= 0) return 'Baseline'
+  if (currentRound <= budget) return `Improvement round ${currentRound} / ${budget}`
+  return 'Final validation and prompt rewrite'
 }
 
 function AuditBadge({ run }: { run: OptimizerRun }) {
@@ -1082,48 +1631,167 @@ function PerClassMini({ initial, final }: { initial: any; final: any }) {
   )
 }
 
-function EditablePromptV2({
-  run, projectId, onUpdate,
-}: { run: OptimizerRun; projectId: number; onUpdate: (r: OptimizerRun) => void }) {
-  const [editing, setEditing] = useState(false)
+function UseImprovedPromptCard({
+  run,
+  projectId,
+  onUpdate,
+  onApplied,
+}: {
+  run: OptimizerRun
+  projectId: number
+  onUpdate: (r: OptimizerRun) => void
+  onApplied: () => Promise<void>
+}) {
+  const [currentPrompt, setCurrentPrompt] = useState('')
   const [draft, setDraft] = useState(run.optimized_prompt)
+  const [editing, setEditing] = useState(false)
+  const [foundCurrentPrompt, setFoundCurrentPrompt] = useState(false)
+  const [pipelineId, setPipelineId] = useState<number | null>(null)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
+  const [committed, setCommitted] = useState(false)
   const [err, setErr] = useState('')
-  const [tracked, setTracked] = useState(run.id)
-  if (tracked !== run.id) { setTracked(run.id); setDraft(run.optimized_prompt); setEditing(false); setErr('') }
-  const dirty = draft !== run.optimized_prompt
-  const editable = run.status === 'completed' || run.status === 'failed'
 
-  const save = async () => {
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true); setErr(''); setCommitted(false)
+    setFoundCurrentPrompt(false)
+    setDraft(run.optimized_prompt)
+    setEditing(false)
+    listPipelines(projectId)
+      .then(pipelines => {
+        if (cancelled) return
+        const latest = pipelines.slice().sort((a, b) => b.id - a.id)[0]
+        setPipelineId(latest?.id ?? null)
+        const step = (latest?.steps || []).find((s: any) =>
+          normDimensionName(s?.name || '') === normDimensionName(run.dimension_name)
+          || (Array.isArray(s?.dimensions) && s.dimensions.some((d: string) => normDimensionName(d) === normDimensionName(run.dimension_name)))
+        )
+        setFoundCurrentPrompt(!!step)
+        setCurrentPrompt(String((step as any)?.prompt || ''))
+      })
+      .catch(e => {
+        if (!cancelled) setErr(fmtError(e))
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [projectId, run.id, run.dimension_name])
+
+  const alreadyApplied = currentPrompt.trim() === draft.trim()
+  const canCommit = !!run.optimized_prompt && !alreadyApplied && !loading && !saving
+  const draftDirty = draft !== run.optimized_prompt
+
+  const handleCommit = async () => {
     setSaving(true); setErr('')
     try {
+      const promptToApply = draft
+      if (draftDirty) {
+        const updated = await patchOptimizerRun(projectId, run.id, { optimized_prompt: promptToApply })
+        onUpdate(updated)
+      }
+      await commitPrompt(projectId, run.dimension_name, promptToApply)
+      await onApplied()
+      setCurrentPrompt(promptToApply)
+      setEditing(false)
+      setCommitted(true)
+    } catch (e: any) {
+      setErr(fmtError(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveDraftOnly = async () => {
+    setSavingDraft(true); setErr('')
+    try {
       const updated = await patchOptimizerRun(projectId, run.id, { optimized_prompt: draft })
-      onUpdate(updated); setEditing(false)
-    } catch (e: any) { setErr(e?.response?.data?.detail || e?.message || 'Save failed') }
-    finally { setSaving(false) }
+      onUpdate(updated)
+      setEditing(false)
+    } catch (e: any) {
+      setErr(fmtError(e))
+    } finally {
+      setSavingDraft(false)
+    }
   }
 
   return (
     <div className="px-3 pb-3">
-      <Card title="Updated prompt" rightSlot={
-        <div className="flex items-center gap-2">
-          {dirty && <span className="font-mono-editorial text-amber-700 text-[11px]">unsaved</span>}
-          {!editing && editable && <button onClick={() => setEditing(true)} className="font-mono-editorial text-stone-500 hover:text-ink">edit</button>}
-          {editing && (
-            <>
-              <button onClick={() => { setDraft(run.optimized_prompt); setEditing(false); setErr('') }} disabled={saving} className="font-mono-editorial text-stone-500 hover:text-ink">cancel</button>
-              <button onClick={save} disabled={saving || !dirty} className="px-2 py-0.5 text-xs bg-ink text-cream disabled:opacity-40">{saving ? 'saving…' : 'save'}</button>
-            </>
+      <Card
+        title="Apply improved prompt"
+        rightSlot={
+          <div className="flex items-center gap-2">
+            {draftDirty && <span className="font-mono-editorial text-amber-700 text-[11px]">edited</span>}
+            <button
+              onClick={() => { setEditing(v => !v); setErr('') }}
+              className="px-3 py-1.5 border border-ink bg-white text-ink text-xs font-medium hover:bg-paper transition"
+            >
+              {editing ? 'Review diff' : 'Edit'}
+            </button>
+            <button
+              onClick={handleCommit}
+              disabled={!canCommit}
+              className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition"
+            >
+              {saving ? 'Applying…' : alreadyApplied || committed ? 'Applied' : 'Apply'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-2">
+          <div className="flex items-baseline justify-between gap-3 text-xs">
+            <p className="text-stone-600 leading-relaxed">
+              Replace the active pipeline prompt for this dimension with the improved prompt.
+            </p>
+            {pipelineId ? <span className="font-mono-editorial text-stone-400 shrink-0">Pipeline {pipelineId}</span> : null}
+          </div>
+          {loading ? (
+            <Empty>Loading current pipeline prompt…</Empty>
+          ) : err ? (
+            <div className="text-xs text-red-700">{err}</div>
+          ) : !foundCurrentPrompt ? (
+            <div className="border border-amber-200 bg-amber-50/50 px-3 py-2 text-xs text-amber-800">
+              Could not find the current active prompt for this dimension, so the diff is unavailable.
+            </div>
+          ) : editing ? (
+            <div className="space-y-3">
+              <textarea
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                rows={Math.min(28, Math.max(10, draft.split('\n').length + 1))}
+                className="w-full bg-white border border-seam focus:border-ink focus:outline-none p-3 font-mono text-xs leading-relaxed resize-y"
+              />
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={saveDraftOnly}
+                  disabled={savingDraft || !draftDirty}
+                  className="px-3 py-1.5 bg-ink text-cream text-xs font-medium disabled:opacity-40"
+                >
+                  {savingDraft ? 'Saving…' : 'Save edit'}
+                </button>
+                <button
+                  onClick={() => { setDraft(run.optimized_prompt); setEditing(false); setErr('') }}
+                  disabled={savingDraft}
+                  className="font-mono-editorial text-xs text-stone-500 hover:text-ink"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <details className="border border-seam bg-paper/40">
+              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-stone-700 hover:text-ink">
+                Review changes
+              </summary>
+              <div className="border-t border-seam">
+                <DiffView oldText={currentPrompt} newText={draft} />
+              </div>
+            </details>
           )}
+          {err && <div className="text-xs text-red-700">{err}</div>}
         </div>
-      }>
-        {editing ? (
-          <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={Math.min(28, Math.max(10, draft.split('\n').length + 1))}
-                    className="w-full bg-white border border-seam focus:border-ink focus:outline-none p-3 font-mono text-xs leading-relaxed resize-y" />
-        ) : (
-          <pre className="bg-paper/50 border border-seam p-3 font-mono text-xs leading-relaxed max-h-72 overflow-auto whitespace-pre-wrap">{run.optimized_prompt}</pre>
-        )}
-        {err && <div className="mt-2 text-xs text-red-700">{err}</div>}
       </Card>
     </div>
   )
@@ -1193,28 +1861,52 @@ function DiffView({ oldText, newText }: { oldText: string; newText: string }) {
 
 /* ─── Memory tab ────────────────────────────────────────────── */
 
-function MemoryTab({ memory, projectId, dimensions, onRefresh, onPromptCommitted }: {
+function MemoryTab({ memory, projectId, jobs, datasets, dimensions, onRefresh, onJobsRefresh, onDatasetsRefresh, onPromptCommitted }: {
   memory: MemoryVersion[]
   projectId: number
+  jobs: Job[]
+  datasets: Dataset[]
   dimensions: string[]
   onRefresh: () => void
+  onJobsRefresh: () => void
+  onDatasetsRefresh: () => void
   onPromptCommitted: () => void
 }) {
   const byDim: Record<string, MemoryVersion[]> = {}
   for (const v of memory) {
+    if (!v.feedback_text) continue
     if (!byDim[v.dimension_name]) byDim[v.dimension_name] = []
     byDim[v.dimension_name].push(v)
   }
 
-  // All known dimensions: those with memory + those from the codebook that don't yet
+  // All known dimensions: human-feedback history + codebook dimensions that don't yet
   const allDims = Array.from(new Set([...Object.keys(byDim), ...dimensions])).sort()
+  const [evidenceDim, setEvidenceDim] = useState(allDims[0] ?? '')
+
+  useEffect(() => {
+    if (!evidenceDim && allDims.length > 0) {
+      setEvidenceDim(allDims[0])
+    } else if (evidenceDim && allDims.length > 0 && !allDims.includes(evidenceDim)) {
+      setEvidenceDim(allDims[0])
+    }
+  }, [allDims.join('\n'), evidenceDim])
 
   if (allDims.length === 0) {
-    return <Empty>Memory accumulates after each successful run.</Empty>
+    return <Empty>Human feedback appears here after you add a correction.</Empty>
   }
 
   return (
     <div className="space-y-5">
+      <EvidencePanel
+        projectId={projectId}
+        jobs={jobs}
+        datasets={datasets}
+        dimensions={allDims}
+        dimensionName={evidenceDim || allDims[0]}
+        onDimensionChange={setEvidenceDim}
+        onJobsRefresh={onJobsRefresh}
+        onDatasetsRefresh={onDatasetsRefresh}
+      />
       {allDims.map(d => (
         <div key={d}>
           <div className="flex items-baseline justify-between border-b border-seam pb-1.5 mb-2">
@@ -1256,6 +1948,342 @@ function MemoryTab({ memory, projectId, dimensions, onRefresh, onPromptCommitted
 type ApplyState = 'idle' | 'loading' | 'preview' | 'committing' | 'done' | 'error'
 
 type DraftFeedback = { id: string; text: string }
+
+function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, onDimensionChange, onJobsRefresh, onDatasetsRefresh }: {
+  projectId: number
+  jobs: Job[]
+  datasets: Dataset[]
+  dimensions: string[]
+  dimensionName: string
+  onDimensionChange: (dimensionName: string) => void
+  onJobsRefresh: () => void
+  onDatasetsRefresh: () => void
+}) {
+  const completedJobs = jobs.filter(j => normStatus(j.status) === 'completed' && j.source === 'human_feedback')
+  const [jobId, setJobId] = useState<number | ''>('')
+  const [runDatasetId, setRunDatasetId] = useState<number | ''>('')
+  const [rows, setRows] = useState<FeedbackEvidence[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [launchingJob, setLaunchingJob] = useState(false)
+  const [launchStatus, setLaunchStatus] = useState('')
+  const [mismatchesOnly, setMismatchesOnly] = useState(false)
+  const [uploadingDataset, setUploadingDataset] = useState(false)
+  const [page, setPage] = useState(1)
+  const pageSize = 50
+
+  useEffect(() => {
+    if (jobId || completedJobs.length === 0) return
+    setJobId(completedJobs[0].id)
+  }, [jobId, completedJobs])
+
+  useEffect(() => {
+    if (runDatasetId || datasets.length === 0) return
+    const preferred = datasets.find(d => d.is_gold) ?? datasets[0]
+    setRunDatasetId(preferred.id)
+  }, [runDatasetId, datasets])
+
+  useEffect(() => {
+    if (!jobId) { setRows([]); return }
+    setLoading(true)
+    setError('')
+    getFeedbackEvidence(projectId, Number(jobId), dimensionName, {
+      limit: 500,
+      mismatches_only: mismatchesOnly,
+    })
+      .then(setRows)
+      .catch(e => setError(fmtError(e)))
+      .finally(() => setLoading(false))
+  }, [projectId, jobId, dimensionName, mismatchesOnly])
+
+  useEffect(() => {
+    setPage(1)
+  }, [jobId, dimensionName, mismatchesOnly])
+
+  const refreshUntilDone = (newJobId: number) => {
+    let tries = 0
+    const poll = async () => {
+      tries += 1
+      const latest = await listJobs(projectId)
+      const job = latest.find(j => j.id === newJobId)
+      onJobsRefresh()
+      if (job && normStatus(job.status) === 'completed') {
+        setJobId(newJobId)
+        setLaunchStatus('Annotation complete. Showing the latest results.')
+        setLaunchingJob(false)
+        return
+      }
+      if (job && ['failed', 'cancelled'].includes(normStatus(job.status))) {
+        setLaunchStatus(`Annotation ${normStatus(job.status)}.`)
+        setLaunchingJob(false)
+        return
+      }
+      if (tries < 180) {
+        setLaunchStatus(job ? `Annotating ${job.completed_items}/${job.total_items} items…` : 'Starting annotation…')
+        window.setTimeout(poll, 2000)
+      } else {
+        setLaunchStatus('Annotation is still running. Reopen Human feedback in a moment.')
+        setLaunchingJob(false)
+      }
+    }
+    window.setTimeout(poll, 1200)
+  }
+
+  const handleRunLatestPrompt = async () => {
+    if (!runDatasetId) return
+    setLaunchingJob(true)
+    setError('')
+    setLaunchStatus('Starting annotation with the latest pipeline prompt…')
+    try {
+      const pipelines = await listPipelines(projectId)
+      const latest = pipelines.slice().sort((a, b) => b.id - a.id)[0]
+      if (!latest) throw new Error('No pipeline found. Generate a pipeline first.')
+      const job = await startJob(projectId, Number(runDatasetId), latest.id, 'human_feedback')
+      onJobsRefresh()
+      setJobId('')
+      refreshUntilDone(job.id)
+    } catch (e: any) {
+      setError(fmtError(e))
+      setLaunchingJob(false)
+      setLaunchStatus('')
+    }
+  }
+
+  const handleUploadRunDataset = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingDataset(true)
+    setError('')
+    try {
+      const dataset = await uploadDataset(projectId, file, false)
+      setRunDatasetId(dataset.id)
+      onDatasetsRefresh()
+    } catch (err: any) {
+      setError(fmtError(err))
+    } finally {
+      setUploadingDataset(false)
+      e.target.value = ''
+    }
+  }
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const pageRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  return (
+    <div className="border border-seam bg-paper/20">
+      <div className="grid gap-0 border-b border-seam lg:grid-cols-[220px_minmax(0,1fr)_minmax(280px,420px)]">
+        <div className="border-b border-seam px-3 py-3 lg:border-b-0 lg:border-r">
+          <div className="font-mono-editorial text-xs text-stone-500 mb-1.5">1. Dimension</div>
+          <select
+            value={dimensionName}
+            onChange={e => onDimensionChange(e.target.value)}
+            className="w-full bg-white border border-seam px-2 py-1.5 text-xs focus:outline-none focus:border-ink"
+          >
+            {dimensions.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="border-b border-seam px-3 py-3 lg:border-b-0 lg:border-r">
+          <div className="font-mono-editorial text-xs text-stone-500 mb-1.5">2. Create feedback examples</div>
+          <p className="mb-2 text-xs text-stone-500 leading-relaxed">
+            Upload/select unlabeled data, then run annotation with the latest prompt to create examples for review.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {datasets.length > 0 && (
+              <select
+                value={runDatasetId}
+                onChange={e => setRunDatasetId(e.target.value ? Number(e.target.value) : '')}
+                className="max-w-full bg-white border border-seam px-2 py-1.5 text-xs focus:outline-none focus:border-ink"
+              >
+                {datasets.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} · {d.total_items}
+                  </option>
+                ))}
+              </select>
+            )}
+            <label className="inline-flex items-center gap-2 px-3 py-1.5 border border-ink bg-white text-ink text-xs font-medium hover:bg-paper cursor-pointer">
+              <input type="file" accept=".csv,.json" className="hidden" onChange={handleUploadRunDataset} />
+              {uploadingDataset ? 'Uploading…' : datasets.length > 0 ? 'Upload different data' : 'Upload data'}
+            </label>
+            <button
+              onClick={handleRunLatestPrompt}
+              disabled={launchingJob || !runDatasetId}
+              className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition"
+            >
+              {launchingJob ? 'Running…' : 'Run latest prompt'}
+            </button>
+          </div>
+        </div>
+
+        <div className="px-3 py-3">
+          <div className="font-mono-editorial text-xs text-stone-500 mb-1.5">3. Review feedback run</div>
+          <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={jobId}
+            onChange={e => setJobId(e.target.value ? Number(e.target.value) : '')}
+            className="max-w-full bg-white border border-seam px-2 py-1 text-xs focus:outline-none focus:border-ink"
+          >
+            {completedJobs.length === 0 && <option value="">No feedback runs</option>}
+            {completedJobs.map(j => {
+              const dataset = datasets.find(d => d.id === j.dataset_id)
+              return (
+                <option key={j.id} value={j.id}>
+                  job {String(j.id).padStart(4, '0')} · {dataset?.name ?? `dataset ${j.dataset_id}`} · {j.completed_items}/{j.total_items}
+                </option>
+              )
+            })}
+          </select>
+            <label className="inline-flex items-center gap-1.5 font-mono-editorial text-xs text-stone-500">
+              <input
+                type="checkbox"
+                checked={mismatchesOnly}
+                onChange={e => setMismatchesOnly(e.target.checked)}
+                className="accent-ink"
+              />
+              Only items needing review
+            </label>
+          </div>
+        </div>
+      </div>
+      {launchStatus && (
+        <div className="border-b border-seam px-3 py-2 text-xs text-stone-600 bg-white">
+          {launchStatus}
+        </div>
+      )}
+      {datasets.length === 0 && (
+        <div className="border-b border-seam px-3 py-2 text-xs text-stone-600 bg-white">
+          Cold start: upload unlabeled data above to create examples for feedback review.
+        </div>
+      )}
+      {loading ? (
+        <div className="px-3 py-3 font-mono-editorial text-xs text-stone-400">Loading examples…</div>
+      ) : error ? (
+        <div className="px-3 py-3 font-mono-editorial text-xs text-red-600">{error}</div>
+      ) : rows.length === 0 ? (
+        <div className="px-3 py-3 text-xs text-stone-500 leading-relaxed">
+          {completedJobs.length === 0
+            ? 'No human-feedback evidence runs yet. Create one above, then reviewed examples will appear here.'
+            : 'No annotated examples found for this dimension in the selected job. Try another completed job, or run annotation again after applying the prompt.'
+          }
+        </div>
+      ) : (
+        <div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-seam bg-white px-3 py-2 text-xs text-stone-500">
+          <span>
+            Showing {((currentPage - 1) * pageSize + 1).toLocaleString()}-{Math.min(currentPage * pageSize, rows.length).toLocaleString()} of {rows.length.toLocaleString()} example{rows.length === 1 ? '' : 's'}
+            {mismatchesOnly ? ' needing review, including partial matches' : ''}
+          </span>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-2 py-1 border border-seam bg-white text-stone-600 hover:border-ink disabled:opacity-40"
+              >
+                Previous
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`px-2 py-1 border ${
+                    p === currentPage
+                      ? 'border-ink bg-ink text-cream'
+                      : 'border-seam bg-white text-stone-600 hover:border-ink'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-2 py-1 border border-seam bg-white text-stone-600 hover:border-ink disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
+        <ul className="max-h-[720px] overflow-auto divide-y divide-stone-300 bg-white">
+          {pageRows.map(row => {
+            const status = row.match_status || (!row.gold_label ? 'missing' : row.is_mismatch ? 'mismatch' : 'match')
+            const statusClass =
+              status === 'missing'
+                ? 'border-stone-300 bg-stone-50 text-stone-600'
+                : status === 'mismatch'
+                  ? 'border-red-300 bg-red-50 text-red-700'
+                  : status === 'partial'
+                    ? 'border-amber-300 bg-amber-50 text-amber-800'
+                    : 'border-emerald-300 bg-emerald-50 text-emerald-700'
+            const panelClass =
+              status === 'missing'
+                ? 'border-stone-300 bg-stone-50'
+                : status === 'mismatch'
+                  ? 'border-red-300 bg-red-50'
+                  : status === 'partial'
+                    ? 'border-amber-300 bg-amber-50'
+                    : 'border-emerald-300 bg-emerald-50'
+            const statusLabel =
+              status === 'missing'
+                ? 'No correct label'
+                : status === 'mismatch'
+                  ? 'Needs review'
+                  : status === 'partial'
+                    ? 'Partial match'
+                    : 'Agrees'
+            return (
+            <li key={row.result_id} className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_260px]">
+              <div className="min-w-0 px-4 py-4">
+                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-mono-editorial text-stone-600">Item {row.item_id}</span>
+                  <span className="text-stone-300">·</span>
+                  <span className="font-medium text-stone-700">{dimensionName}</span>
+                </div>
+                <div className="mb-2 text-[11px] font-semibold text-stone-700">Example text</div>
+                <div className="text-base leading-relaxed text-stone-950 whitespace-pre-wrap">{row.content}</div>
+                {row.reasoning && (
+                  <details className="mt-3 text-sm">
+                    <summary className="cursor-pointer text-xs font-semibold text-stone-700 hover:text-ink">Annotation output</summary>
+                    <div className="mt-2 border-l-2 border-stone-400 pl-3 text-stone-800 whitespace-pre-wrap leading-relaxed">
+                      {row.reasoning}
+                    </div>
+                  </details>
+                )}
+              </div>
+              <div className={`border-t lg:border-l lg:border-t-0 px-4 py-4 ${panelClass}`}>
+                <span className={`px-2 py-0.5 border font-medium ${statusClass}`}>
+                  {statusLabel}
+                </span>
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <div className="mb-1 text-[11px] font-semibold text-stone-700">Correct</div>
+                    <div className={`font-mono text-base break-words ${row.gold_label ? 'text-ink' : 'text-stone-600'}`}>
+                    {row.gold_label || 'No correct label available'}
+                    </div>
+                  </div>
+                  <div className="border-t border-current/20 pt-3">
+                    <div className={`mb-1 text-[11px] font-semibold ${status === 'mismatch' ? 'text-red-800' : status === 'partial' ? 'text-amber-800' : 'text-stone-700'}`}>
+                      Predicted
+                    </div>
+                    <div className={`font-mono text-base break-words ${status === 'mismatch' ? 'text-red-900' : 'text-ink'}`}>
+                      {row.predicted_label || '—'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </li>
+          )})}
+        </ul>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function FeedbackBatchPanel({
   projectId, dimensionName, onRefresh, onCommitted,

@@ -147,6 +147,7 @@ class PipelineUpdate(BaseModel):
 class JobCreate(BaseModel):
     dataset_id: int
     pipeline_id: int
+    source: str = "annotation"
 
 
 class JobOut(BaseModel):
@@ -160,6 +161,7 @@ class JobOut(BaseModel):
     failed_items: int
     total_tokens: int
     total_cost: float
+    source: str = "unknown"
     created_at: Optional[datetime.datetime] = None
     updated_at: Optional[datetime.datetime] = None
 
@@ -230,6 +232,7 @@ class WSProgressMessage(BaseModel):
 class CodebookDraftCreate(BaseModel):
     """JSON body when not uploading a file. For uploads, use multipart."""
     source: str  # "paste" | "preset" | "scratch"
+    project_id: Optional[int] = None
     text: Optional[str] = None
     preset_name: Optional[str] = None
 
