@@ -38,47 +38,47 @@ The system is composed of four LLM-backed agents and two shared persistent artif
 
 ```
               ┌───────────────────────────────────────────────────────┐
-  messy ─────▶│  1. CodebookAgent                                      │
+  messy ─────▶│  1. CodebookAgent                                     │
   input       │  Ingestor → Drafter → Critic                          │
-              │  PDF/DOCX/XLSX/CSV/JSON/TXT, auto mode-inference       │
+              │  PDF/DOCX/XLSX/CSV/JSON/TXT, auto mode-inference      │
               │  Editable draft preview before commit                 │
               └───────────────────────────────────────────────────────┘
                                     │  CodebookDef (validated)
                                     ▼
-              ┌───────────────────────────────────────────────────────┐
-              │  2. AutoPromptGenerator                                │
-              │  LLM drafts a starting annotation prompt PER DIMENSION │
-              │  in parallel (asyncio.gather, return_exceptions)       │
-              │  Versioned on disk: workspace/.../prompts/<dim>/auto_v00N
-              └───────────────────────────────────────────────────────┘
+              ┌───────────────────────────────────────────────────────----┐
+              │  2. AutoPromptGenerator                                   │
+              │  LLM drafts a starting annotation prompt PER DIMENSION    │
+              │  in parallel (asyncio.gather, return_exceptions)          │
+              │  Versioned on disk: workspace/.../prompts/<dim>/auto_v00N │
+              └───────────────────────────────────────────────────────-----
                                     │  one prompt per dim
                                     ▼
               ┌───────────────────────────────────────────────────────┐
-              │  3. Annotator                                          │   ◀── Flow A entry:
-              │  Batch (Flows B + C): pipeline runner, per-dim or      │       interactive single-
-              │     all-together, async, pause/cancel/resume, WS prog. │       item labeling with
-              │  Interactive (Flow A): per-item pre-fill on demand,    │       LLM pre-fill +
-              │     drives the Cold-start Labeling page                │       shadow ReflectAgent
+              │  3. Annotator                                         │   ◀── Flow A entry:
+              │  Batch (Flows B + C): pipeline runner, per-dim or     │       interactive single-
+              │     all-together, async, pause/cancel/resume, WS prog.│       item labeling with
+              │  Interactive (Flow A): per-item pre-fill on demand,   │       LLM pre-fill +
+              │     drives the Cold-start Labeling page               │       shadow ReflectAgent
               └───────────────────────────────────────────────────────┘
                                     │  predictions + per-class metrics    ◀── C1 entry:
                                     ▼                                        rule-augmented run on
-              ┌───────────────────────────────────────────────────────┐      disputed items, store
+              ┌───────────────────────────────────────────────────────-┐      disputed items, store
               │  4. ReflectAgent (the shared engine)                   │      verdict + cited rules
               │  PatternExtractor:                                     │
               │    • rules from failures (C2 + shadow / Flow A)        │   ◀── C1 entry:
               │    • rules from agreed items (C1 / Flow B)             │       PatternExtractor
               │  Annotator role: labels items with current prompt+rules│       on agreed subset
-              │  Governor: holdout-gated rollback                       │
+              │  Governor: holdout-gated rollback                      │
               │  Held-out test scored ONCE at end (leakage guard)      │
-              └───────────────────────────────────────────────────────┘
+              └───────────────────────────────────────────────────────-┘
                                     │  rule library + optimized prompt
                                     ▼
               ┌───────────────────────────────────────────────────────┐
-              │  5. Memory (cross-session)                             │   ◀── C3 entry:
-              │  ReflectMemoryVersion table, versioned per (project,   │       re-seed Run 2
-              │  dimension). Each run seeds from the latest version.   │       from same v0 prompt
-              │  Editable, exportable, accumulates across sessions.    │       after corpus update
-              │  Shadow runs in Flow A write Memory mid-session.       │
+              │  5. Memory (cross-session)                            │   ◀── C3 entry:
+              │  ReflectMemoryVersion table, versioned per (project,  │       re-seed Run 2
+              │  dimension). Each run seeds from the latest version.  │       from same v0 prompt
+              │  Editable, exportable, accumulates across sessions.   │       after corpus update
+              │  Shadow runs in Flow A write Memory mid-session.      │
               └───────────────────────────────────────────────────────┘
 ```
 
