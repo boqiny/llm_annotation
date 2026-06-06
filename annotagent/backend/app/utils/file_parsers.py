@@ -44,17 +44,142 @@ def parse_json_dataset(content: str) -> list[dict[str, Any]]:
 def parse_csv_dataset(content: str) -> list[dict[str, Any]]:
     """Parse CSV dataset content into list of data items."""
     reader = csv.DictReader(io.StringIO(content))
+    rows = list(reader)
+    if _looks_like_theme_level_csv(rows):
+        return _parse_theme_level_csv(rows)
+
     items = []
-    for i, row in enumerate(reader):
+    for i, row in enumerate(rows):
         content_field = _find_content_field(row)
         items.append({
             "index": i,
             "content": row.get(content_field, ""),
             "context": row.get("context", ""),
             "metadata": {k: v for k, v in row.items() if k not in (content_field, "context")},
-            "gold_labels": {},
+            "gold_labels": _parse_embedded_labels(row),
         })
     return items
+
+
+def _looks_like_theme_level_csv(rows: list[dict[str, Any]]) -> bool:
+    if not rows:
+        return False
+    sample = rows[0]
+    return (
+        _find_content_key(sample) is not None
+        and _find_theme_key(sample) is not None
+        and _find_level_key(sample) is not None
+    )
+
+
+def _parse_theme_level_csv(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Parse long-format coder sheets: one row is quote + theme + level."""
+    items_by_content: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+
+    for row in rows:
+        content_key = _find_content_key(row)
+        theme_key = _find_theme_key(row)
+        level_key = _find_level_key(row)
+        if content_key is None or theme_key is None or level_key is None:
+            continue
+
+        content = str(row.get(content_key, "")).strip()
+        theme = str(row.get(theme_key, "")).strip()
+        level = str(row.get(level_key, "")).strip()
+        if not content:
+            continue
+
+        if content not in items_by_content:
+            order.append(content)
+            items_by_content[content] = {
+                "index": len(order) - 1,
+                "content": content,
+                "context": "",
+                "metadata": {k: v for k, v in row.items() if k != content_key},
+                "gold_labels": {},
+            }
+
+        item = items_by_content[content]
+        if theme and level:
+            existing = item["gold_labels"].get(theme)
+            if existing is None:
+                item["gold_labels"][theme] = level
+            elif isinstance(existing, list):
+                if level not in existing:
+                    existing.append(level)
+            elif existing != level:
+                item["gold_labels"][theme] = [existing, level]
+
+    return [items_by_content[content] for content in order]
+
+
+def _parse_embedded_labels(row: dict[str, Any]) -> dict[str, Any]:
+    for key in ("gold_labels", "labels"):
+        if key in row and row[key]:
+            raw = row[key]
+            if isinstance(raw, dict):
+                return raw
+            if isinstance(raw, str):
+                try:
+                    parsed = json.loads(raw)
+                    return parsed if isinstance(parsed, dict) else {}
+                except json.JSONDecodeError:
+                    return {}
+    return {}
+
+
+def _find_key(row: dict[str, Any], *candidates: str) -> str | None:
+    normalized = {_norm_key(k): k for k in row.keys()}
+    for candidate in candidates:
+        key = normalized.get(_norm_key(candidate))
+        if key is not None:
+            return key
+    return None
+
+
+def _find_content_key(row: dict[str, Any]) -> str | None:
+    return _find_key(
+        row,
+        "Relevant quotes",
+        "Relevant quote",
+        "Quote",
+        "Quotes",
+        "Sentence",
+        "Text",
+        "Response",
+        "Utterance",
+        "Content",
+    )
+
+
+def _find_theme_key(row: dict[str, Any]) -> str | None:
+    return _find_key(
+        row,
+        "Coding theme",
+        "Theme",
+        "Themes",
+        "Dimension",
+        "Dimension name",
+        "Category",
+    )
+
+
+def _find_level_key(row: dict[str, Any]) -> str | None:
+    return _find_key(
+        row,
+        "Level",
+        "Levels",
+        "Label",
+        "Labels",
+        "Code",
+        "Codes",
+        "Annotation",
+    )
+
+
+def _norm_key(value: Any) -> str:
+    return str(value or "").strip().lower().replace("_", " ")
 
 
 def _find_content_field(item: dict) -> str:

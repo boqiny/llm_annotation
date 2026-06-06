@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Pencil } from 'lucide-react'
 import {
   uploadCodebookDraft, pasteCodebookDraft, presetCodebookDraft,
   acceptCodebookDraft, deleteCodebookDraft, patchCodebookDraft,
@@ -13,10 +14,12 @@ export default function CodebookDraftWizard({
   projectId,
   presets,
   onAccepted,
+  replacingName,
 }: {
   projectId: number
   presets: PresetInfo[]
   onAccepted: () => void
+  replacingName?: string
 }) {
   const [door, setDoor] = useState<Door>('preset')            // Door C default
   const [draft, setDraft] = useState<CodebookDraft | null>(null)
@@ -44,7 +47,7 @@ export default function CodebookDraftWizard({
   const handleUpload = async (file: File) => {
     setLoading(`Ingesting ${file.name}…`); setError(''); setDraft(null)
     try {
-      const d = await uploadCodebookDraft(file)
+      const d = await uploadCodebookDraft(projectId, file)
       setDraft(d)
       if (d.status !== 'ready') setError(d.error_message || 'Draft failed.')
     } catch (e: any) {
@@ -61,7 +64,7 @@ export default function CodebookDraftWizard({
     }
     setLoading('Agent reading your text…'); setError(''); setDraft(null)
     try {
-      const d = await pasteCodebookDraft(pasteText)
+      const d = await pasteCodebookDraft(projectId, pasteText)
       setDraft(d)
       if (d.status !== 'ready') setError(d.error_message || 'Draft failed.')
     } catch (e: any) {
@@ -109,37 +112,42 @@ export default function CodebookDraftWizard({
     <div className="space-y-6">
       {/* Door chooser */}
       {!hasDraft && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <DoorCard
-            door="upload"
-            active={door === 'upload'}
-            onClick={() => setDoor('upload')}
-            title="A · Upload a file"
-            hint="PDF · DOCX · XLSX · CSV · JSON · TXT — agent parses + cleans"
-          />
-          <DoorCard
-            door="paste"
-            active={door === 'paste'}
-            onClick={() => setDoor('paste')}
-            title="B · Paste text"
-            hint="Annotator notes, instructions, or an old draft — anything in text"
-          />
-          <DoorCard
-            door="preset"
-            active={door === 'preset'}
-            onClick={() => setDoor('preset')}
-            title="C · Use a preset"
-            hint={`Self-disclosure · AI behavior · ${presets.length} available`}
-            emphasized
-          />
-          <DoorCard
-            door="scratch"
-            active={door === 'scratch'}
-            onClick={() => setDoor('scratch')}
-            title="D · Describe it to me"
-            hint="Conversational elicitor (Phase 3 — not yet available)"
-            disabled
-          />
+        <div className="space-y-4">
+          <div className="border-l-2 border-ink pl-4 text-sm leading-relaxed text-stone-700">
+            A codebook is your label definition. Select one option below to define your codebook.
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <DoorCard
+              door="upload"
+              active={door === 'upload'}
+              onClick={() => setDoor('upload')}
+              title="A. Upload a file"
+              hint="PDF · DOCX · XLSX · CSV · JSON · TXT — agent parses + cleans"
+            />
+            <DoorCard
+              door="paste"
+              active={door === 'paste'}
+              onClick={() => setDoor('paste')}
+              title="B. Paste text"
+              hint="Annotator notes, instructions, or an old draft — anything in text"
+            />
+            <DoorCard
+              door="preset"
+              active={door === 'preset'}
+              onClick={() => setDoor('preset')}
+              title="C. Use a preset"
+              hint={`Self-disclosure · AI behavior · ${presets.length} available`}
+              emphasized
+            />
+            <DoorCard
+              door="scratch"
+              active={door === 'scratch'}
+              onClick={() => setDoor('scratch')}
+              title="D. Describe it to me"
+              hint="Conversational elicitor (Phase 3 — not yet available)"
+              disabled
+            />
+          </div>
         </div>
       )}
 
@@ -197,6 +205,7 @@ export default function CodebookDraftWizard({
           onAccept={handleAccept}
           onDiscard={clearDraft}
           accepting={accepting}
+          replacingName={replacingName}
         />
       )}
     </div>
@@ -227,11 +236,10 @@ function DoorCard({
           : 'border-seam hover:border-stone-400'
       } ${emphasized ? 'ring-1 ring-offset-0 ring-indigo-200' : ''}`}
     >
-      <div className="font-mono-editorial text-stone-500 mb-2">
-        Door {door.toUpperCase()}
-        {emphasized && <span className="ml-2 text-indigo-700">· default</span>}
+      <div className="text-lg font-medium tracking-tight mb-1">
+        {title}
+        {emphasized && <span className="ml-2 align-middle font-mono-editorial text-xs text-indigo-700">default</span>}
       </div>
-      <div className="text-lg font-medium tracking-tight mb-1">{title}</div>
       <p className="text-sm text-stone-600 leading-relaxed">{hint}</p>
     </button>
   )
@@ -369,12 +377,13 @@ function PresetForm({
 /* ─── Draft preview (editable) ──────────────────────────────── */
 
 function DraftPreview({
-  draft, onAccept, onDiscard, accepting,
+  draft, onAccept, onDiscard, accepting, replacingName,
 }: {
   draft: CodebookDraft
   onAccept: (editedJson?: Record<string, any>) => void
   onDiscard: () => void
   accepting: boolean
+  replacingName?: string
 }) {
   // Local working copy. Reset whenever we get a new draft from the server.
   const [working, setWorking] = useState<any>(() => structuredClone(draft.draft_json || {}))
@@ -499,12 +508,16 @@ function DraftPreview({
               </div>
               <div className="flex-1 min-w-0 space-y-2.5">
                 <div className="flex items-baseline gap-3 flex-wrap">
-                  <input
-                    value={dim.name || ''}
-                    onChange={e => updateDim(i, { name: e.target.value })}
-                    className="px-0 py-0.5 bg-transparent border-0 border-b border-transparent hover:border-seam focus:border-ink focus:outline-none text-lg font-medium min-w-0 flex-1"
-                    placeholder="Dimension name"
-                  />
+                  <div className="relative min-w-0 flex-1">
+                    <Pencil className="absolute left-0 top-2 h-3.5 w-3.5 text-stone-400" aria-hidden="true" />
+                    <input
+                      value={dim.name || ''}
+                      onChange={e => updateDim(i, { name: e.target.value })}
+                      className="w-full pl-5 pr-0 py-0.5 bg-transparent border-0 border-b border-transparent hover:border-seam focus:border-ink focus:outline-none text-lg font-medium"
+                      placeholder="Dimension name"
+                      aria-label="Edit dimension name"
+                    />
+                  </div>
                   <select
                     value={dim.type || 'single_label'}
                     onChange={e => updateDim(i, { type: e.target.value })}
@@ -520,24 +533,28 @@ function DraftPreview({
                   <span className="font-mono-editorial text-stone-400">
                     {(dim.labels || []).length} labels
                   </span>
-                  <button
-                    onClick={() => removeDim(i)}
-                    className="ml-auto font-mono-editorial text-stone-400 hover:text-red-600 text-xs"
-                  >
-                    remove dimension
-                  </button>
+	                  <button
+	                    onClick={() => removeDim(i)}
+	                    className="ml-auto px-2.5 py-1 bg-red-50 border border-red-200 text-xs font-medium text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors"
+	                  >
+	                    Remove dimension
+	                  </button>
                 </div>
-                <textarea
-                  value={dim.instructions || ''}
-                  onChange={e => updateDim(i, { instructions: e.target.value })}
-                  rows={2}
-                  className="w-full px-2 py-1.5 bg-paper/40 border border-transparent hover:border-seam focus:border-ink focus:outline-none text-xs text-stone-700 italic leading-relaxed resize-y"
-                  placeholder="Annotation instructions for this dimension (optional)"
-                />
+                <div className="relative">
+                  <Pencil className="absolute left-2 top-2 h-3.5 w-3.5 text-stone-400" aria-hidden="true" />
+                  <textarea
+                    value={dim.instructions || ''}
+                    onChange={e => updateDim(i, { instructions: e.target.value })}
+                    rows={2}
+                    className="w-full pl-7 pr-2 py-1.5 bg-paper/40 border border-transparent hover:border-seam focus:border-ink focus:outline-none text-xs text-stone-700 italic leading-relaxed resize-y"
+                    placeholder="Annotation instructions for this dimension (optional)"
+                    aria-label="Edit dimension instructions"
+                  />
+                </div>
                 <div className="space-y-1">
                   {(dim.labels || []).map((lbl: any, j: number) => (
                     <LabelEditor
-                      key={j}
+                      key={`${draft.id}-${i}-${j}`}
                       lbl={lbl}
                       onChange={(patch) => updateLabel(i, j, patch)}
                       onRemove={() => removeLabel(i, j)}
@@ -634,14 +651,26 @@ function DraftPreview({
           )}
         </div>
       </div>
-
-      {/* BOTTOM: duplicate action bar so users find it after scrolling */}
-      <div className="p-5 border-t border-seam">
-        <ActionBar />
-      </div>
-    </div>
-  )
-}
+      {replacingName && (
+        <div className="border-t border-violet-200 bg-violet-50 px-5 py-4">
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <div className="font-medium text-violet-950">Replacing {replacingName}</div>
+            <button
+              onClick={onDiscard}
+              disabled={accepting}
+              className="font-mono-editorial text-stone-500 hover:text-ink disabled:opacity-40"
+            >
+              cancel
+            </button>
+          </div>
+          <p className="mt-2 text-sm leading-relaxed text-violet-900">
+            Please inspect the parsed dimensions and labels before accepting. A codebook mistake will affect prompt generation, improvement, annotation, and exported results.
+          </p>
+        </div>
+      )}
+	    </div>
+	  )
+	}
 
 function LabelEditor({
   lbl, onChange, onRemove,
@@ -650,7 +679,7 @@ function LabelEditor({
   onChange: (patch: Partial<any>) => void
   onRemove: () => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   return (
     <div className="border border-seam bg-paper/40">
       <div className="flex items-center gap-2 px-2 py-1.5">
@@ -662,12 +691,16 @@ function LabelEditor({
         >
           {open ? '−' : '+'}
         </button>
-        <input
-          value={lbl.name || ''}
-          onChange={e => onChange({ name: e.target.value })}
-          className="px-1 py-0.5 bg-transparent border-0 focus:outline-none focus:bg-white text-xs text-stone-800 flex-1 min-w-0"
-          placeholder="label name"
-        />
+        <div className="relative flex-1 min-w-0">
+          <Pencil className="absolute left-1 top-1.5 h-3 w-3 text-stone-400" aria-hidden="true" />
+          <input
+            value={lbl.name || ''}
+            onChange={e => onChange({ name: e.target.value })}
+            className="w-full pl-5 pr-1 py-0.5 bg-transparent border-0 focus:outline-none focus:bg-white text-xs text-stone-800"
+            placeholder="label name"
+            aria-label="Edit label name"
+          />
+        </div>
         <button
           onClick={onRemove}
           className="font-mono-editorial text-stone-400 hover:text-red-600 text-xs px-1"
@@ -677,15 +710,18 @@ function LabelEditor({
         </button>
       </div>
       {open && (
-        <textarea
-          value={lbl.definition || ''}
-          onChange={e => onChange({ definition: e.target.value })}
-          rows={2}
-          className="w-full px-3 py-2 border-t border-seam bg-white text-xs text-stone-700 leading-relaxed focus:outline-none resize-y"
-          placeholder="What does this label mean? (definition, edge cases)"
-        />
+        <div className="relative border-t border-seam bg-white">
+          <Pencil className="absolute left-3 top-2.5 h-3 w-3 text-stone-400" aria-hidden="true" />
+          <textarea
+            value={lbl.definition || ''}
+            onChange={e => onChange({ definition: e.target.value })}
+            rows={3}
+            className="w-full pl-8 pr-3 py-2 bg-white text-xs text-stone-700 leading-relaxed focus:outline-none resize-y"
+            placeholder="What does this label mean? (definition, edge cases)"
+            aria-label="Edit label definition"
+          />
+        </div>
       )}
     </div>
   )
 }
-

@@ -51,21 +51,41 @@ export const listDatasets = (projectId: number) =>
   api.get<Dataset[]>(`/projects/${projectId}/datasets`).then(r => r.data)
 export const previewDataset = (projectId: number, datasetId: number) =>
   api.get<DatasetPreview>(`/projects/${projectId}/datasets/${datasetId}`).then(r => r.data)
+export const deleteDataset = (projectId: number, datasetId: number) =>
+  api.delete(`/projects/${projectId}/datasets/${datasetId}`)
 
 // Pipelines
-export type DecomposeMode = 'per_dimension' | 'all_together' | 'auto'
-export const decomposePipeline = (projectId: number, mode: DecomposeMode = 'per_dimension') =>
-  api.post<Pipeline>(`/projects/${projectId}/pipelines/decompose`, null, { params: { mode } }).then(r => r.data)
+export const decomposePipeline = (projectId: number) =>
+  api.post<Pipeline>(`/projects/${projectId}/pipelines/decompose`).then(r => r.data)
 export const listPipelines = (projectId: number) =>
   api.get<Pipeline[]>(`/projects/${projectId}/pipelines`).then(r => r.data)
 export const getPipeline = (projectId: number, pipelineId: number) =>
   api.get<Pipeline>(`/projects/${projectId}/pipelines/${pipelineId}`).then(r => r.data)
+export interface AnnotationCostEstimate {
+  dataset_id: number
+  dataset_name: string
+  model: string
+  provider: string
+  n_items: number
+  n_prompts: number
+  n_calls: number
+  prompt_tokens_per_item: number
+  avg_user_tokens_per_step: number
+  estimated_input_tokens: number
+  estimated_output_tokens: number
+  estimated_total_tokens: number
+  estimated_cost: number
+  sample_size: number
+  assumptions: Record<string, string | number>
+}
+export const estimateAnnotationRun = (projectId: number, pipelineId: number, datasetId: number) =>
+  api.get<AnnotationCostEstimate>(`/projects/${projectId}/pipelines/${pipelineId}/estimate`, { params: { dataset_id: datasetId } }).then(r => r.data)
 export const updatePipeline = (projectId: number, pipelineId: number, steps: object[]) =>
   api.put<Pipeline>(`/projects/${projectId}/pipelines/${pipelineId}`, { steps }).then(r => r.data)
 
 // Jobs
-export const startJob = (projectId: number, datasetId: number, pipelineId: number) =>
-  api.post<Job>(`/projects/${projectId}/jobs`, { dataset_id: datasetId, pipeline_id: pipelineId }).then(r => r.data)
+export const startJob = (projectId: number, datasetId: number, pipelineId: number, source = 'annotation') =>
+  api.post<Job>(`/projects/${projectId}/jobs`, { dataset_id: datasetId, pipeline_id: pipelineId, source }).then(r => r.data)
 export const listJobs = (projectId: number) =>
   api.get<Job[]>(`/projects/${projectId}/jobs`).then(r => r.data)
 export const getJob = (projectId: number, jobId: number) =>
@@ -86,6 +106,26 @@ export const getConfusionMatrix = (projectId: number, jobId: number, dimension: 
   api.get<{ classes: string[]; matrix: Record<string, Record<string, number>> }>(
     `/projects/${projectId}/jobs/${jobId}/results/confusion`, { params: { dimension } }
   ).then(r => r.data)
+export interface FeedbackEvidence {
+  result_id: number
+  item_id: number
+  content: string
+  context: string
+  gold_label: string
+  predicted_label: string
+  reasoning: string
+  is_mismatch: boolean
+  match_status?: 'missing' | 'match' | 'partial' | 'mismatch'
+}
+export const getFeedbackEvidence = (
+  projectId: number,
+  jobId: number,
+  dimension: string,
+  params?: { limit?: number; offset?: number; mismatches_only?: boolean },
+) =>
+  api.get<FeedbackEvidence[]>(`/projects/${projectId}/jobs/${jobId}/results/evidence`, {
+    params: { dimension, ...(params || {}) },
+  }).then(r => r.data)
 export const exportResults = (projectId: number, jobId: number, format: 'csv' | 'json' = 'csv') =>
   api.get(`/projects/${projectId}/jobs/${jobId}/results/export`, { params: { format }, responseType: format === 'csv' ? 'blob' : 'json' })
 
@@ -130,9 +170,10 @@ export interface CodebookDraft {
   updated_at: string | null
 }
 
-export const uploadCodebookDraft = async (file: File): Promise<CodebookDraft> => {
+export const uploadCodebookDraft = async (projectId: number, file: File): Promise<CodebookDraft> => {
   const form = new FormData()
   form.append('file', file)
+  form.append('project_id', String(projectId))
   const r = await api.post<CodebookDraft>('/codebook-drafts/upload', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 120_000,
@@ -140,8 +181,8 @@ export const uploadCodebookDraft = async (file: File): Promise<CodebookDraft> =>
   return r.data
 }
 
-export const pasteCodebookDraft = (text: string) =>
-  api.post<CodebookDraft>('/codebook-drafts', { source: 'paste', text }, { timeout: 120_000 })
+export const pasteCodebookDraft = (projectId: number, text: string) =>
+  api.post<CodebookDraft>('/codebook-drafts', { source: 'paste', project_id: projectId, text }, { timeout: 120_000 })
      .then(r => r.data)
 
 export const presetCodebookDraft = (preset_name: string) =>

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
+import re
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -171,10 +172,103 @@ class _FeedbackBatchCommitRequest(_BaseModel):
 
 def _find_pipeline_step(steps: list[dict], dimension_name: str) -> dict | None:
     """Return the first step that covers dimension_name."""
+    target = _norm_dimension_name(dimension_name)
     for step in steps:
-        if dimension_name in step.get("dimensions", []) or step.get("name") == dimension_name:
+        step_name = _norm_dimension_name(step.get("name", ""))
+        step_dims = [_norm_dimension_name(d) for d in step.get("dimensions", [])]
+        if target in step_dims or step_name == target:
             return step
     return None
+
+
+async def _per_dimension_steps_for_prompt_commit(
+    db: AsyncSession,
+    project_id: int,
+    existing_steps: list[dict],
+    dimension_name: str,
+    new_prompt: str,
+) -> list[dict]:
+    """Build one prompt per dimension and preserve known optimized prompts.
+
+    A dimension-level prompt should never replace a multi-dimension step prompt.
+    If the active pipeline is grouped/combined, split it before committing.
+    """
+    codebook = (await db.execute(
+        select(Codebook).where(Codebook.project_id == project_id).order_by(Codebook.id.desc()).limit(1)
+    )).scalars().first()
+    if not codebook:
+        raise HTTPException(400, "No codebook uploaded for this project")
+
+    parsed = parse_codebook(codebook.raw_json)
+    existing_by_dim: dict[str, str] = {}
+    for step in existing_steps:
+        dims = step.get("dimensions") or []
+        if len(dims) == 1 and step.get("prompt"):
+            existing_by_dim[_norm_dimension_name(dims[0])] = str(step["prompt"])
+
+    latest_runs = (await db.execute(
+        select(OptimizerRun)
+        .where(
+            OptimizerRun.project_id == project_id,
+            OptimizerRun.status == "completed",
+            OptimizerRun.optimized_prompt.is_not(None),
+        )
+        .order_by(OptimizerRun.id.desc())
+    )).scalars().all()
+    optimized_by_dim: dict[str, str] = {}
+    for run in latest_runs:
+        if not run.optimized_prompt:
+            continue
+        key = _norm_dimension_name(run.dimension_name)
+        if key not in optimized_by_dim:
+            optimized_by_dim[key] = run.optimized_prompt
+
+    target = _norm_dimension_name(dimension_name)
+    steps: list[dict] = []
+    for dim in parsed.dimensions:
+        key = _norm_dimension_name(dim.name)
+        steps.append({
+            "name": dim.name,
+            "dimensions": [dim.name],
+            "prompt": new_prompt if key == target else optimized_by_dim.get(key) or existing_by_dim.get(key) or generate_dimension_prompt(dim),
+            "gate": None,
+        })
+    return steps
+
+
+def _norm_dimension_name(value: str) -> str:
+    text = str(value or "")
+    text = re.sub(r"\([^)]*\)", " ", text)
+    text = re.sub(r"[^0-9a-zA-Z]+", " ", text)
+    return " ".join(text.split()).casefold()
+
+
+def _label_for_dimension(labels: dict, dimension_name: str):
+    if dimension_name in labels:
+        return labels[dimension_name]
+    target = _norm_dimension_name(dimension_name)
+    for key, value in labels.items():
+        if _norm_dimension_name(key) == target:
+            return value
+    return None
+
+
+def _norm_label_name(value: str) -> str:
+    text = str(value or "")
+    text = re.sub(r"[^0-9a-zA-Z]+", " ", text)
+    return " ".join(text.split()).casefold()
+
+
+def _canonical_gold_labels(value: Any, valid_labels: list[str]) -> list[str]:
+    raw_values = value if isinstance(value, list) else [value]
+    by_norm = {_norm_label_name(label): label for label in valid_labels}
+    canonical: list[str] = []
+    for raw in raw_values:
+        key = _norm_label_name(str(raw))
+        label = by_norm.get(key)
+        if label and label not in canonical:
+            canonical.append(label)
+    return canonical
 
 
 async def _latest_memory(
@@ -382,13 +476,21 @@ async def commit_prompt(
 
     steps = [dict(s) for s in (pipeline.steps or [])]
     updated = False
-    for step in steps:
-        if body.dimension_name in step.get("dimensions", []) or step.get("name") == body.dimension_name:
+    step = _find_pipeline_step(steps, body.dimension_name)
+    if step:
+        if len(step.get("dimensions") or []) > 1:
+            steps = await _per_dimension_steps_for_prompt_commit(
+                db, project_id, steps, body.dimension_name, body.new_prompt
+            )
+        else:
             step["prompt"] = body.new_prompt
-            updated = True
+        updated = True
 
     if not updated:
-        raise HTTPException(400, f"No pipeline step found for dimension '{body.dimension_name}'.")
+        steps = await _per_dimension_steps_for_prompt_commit(
+            db, project_id, steps, body.dimension_name, body.new_prompt
+        )
+        updated = True
 
     pipeline.steps = steps
     await db.commit()
@@ -451,13 +553,21 @@ async def commit_feedback_batch(
 
     steps = [dict(s) for s in (pipeline.steps or [])]
     updated = False
-    for step in steps:
-        if body.dimension_name in step.get("dimensions", []) or step.get("name") == body.dimension_name:
+    step = _find_pipeline_step(steps, body.dimension_name)
+    if step:
+        if len(step.get("dimensions") or []) > 1:
+            steps = await _per_dimension_steps_for_prompt_commit(
+                db, project_id, steps, body.dimension_name, body.new_prompt
+            )
+        else:
             step["prompt"] = body.new_prompt
-            updated = True
+        updated = True
 
     if not updated:
-        raise HTTPException(400, f"No pipeline step found for dimension '{body.dimension_name}'.")
+        steps = await _per_dimension_steps_for_prompt_commit(
+            db, project_id, steps, body.dimension_name, body.new_prompt
+        )
+        updated = True
 
     pipeline.steps = steps
     await db.commit()
@@ -775,13 +885,15 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
         examples: list[Example] = []
         for it in items:
             labels = it.gold_labels or {}
-            if run.dimension_name not in labels:
+            gold_label = _label_for_dimension(labels, run.dimension_name)
+            if gold_label is None:
                 continue
-            examples.append(Example(
-                sentence=it.content,
-                gold=str(labels[run.dimension_name]).strip(),
-                context=it.context or "",
-            ))
+            for canonical_label in _canonical_gold_labels(gold_label, valid_labels):
+                examples.append(Example(
+                    sentence=it.content,
+                    gold=canonical_label,
+                    context=it.context or "",
+                ))
 
         if len(examples) < 15:
             async with async_session() as session:

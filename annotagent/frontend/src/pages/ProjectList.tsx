@@ -66,10 +66,10 @@ export default function ProjectList() {
 
       {/* Projects band */}
       <section>
-        <div className="flex items-end justify-between border-b border-seam pb-4 mb-8">
+        <div className="flex items-end justify-between pb-4 mb-4">
           <div>
             <div className="font-mono-editorial text-stone-500 mb-2">
-              № {projects.length.toString().padStart(2, '0')} · projects
+              Total projects: {projects.length}
             </div>
             <h2 className="text-3xl font-medium tracking-tight">Your projects</h2>
           </div>
@@ -125,10 +125,9 @@ export default function ProjectList() {
           <EmptyState onCreate={() => setShowCreate(true)} />
         ) : (
           <ul className="divide-y divide-seam border-y border-seam">
-            {projects.map((p, i) => (
+            {projects.map(p => (
               <ProjectRow
                 key={p.id}
-                index={i}
                 project={p}
                 onOpen={() => navigate(`/projects/${p.id}/setup`)}
                 onDelete={() => handleDelete(p.id)}
@@ -170,10 +169,9 @@ function formatDate(value: string | null) {
 }
 
 function ProjectRow({
-  project, index, onOpen, onDelete,
+  project, onOpen, onDelete,
 }: {
   project: Project
-  index: number
   onOpen: () => void
   onDelete: () => void
 }) {
@@ -189,7 +187,7 @@ function ProjectRow({
         className="grid grid-cols-12 gap-6 py-6 px-2 cursor-pointer hover:bg-paper/60 transition-colors"
       >
         <div className="col-span-1 font-mono-editorial text-stone-400 pt-1">
-          {(index + 1).toString().padStart(2, '0')}
+          {project.id.toString().padStart(3, '0')}
         </div>
         <div className="col-span-4">
           <div className="flex items-baseline gap-3">

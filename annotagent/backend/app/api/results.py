@@ -4,6 +4,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -11,11 +12,78 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.tables import AnnotationJob, AnnotationResult, DataItem
+from app.models.tables import AnnotationJob, AnnotationResult, DataItem, Dataset
 from app.schemas.schemas import AnnotationResultOut, DimensionMetrics
 from app.engine.metrics import compute_metrics, confusion_matrix
 
 router = APIRouter(prefix="/api/projects/{project_id}/jobs/{job_id}/results", tags=["results"])
+
+
+def _norm_dimension_name(value: str) -> str:
+    text = str(value or "")
+    text = re.sub(r"\([^)]*\)", " ", text)
+    text = re.sub(r"[^0-9a-zA-Z]+", " ", text)
+    return " ".join(text.split()).casefold()
+
+
+def _label_for_dimension(labels: dict, dimension: str):
+    if dimension in labels:
+        return labels[dimension]
+    target = _norm_dimension_name(dimension)
+    for key, value in labels.items():
+        if _norm_dimension_name(key) == target:
+            return value
+    return None
+
+
+def _norm_label(value: str) -> str:
+    text = str(value or "").casefold()
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    tokens = [
+        token for token in text.split()
+        if token not in {"layer", "level", "label", "category"}
+    ]
+    return " ".join(tokens)
+
+
+def _labels_agree(predicted: str, gold: str) -> bool:
+    if not predicted or not gold:
+        return False
+    return _norm_label(predicted) == _norm_label(gold)
+
+
+def _match_status(predicted: str, gold: object) -> str:
+    if not gold:
+        return "missing"
+    if isinstance(gold, list):
+        if not predicted:
+            return "mismatch"
+        return "partial" if any(_labels_agree(predicted, str(g)) for g in gold) else "mismatch"
+    return "match" if _labels_agree(predicted, str(gold)) else "mismatch"
+
+
+def _metadata_value(metadata: dict, candidates: tuple[str, ...]) -> str:
+    for key in candidates:
+        value = metadata.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return ""
+
+
+def _gold_from_coding_metadata(metadata: dict, dimension: str) -> str:
+    """Extract labels from coder CSV rows that store theme/level as metadata."""
+    theme = _metadata_value(metadata, ("Coding theme", "coding theme", "Unnamed: 3"))
+    label = _metadata_value(metadata, ("Level", "level", "Label", "label", "Unnamed: 4"))
+    if _norm_dimension_name(theme) == _norm_dimension_name(dimension) and label:
+        return label
+    return ""
+
+
+def _display_content(item: DataItem) -> str:
+    """Prefer human-readable quote columns over row IDs in coder CSV uploads."""
+    metadata = item.metadata_ or {}
+    quote = _metadata_value(metadata, ("Relevant quotes", "Relevant quotes ", "quote", "Quote", "Unnamed: 6"))
+    return quote or item.content
 
 
 @router.get("", response_model=list[AnnotationResultOut])
@@ -129,6 +197,75 @@ async def get_confusion_matrix(
         return {"classes": [], "matrix": {}}
 
     return confusion_matrix(y_true, y_pred)
+
+
+@router.get("/evidence", response_model=list[dict])
+async def get_feedback_evidence(
+    project_id: int,
+    job_id: int,
+    dimension: str,
+    limit: int = 50,
+    offset: int = 0,
+    mismatches_only: bool = False,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return annotated examples enriched with source text and gold labels.
+
+    This is shaped for the Human feedback tab, where annotators need to see
+    what the model predicted before writing correction notes.
+    """
+    job = await db.get(AnnotationJob, job_id)
+    if not job or job.project_id != project_id:
+        raise HTTPException(404, "Job not found")
+
+    result = await db.execute(
+        select(AnnotationResult, DataItem)
+        .join(DataItem, AnnotationResult.data_item_id == DataItem.id)
+        .where(AnnotationResult.job_id == job_id)
+        .order_by(AnnotationResult.data_item_id, AnnotationResult.step_order)
+    )
+
+    gold_by_content: dict[str, dict] = {}
+    gold_items = await db.execute(
+        select(DataItem)
+        .join(Dataset, DataItem.dataset_id == Dataset.id)
+        .where(Dataset.project_id == project_id)
+        .where(Dataset.is_gold.is_(True))
+    )
+    for item in gold_items.scalars().all():
+        if item.content and item.gold_labels:
+            gold_by_content.setdefault(item.content, item.gold_labels or {})
+
+    rows = []
+    target_dimension = _norm_dimension_name(dimension)
+    for ann, item in result.all():
+        if _norm_dimension_name(ann.dimension_name) != target_dimension:
+            continue
+        labels = item.gold_labels or gold_by_content.get(item.content, {}) or {}
+        gold = _label_for_dimension(labels, dimension)
+        gold_label = ", ".join(map(str, gold)) if isinstance(gold, list) else (str(gold) if gold is not None else "")
+        if not gold_label:
+            gold_label = _gold_from_coding_metadata(item.metadata_ or {}, dimension)
+            gold = gold_label
+        predicted = ann.predicted_label or ""
+        match_status = _match_status(predicted, gold)
+        is_mismatch = match_status == "mismatch"
+        if mismatches_only and match_status not in {"mismatch", "partial"}:
+            continue
+        rows.append({
+            "result_id": ann.id,
+            "item_id": item.id,
+            "content": _display_content(item),
+            "context": item.context or "",
+            "gold_label": gold_label,
+            "predicted_label": predicted,
+            "reasoning": ann.reasoning or "",
+            "is_mismatch": is_mismatch,
+            "match_status": match_status,
+        })
+
+    rows.sort(key=lambda r: (not r["is_mismatch"], r["item_id"]))
+    return rows[offset:offset + limit]
 
 
 @router.get("/export")

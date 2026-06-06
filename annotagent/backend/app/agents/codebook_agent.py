@@ -50,7 +50,6 @@ or spreadsheet dumps), extract a STRUCTURED CODEBOOK with:
   - name, description, top-level mode ("single_label" | "multi_label" | "mixed")
   - dimensions: list of {name, type ("single_label" or "multi_label"),
       instructions, labels: [{name, definition, examples: []}]}
-  - decomposition_hints: {groups: [[dim_name, ...]], order: [step_name, ...]}
   - _rationale_per_dim: {dim_name: "why you chose this mode + any ambiguities"}
 
 MODE INFERENCE:
@@ -65,7 +64,9 @@ RULES:
      columns), synthesize the schema from the OBSERVED labels per theme.
   3. Use canonical casing (Title Case for labels; lowercase with underscores in IDs).
   4. 2-6 dimensions is typical; 3-8 labels per dimension is typical.
-  5. Always include a plausible decomposition_hints with at least one group.
+  5. If a dimension may not apply to every item, include an explicit "No label"
+     label with a definition like "Use when none of the substantive labels apply."
+     Do not represent non-applicability by omitting the dimension or leaving cells blank.
   6. Output STRICT JSON. No prose, no markdown fences, no comments."""
 
 
@@ -127,7 +128,7 @@ async def run_codebook_agent(
     draft_json: dict[str, Any] = {}
     drafter_error: str = ""
 
-    if (provider or "").lower() == "openai":
+    if (provider or "").lower() in {"openai", "anthropic"}:
         # Tool-calling orchestrator: agent inspects the file directly via
         # list_sheets / read_sheet_range / column_unique_values / search_text
         # / read_text and submits the codebook via propose_codebook.
@@ -147,7 +148,7 @@ async def run_codebook_agent(
                 initial_hint = f"Sheet hints: {[t.name for t in ingest.tables]}"
             orch = await run_orchestrator(
                 explorer=explorer,
-                api_key=api_key, model=model,
+                api_key=api_key, provider=provider, model=model,
                 initial_hint=initial_hint,
             )
             if orch.ok:
