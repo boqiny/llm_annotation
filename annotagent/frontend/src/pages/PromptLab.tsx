@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend,
@@ -678,7 +678,9 @@ function PromptCard({
               </div>
             </div>
           ) : (
-            <pre className="px-4 py-3 text-xs text-stone-800 whitespace-pre-wrap font-mono leading-relaxed max-h-[360px] overflow-auto">{text}</pre>
+            <div className="px-4 py-3 max-h-[360px] overflow-auto">
+            <MarkdownLite text={text} />
+          </div>
           )}
         </div>
       )}
@@ -1056,7 +1058,7 @@ function RunsTab({
     <div className="space-y-4">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Master: list */}
-        <div className="lg:col-span-4 border border-seam bg-white max-h-[78vh] overflow-auto">
+        <div className="lg:col-span-3 border border-seam bg-white max-h-[78vh] overflow-auto">
         {runs.map(r => {
           const test = (r.artifact as any)?.test as { final_score?: number; delta?: number } | undefined
           const score = test?.final_score ?? r.final_score
@@ -1101,7 +1103,7 @@ function RunsTab({
         </div>
 
         {/* Detail */}
-        <div className="lg:col-span-8 border border-seam bg-white max-h-[78vh] overflow-auto">
+        <div className="lg:col-span-9 border border-seam bg-white max-h-[78vh] overflow-auto">
         {selectedRun
           ? <RunDetailV2 run={selectedRun} projectId={projectId} onUpdate={onUpdate} onPipelinesRefresh={onPipelinesRefresh} />
           : <Empty>Pick a run on the left.</Empty>
@@ -1153,6 +1155,7 @@ function RunDetailV2({
             <h3 className="text-xl font-medium tracking-tight">{run.dimension_name}</h3>
           </div>
           <div className="flex gap-5 text-right">
+            <div className="self-center font-mono-editorial text-stone-400 text-[10px] leading-tight text-right mr-1">held-out<br/>test</div>
             <Stat label="Before" value={
               isRunning && (test?.initial_score ?? run.initial_score) === 0 ? '—'
               : `${((test?.initial_score ?? run.initial_score) * 100).toFixed(1)}%`
@@ -1186,6 +1189,10 @@ function RunDetailV2({
         <Card title="Trajectory">
           {traj.length >= 1 ? (
             <div className="space-y-3">
+              {/* Phase ribbon: the val curve and the per-round numbers are the
+                  optimizer's internal signal; the honest number is the held-out
+                  test scored once at the end. */}
+              <PhaseRibbon traj={traj} test={test} />
               <div style={{ width: '100%', height: 200 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
@@ -1211,6 +1218,9 @@ function RunDetailV2({
                     <Line type="monotone" dataKey="f1"  name="Val F1"   stroke="#6E4FBE" strokeWidth={2} strokeDasharray="4 3" dot={{ r: 2 }} connectNulls isAnimationActive={!isRunning} />
                   </LineChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="font-mono-editorial text-stone-400 text-[10px] -mt-1 px-1">
+                validation accuracy · the optimizer's internal signal, not the reported score
               </div>
               {/* Compact step-by-step list — separates requested improvement
                   rounds from baseline/final bookkeeping passes. */}
@@ -1565,6 +1575,112 @@ function progressStepLabel(currentRound: number, budget: number): string {
   if (currentRound <= 0) return 'Baseline'
   if (currentRound <= budget) return `Improvement round ${currentRound} / ${budget}`
   return 'Final validation and prompt rewrite'
+}
+
+/** Phase ribbon over the trajectory: search (val) → finalize (val) → test (once).
+    The search rounds and the finalize bookkeeping passes both run on the
+    validation set — the optimizer's internal signal. Only the test phase is the
+    honest, held-out, scored-once number. */
+function PhaseRibbon({ traj, test }: {
+  traj: any[]
+  test?: { initial_score: number; final_score: number; delta: number } | undefined
+}) {
+  const isFin = (a?: string) => a === 'val_consolidation' || a === 'demos_appended' || a === 'prompt_integrated'
+  const search = traj.filter((t) => !isFin(t?.action))
+  const fin = traj.filter((t) => isFin(t?.action))
+  const pct = (x: any) => typeof x === 'number' ? `${(x * 100).toFixed(1)}%` : '—'
+  const searchVal = search.length ? search[search.length - 1].val_acc : undefined
+  const finVal = fin.length ? fin[fin.length - 1].val_acc : undefined
+  const ti = test?.initial_score, tf = test?.final_score
+  const td = typeof test?.delta === 'number' ? test.delta
+    : (typeof ti === 'number' && typeof tf === 'number' ? tf - ti : undefined)
+  return (
+    <div className="flex items-stretch gap-1.5">
+      <RibChip head="Search" sub="validation signal" body={pct(searchVal)} />
+      <RibSep />
+      <RibChip head="Finalize" sub="val · folds val in" body={fin.length ? pct(finVal) : '—'} />
+      <RibSep />
+      <RibChip head="Test" sub="held-out · scored once" emphasized
+        body={typeof tf === 'number' ? `${pct(ti)} → ${pct(tf)}` : '—'}
+        foot={typeof td === 'number' ? `${td >= 0 ? '+' : ''}${(td * 100).toFixed(1)}pp` : undefined} />
+    </div>
+  )
+}
+
+function RibChip({ head, sub, body, foot, emphasized }: {
+  head: string; sub: string; body: string; foot?: string; emphasized?: boolean
+}) {
+  return (
+    <div className={`flex-1 min-w-0 px-2 py-1.5 border ${emphasized ? 'border-emerald-300 bg-emerald-50/50' : 'border-seam bg-paper/40'}`}>
+      <div className={`font-mono-editorial text-[10px] tracking-wide uppercase ${emphasized ? 'text-emerald-700' : 'text-stone-400'}`}>{head}</div>
+      <div className={`font-mono text-xs mt-0.5 truncate ${emphasized ? 'text-emerald-800 font-semibold' : 'text-stone-600'}`}>{body}</div>
+      {foot && <div className="font-mono text-[11px] text-emerald-700 leading-tight">{foot}</div>}
+      <div className="font-mono-editorial text-[9px] text-stone-400 mt-0.5 truncate">{sub}</div>
+    </div>
+  )
+}
+
+function RibSep() {
+  return <div className="self-center text-stone-300 text-sm shrink-0">→</div>
+}
+
+/** Minimal markdown renderer for the prompt subset we emit: ## headings,
+    **bold**, and - bullet lists. Editing stays raw text; this is display only. */
+function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) => {
+    const m = /^\*\*([\s\S]+)\*\*$/.exec(part)
+    if (m) return <strong key={`${keyPrefix}-${i}`} className="font-semibold text-ink">{m[1]}</strong>
+    return <Fragment key={`${keyPrefix}-${i}`}>{part}</Fragment>
+  })
+}
+
+function MarkdownLite({ text }: { text: string }) {
+  const lines = text.split('\n')
+  const blocks: React.ReactNode[] = []
+  let para: string[] = []
+  const flushPara = () => {
+    if (!para.length) return
+    const k = `p${blocks.length}`
+    blocks.push(
+      <p key={k} className="text-stone-700">
+        {para.map((ln, i) => (
+          <Fragment key={i}>{i > 0 && <br />}{renderInline(ln, `${k}-${i}`)}</Fragment>
+        ))}
+      </p>,
+    )
+    para = []
+  }
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (/^#{1,6}\s+/.test(line)) {
+      flushPara()
+      blocks.push(
+        <h4 key={`h${blocks.length}`} className="font-semibold text-ink text-[13px] mt-3 first:mt-0">
+          {line.replace(/^#{1,6}\s+/, '')}
+        </h4>,
+      )
+    } else if (/^[-*]\s+/.test(line)) {
+      flushPara()
+      const items: string[] = []
+      while (i < lines.length && /^[-*]\s+/.test(lines[i])) {
+        items.push(lines[i].replace(/^[-*]\s+/, ''))
+        i++
+      }
+      i--
+      const k = `ul${blocks.length}`
+      blocks.push(
+        <ul key={k} className="list-disc pl-5 space-y-0.5 text-stone-700">
+          {items.map((it, j) => <li key={j}>{renderInline(it, `${k}-${j}`)}</li>)}
+        </ul>,
+      )
+    } else if (line.trim() === '') {
+      flushPara()
+    } else {
+      para.push(line)
+    }
+  }
+  flushPara()
+  return <div className="text-xs leading-relaxed space-y-2">{blocks}</div>
 }
 
 function AuditBadge({ run }: { run: OptimizerRun }) {
