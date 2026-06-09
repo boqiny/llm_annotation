@@ -116,6 +116,24 @@ async def test_apply_rules_to_prompt_returns_clean_updated_prompt(monkeypatch):
     assert updated == "Updated prompt with calibration guidance."
 
 
+async def test_apply_rules_to_prompt_strips_meta_instruction_leak(monkeypatch):
+    async def fake_call_llm(**_kwargs):
+        return SimpleNamespace(text="Updated prompt with calibration guidance.\n\nReturn the updated prompt.")
+
+    monkeypatch.setattr("app.agents.reflect_memory.call_llm", fake_call_llm)
+
+    updated = await apply_rules_to_prompt(
+        base_prompt="Original prompt.",
+        rules=[{"id": "r1", "boundary": "Clarify Low vs High."}],
+        dimension_name="self_disclosure",
+        provider="openai",
+        model="test-model",
+        api_key="test-key",
+    )
+
+    assert updated == "Updated prompt with calibration guidance."
+
+
 async def test_feedback_endpoint_persists_raw_feedback_text_and_utc_created_at(monkeypatch, db_session):
     async def fake_apply_human_feedback(**kwargs):
         assert kwargs["feedback_text"] == "Use Low for hypothetical statements.\nKeep this exact text."
