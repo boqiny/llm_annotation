@@ -1,6 +1,6 @@
 from app.utils.file_parsers import parse_csv_dataset
 from app.api.optimizers import _canonical_gold_labels, _label_for_dimension
-from app.api.results import _match_status
+from app.api.results import _match_status, _metric_gold_label
 
 
 def test_parse_theme_level_csv_as_gold_labels():
@@ -97,3 +97,11 @@ def test_feedback_evidence_marks_list_gold_as_partial_match():
 
     assert _match_status("Sympathetic Responsiveness", gold) == "partial"
     assert _match_status("Humor", gold) == "mismatch"
+
+
+def test_metric_gold_label_counts_matching_list_item_as_correct_target():
+    gold = ["Question-asking", "Sympathetic responsiveness", "Paraphrase"]
+
+    assert _metric_gold_label("Sympathetic Responsiveness", gold) == "Sympathetic Responsiveness"
+    assert _metric_gold_label("Humor", gold) == "Question-asking"
+    assert _metric_gold_label("Back-Channel Response", "Back-channel response") == "Back-Channel Response"
