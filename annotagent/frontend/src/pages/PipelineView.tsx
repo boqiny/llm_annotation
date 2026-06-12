@@ -133,6 +133,27 @@ export default function PipelineView() {
         </div>
       </header>
 
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <RunStepNote
+          n="1"
+          title="Check prompts"
+          body="Use this page when the prompts look ready. Open a dimension prompt if you want one last read before spending tokens."
+          tone="emerald"
+        />
+        <RunStepNote
+          n="2"
+          title="Choose data"
+          body="Upload your real dataset, or select a loaded test dataset for a dry run. Unselect if you are only inspecting prompts."
+          tone="violet"
+        />
+        <RunStepNote
+          n="3"
+          title="Run and review"
+          body="Read the conservative estimate first, then run annotation. Completed jobs stay available in Recent annotation runs."
+          tone="sky"
+        />
+      </section>
+
       {/* Prompt structure */}
       <section>
         <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -219,6 +240,9 @@ export default function PipelineView() {
           <p className="mt-1 text-sm text-stone-600">
             Select or upload the unlabeled dataset AnnotAgent should annotate with these prompts.
           </p>
+          <p className="mt-2 text-xs font-medium text-violet-700">
+            Best moment to run: after you have accepted the codebook, reviewed prompts, and decided which dataset should receive predicted labels.
+          </p>
         </div>
 
         {/* Upload-your-own */}
@@ -226,6 +250,9 @@ export default function PipelineView() {
           <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between mb-4">
             <div className="font-mono-editorial text-violet-700">Upload your own data</div>
             <div className="text-xs text-violet-900/70">Recommended for real annotation runs</div>
+          </div>
+          <div className="mb-3 border border-violet-200 bg-white/80 px-3 py-2 text-xs leading-relaxed text-violet-900">
+            Use this for the dataset you want AnnotAgent to label now. Labeled/gold examples belong in Setup or Improve; this upload is for annotation inputs.
           </div>
           <label className="block border-2 border-dashed border-violet-300 bg-white px-5 py-6 cursor-pointer hover:border-violet-500 hover:bg-violet-50/50 transition">
             <input type="file" accept=".csv,.json" className="hidden" onChange={handleUpload} />
@@ -365,11 +392,45 @@ export default function PipelineView() {
         {/* Run */}
         <div className="flex items-end justify-between gap-6 flex-wrap">
           <div className="space-y-3">
+            {datasets.filter(d => !d.is_gold).length > 0 && (
+              <div>
+                <label className="font-mono-editorial text-stone-500 block mb-1 text-xs">
+                  Loaded data to label
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={selectedDataset ?? ''}
+                    onChange={e => setSelectedDataset(e.target.value ? Number(e.target.value) : null)}
+                    className="min-w-[280px] max-w-full bg-white border border-seam px-3 py-2 text-sm focus:outline-none focus:border-ink"
+                  >
+                    {datasets.filter(d => !d.is_gold).map(d => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} · {d.total_items.toLocaleString()} items
+                      </option>
+                    ))}
+                  </select>
+                  {selectedDataset && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDataset(null)}
+                      className="px-3 py-2 border border-stone-300 bg-white text-stone-700 text-sm font-medium hover:border-ink hover:text-ink transition"
+                    >
+                      Unselect
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="font-mono-editorial text-stone-500">
             {selectedDataset
               ? <>Selected data · <span className="text-ink">{datasets.find(d => d.id === selectedDataset)?.name ?? '—'}</span></>
               : 'Select or upload data above'}
             </div>
+            {!selectedDataset && (
+              <div className="border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                No data is selected, so AnnotAgent will not start an annotation run. Choose a loaded dataset or upload a new one when you are ready.
+              </div>
+            )}
             {selectedDataset && (
               <CostEstimatePanel
                 estimate={estimate}
@@ -396,6 +457,36 @@ export default function PipelineView() {
           </div>
         </div>
       </section>
+    </div>
+  )
+}
+
+function RunStepNote({
+  n, title, body, tone,
+}: {
+  n: string
+  title: string
+  body: string
+  tone: 'emerald' | 'violet' | 'sky'
+}) {
+  const styles = {
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-950 shadow-[0_0_0_1px_rgba(16,185,129,0.08),0_0_24px_rgba(16,185,129,0.12)]',
+    violet: 'border-violet-200 bg-violet-50 text-violet-950 shadow-[0_0_0_1px_rgba(139,92,246,0.08),0_0_24px_rgba(139,92,246,0.12)]',
+    sky: 'border-sky-200 bg-sky-50 text-sky-950 shadow-[0_0_0_1px_rgba(14,165,233,0.08),0_0_24px_rgba(14,165,233,0.12)]',
+  }[tone]
+  const dot = {
+    emerald: 'bg-emerald-500',
+    violet: 'bg-violet-500',
+    sky: 'bg-sky-500',
+  }[tone]
+  return (
+    <div className={`relative overflow-hidden border px-4 py-3 ${styles}`}>
+      <span className={`absolute left-0 top-0 h-full w-1 ${dot}`} />
+      <div className="flex items-baseline gap-3">
+        <span className="font-mono-editorial text-xs opacity-70">{n}</span>
+        <div className="font-medium">{title}</div>
+      </div>
+      <p className="mt-2 text-xs leading-relaxed opacity-80">{body}</p>
     </div>
   )
 }

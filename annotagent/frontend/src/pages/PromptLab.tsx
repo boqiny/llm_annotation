@@ -241,6 +241,8 @@ export default function PromptLabV2() {
         </div>
       </header>
 
+      <DemoWorkflowGuide />
+
       <div className="flex items-end justify-between gap-4 border-b border-seam">
         <Tabs value={tab} onChange={handleTabChange} items={[
           { id: 'prompts', label: 'Prompts',  count: autoPrompt?.prompts.length },
@@ -333,6 +335,7 @@ export default function PromptLabV2() {
           }}
           projectId={projectId}
           onPipelinesRefresh={refreshPipelines}
+          pipelinePromptForDimension={pipelinePromptForDimension}
           onContinue={() => handleTabChange('memory')}
         />
       )}
@@ -344,10 +347,17 @@ export default function PromptLabV2() {
           jobs={jobs}
           datasets={datasets}
           dimensions={activeCb?.dimensions.map(d => d.name) ?? []}
+          pipelinePromptForDimension={pipelinePromptForDimension}
           onRefresh={() => listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([]))}
           onJobsRefresh={() => listJobs(projectId).then(setJobs).catch(() => setJobs([]))}
           onDatasetsRefresh={() => listDatasets(projectId).then(setDatasets).catch(() => setDatasets([]))}
-          onPromptCommitted={() => handleTabChange('prompts')}
+          onPromptCommitted={async () => {
+            await Promise.all([
+              refreshPipelines(),
+              listMemoryVersions(projectId).then(setMemory).catch(() => setMemory([])),
+            ])
+            handleTabChange('prompts')
+          }}
         />
       )}
     </div>
@@ -355,6 +365,61 @@ export default function PromptLabV2() {
 }
 
 /* ─── Tabs primitive ───────────────────────────────────────── */
+
+function DemoWorkflowGuide() {
+  return (
+    <section className="border border-violet-200 bg-violet-50/70 px-4 py-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="font-medium text-violet-950">Suggested demo workflow</div>
+          <p className="mt-1 max-w-4xl text-xs leading-relaxed text-violet-900/85">
+            Treat <span className="font-medium">Prompts</span> as the hub. After Setup generates the pipeline, review the prompts here,
+            then choose a next step based on what evidence you have.
+          </p>
+        </div>
+        <div className="font-mono-editorial text-xs text-violet-700">researcher route map</div>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-4">
+        <WorkflowMiniStep
+          n="01"
+          title="Setup"
+          body="Configure model, inspect the codebook, optionally upload labeled data, then generate the pipeline."
+        />
+        <WorkflowMiniStep
+          n="02"
+          title="Prompts"
+          body="Review active prompts. You can edit, restore, apply an optimization run, or send prompts to annotation."
+        />
+        <WorkflowMiniStep
+          n="03"
+          title="Improve"
+          body="Use labeled/gold examples first when available. Runs evaluate prompt changes before you apply them."
+        />
+        <WorkflowMiniStep
+          n="04"
+          title="Human feedback"
+          body="Use after prompts have produced annotated examples. It is not the first step; create evidence first, then correct it."
+        />
+      </div>
+      <p className="mt-3 border-l-2 border-violet-500 pl-3 text-xs leading-relaxed text-violet-950">
+        After an improvement run, either apply the better prompt and return to Prompts, or continue to Human feedback to review concrete model outputs.
+        After Human feedback applies a generated prompt, return to Prompts to confirm the active source before running large-scale annotation.
+      </p>
+    </section>
+  )
+}
+
+function WorkflowMiniStep({ n, title, body }: { n: string; title: string; body: string }) {
+  return (
+    <div className="border border-violet-200 bg-white/80 px-3 py-2">
+      <div className="flex items-baseline gap-2">
+        <span className="font-mono-editorial text-[11px] text-violet-500">{n}</span>
+        <span className="text-sm font-medium text-violet-950">{title}</span>
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-stone-600">{body}</p>
+    </div>
+  )
+}
 
 function Tabs<T extends string>({
   value, onChange, items,
@@ -462,6 +527,7 @@ function PromptsTab({
             <PromptCard
               key={p.dimension_name}
               dp={p}
+              pipelinePrompt={appliedPrompt}
               optimizedRun={optimized}
               appliedRunId={appliedRun?.id ?? null}
               onJumpToRun={onJumpToRun}
@@ -483,8 +549,8 @@ function PromptsTab({
             tone="violet"
           />
           <NextStepButton
-            title="💬 Cold-start with human feedback"
-            description="No labeled data yet? Write corrections directly and update prompts."
+            title="💬 Human feedback review"
+            description="First create annotated examples, then write corrections and apply them back to prompts."
             onClick={onHumanFeedback}
             tone="sky"
           />
@@ -552,10 +618,19 @@ function NextStepButton({
   )
 }
 
+function readSavedHumanFeedbackPrompt(projectId: number, dimensionName: string): string {
+  try {
+    return localStorage.getItem(`annotagent.humanFeedback.generatedPrompt.${projectId}.${dimensionName}`) ?? ''
+  } catch {
+    return ''
+  }
+}
+
 function PromptCard({
-  dp, optimizedRun, appliedRunId, onJumpToRun, projectId, onPipelineSaved,
+  dp, pipelinePrompt, optimizedRun, appliedRunId, onJumpToRun, projectId, onPipelineSaved,
 }: {
   dp: { dimension_name: string; prompt: string; version: string; path: string; error: string | null }
+  pipelinePrompt: string
   optimizedRun?: OptimizerRun
   appliedRunId: number | null
   onJumpToRun: (runId: number) => void
@@ -567,13 +642,28 @@ function PromptCard({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
+  const [restoring, setRestoring] = useState(false)
   const [err, setErr] = useState('')
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
   const test = (optimizedRun?.artifact as any)?.test as { final_score?: number } | undefined
   const score = test?.final_score ?? optimizedRun?.final_score
-  const text = view === 'optimized' && optimizedRun ? optimizedRun.optimized_prompt : dp.prompt
+  const currentPrompt = pipelinePrompt || dp.prompt
+  const text = view === 'optimized' && optimizedRun ? optimizedRun.optimized_prompt : currentPrompt
   const dirty = draft !== text
+  const canRestoreStartingPrompt = !!pipelinePrompt && pipelinePrompt.trim() !== dp.prompt.trim()
+  const savedHumanPrompt = readSavedHumanFeedbackPrompt(projectId, dp.dimension_name)
+  const currentFromHumanFeedback = !!savedHumanPrompt && currentPrompt.trim() === savedHumanPrompt.trim()
+  const currentSource = appliedRunId
+    ? `run ${String(appliedRunId).padStart(4, '0')} from optimization run`
+    : currentFromHumanFeedback
+      ? 'from Human feedback'
+      : pipelinePrompt
+        ? 'current pipeline'
+        : dp.version
+  const optimizedSource = optimizedRun
+    ? `run ${String(optimizedRun.id).padStart(4, '0')} from optimization run${typeof score === 'number' ? ` · ${(score * 100).toFixed(0)}%` : ''}`
+    : dp.version
 
   useEffect(() => {
     if (!editing) setDraft(text)
@@ -601,6 +691,22 @@ function PromptCard({
     }
   }
 
+  const restoreStartingPrompt = async () => {
+    setRestoring(true); setErr('')
+    try {
+      await commitPrompt(projectId, dp.dimension_name, dp.prompt)
+      await onPipelineSaved()
+      setView('starting')
+      setEditing(false)
+      setDraft(dp.prompt)
+      setSaved(true)
+    } catch (e: any) {
+      setErr(fmtError(e))
+    } finally {
+      setRestoring(false)
+    }
+  }
+
   const copyPrompt = async () => {
     try {
       await navigator.clipboard.writeText(text)
@@ -619,15 +725,26 @@ function PromptCard({
           <span className="font-medium truncate">{dp.dimension_name}</span>
         </div>
         <div className="font-mono-editorial text-xs flex items-center gap-2 shrink-0">
-          {optimizedRun
-            ? <span className="text-violet-700">run {String(optimizedRun.id).padStart(4, '0')}{typeof score === 'number' ? ` · ${(score * 100).toFixed(0)}%` : ''}</span>
-            : <span className="text-stone-400">{dp.version}</span>
-          }
-          {appliedRunId === optimizedRun?.id && <span className="text-emerald-700">applied</span>}
+          <span className={currentFromHumanFeedback ? 'text-sky-700' : appliedRunId ? 'text-violet-700' : 'text-stone-500'}>
+            {currentSource}
+          </span>
+          {optimizedRun && !appliedRunId && !currentFromHumanFeedback && (
+            <span className="text-violet-500">{optimizedSource}</span>
+          )}
+          {(appliedRunId === optimizedRun?.id || currentFromHumanFeedback) && <span className="text-emerald-700">applied</span>}
           {saved && <span className="text-emerald-700">saved</span>}
         </div>
       </button>
       <div className="px-4 py-2 border-t border-seam bg-paper/30 flex items-center justify-end gap-2">
+        {canRestoreStartingPrompt && (
+          <button
+            onClick={restoreStartingPrompt}
+            disabled={restoring}
+            className="px-3 py-1.5 border border-stone-300 bg-white text-stone-700 text-xs font-medium hover:border-ink hover:text-ink transition disabled:opacity-40"
+          >
+            {restoring ? 'Restoring…' : 'Restore starting prompt'}
+          </button>
+        )}
         <button
           onClick={copyPrompt}
           className="px-3 py-1.5 border border-ink bg-white text-ink text-xs font-medium hover:bg-paper transition"
@@ -645,7 +762,7 @@ function PromptCard({
         <div className="border-t border-seam">
           {optimizedRun && (
             <div className="px-4 py-1.5 flex items-center gap-3 border-b border-seam bg-paper/40">
-              <button onClick={() => { setView('starting'); setEditing(false); setErr('') }} className={`text-xs font-mono-editorial ${view === 'starting' ? 'text-ink underline' : 'text-stone-500 hover:text-ink'}`}>starting</button>
+              <button onClick={() => { setView('starting'); setEditing(false); setErr('') }} className={`text-xs font-mono-editorial ${view === 'starting' ? 'text-ink underline' : 'text-stone-500 hover:text-ink'}`}>current pipeline</button>
               <span className="text-stone-300">·</span>
               <button onClick={() => { setView('optimized'); setEditing(false); setErr('') }} className={`text-xs font-mono-editorial ${view === 'optimized' ? 'text-violet-700 underline' : 'text-stone-500 hover:text-ink'}`}>optimized</button>
               <button onClick={() => onJumpToRun(optimizedRun.id)} className="ml-auto text-xs font-mono-editorial text-stone-500 hover:text-ink">open run →</button>
@@ -1026,7 +1143,7 @@ function stratifiedPreview(classes: Record<string, number>, trainPct: number, va
 /* ─── Runs tab (master-detail) ─────────────────────────────── */
 
 function RunsTab({
-  runs, selectedRunId, selectedRun, onSelect, onUpdate, onDelete, onCancel, projectId, onPipelinesRefresh, onContinue,
+  runs, selectedRunId, selectedRun, onSelect, onUpdate, onDelete, onCancel, projectId, onPipelinesRefresh, pipelinePromptForDimension, onContinue,
 }: {
   runs: OptimizerRun[]
   selectedRunId: number | null
@@ -1037,6 +1154,7 @@ function RunsTab({
   onCancel: (r: OptimizerRun) => void
   projectId: number
   onPipelinesRefresh: () => Promise<void>
+  pipelinePromptForDimension: (dimensionName: string) => string
   onContinue: () => void
 }) {
   if (runs.length === 0) {
@@ -1105,7 +1223,15 @@ function RunsTab({
         {/* Detail */}
         <div className="lg:col-span-9 border border-seam bg-white max-h-[78vh] overflow-auto">
         {selectedRun
-          ? <RunDetailV2 run={selectedRun} projectId={projectId} onUpdate={onUpdate} onPipelinesRefresh={onPipelinesRefresh} />
+          ? (
+            <RunDetailV2
+              run={selectedRun}
+              projectId={projectId}
+              onUpdate={onUpdate}
+              onPipelinesRefresh={onPipelinesRefresh}
+              currentPipelinePrompt={pipelinePromptForDimension(selectedRun.dimension_name)}
+            />
+          )
           : <Empty>Pick a run on the left.</Empty>
         }
         </div>
@@ -1123,8 +1249,14 @@ function RunsTab({
 }
 
 function RunDetailV2({
-  run, projectId, onUpdate, onPipelinesRefresh,
-}: { run: OptimizerRun; projectId: number; onUpdate: (r: OptimizerRun) => void; onPipelinesRefresh: () => Promise<void> }) {
+  run, projectId, onUpdate, onPipelinesRefresh, currentPipelinePrompt,
+}: {
+  run: OptimizerRun
+  projectId: number
+  onUpdate: (r: OptimizerRun) => void
+  onPipelinesRefresh: () => Promise<void>
+  currentPipelinePrompt: string
+}) {
   const test = (run.artifact as any)?.test as
     | { initial_score: number; final_score: number; delta: number; n: number; initial_metrics?: any; final_metrics?: any }
     | undefined
@@ -1298,7 +1430,13 @@ function RunDetailV2({
       {/* Editable prompt */}
       {run.optimized_prompt && (
         run.status === 'completed' && (
-          <UseImprovedPromptCard run={run} projectId={projectId} onUpdate={onUpdate} onApplied={onPipelinesRefresh} />
+          <UseImprovedPromptCard
+            run={run}
+            projectId={projectId}
+            onUpdate={onUpdate}
+            onApplied={onPipelinesRefresh}
+            currentPipelinePrompt={currentPipelinePrompt}
+          />
         )
       )}
     </div>
@@ -1752,13 +1890,15 @@ function UseImprovedPromptCard({
   projectId,
   onUpdate,
   onApplied,
+  currentPipelinePrompt,
 }: {
   run: OptimizerRun
   projectId: number
   onUpdate: (r: OptimizerRun) => void
   onApplied: () => Promise<void>
+  currentPipelinePrompt: string
 }) {
-  const [currentPrompt, setCurrentPrompt] = useState('')
+  const [currentPrompt, setCurrentPrompt] = useState(currentPipelinePrompt)
   const [draft, setDraft] = useState(run.optimized_prompt)
   const [editing, setEditing] = useState(false)
   const [foundCurrentPrompt, setFoundCurrentPrompt] = useState(false)
@@ -1766,12 +1906,15 @@ function UseImprovedPromptCard({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
-  const [committed, setCommitted] = useState(false)
   const [err, setErr] = useState('')
 
   useEffect(() => {
+    setCurrentPrompt(currentPipelinePrompt)
+  }, [currentPipelinePrompt])
+
+  useEffect(() => {
     let cancelled = false
-    setLoading(true); setErr(''); setCommitted(false)
+    setLoading(true); setErr('')
     setFoundCurrentPrompt(false)
     setDraft(run.optimized_prompt)
     setEditing(false)
@@ -1810,9 +1953,16 @@ function UseImprovedPromptCard({
       }
       await commitPrompt(projectId, run.dimension_name, promptToApply)
       await onApplied()
-      setCurrentPrompt(promptToApply)
+      const pipelines = await listPipelines(projectId)
+      const latest = pipelines.slice().sort((a, b) => b.id - a.id)[0]
+      const step = (latest?.steps || []).find((s: any) =>
+        normDimensionName(s?.name || '') === normDimensionName(run.dimension_name)
+        || (Array.isArray(s?.dimensions) && s.dimensions.some((d: string) => normDimensionName(d) === normDimensionName(run.dimension_name)))
+      )
+      setCurrentPrompt(String((step as any)?.prompt || promptToApply))
+      setFoundCurrentPrompt(!!step)
+      setPipelineId(latest?.id ?? null)
       setEditing(false)
-      setCommitted(true)
     } catch (e: any) {
       setErr(fmtError(e))
     } finally {
@@ -1851,7 +2001,7 @@ function UseImprovedPromptCard({
               disabled={!canCommit}
               className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition"
             >
-              {saving ? 'Applying…' : alreadyApplied || committed ? 'Applied' : 'Apply'}
+              {saving ? 'Applying…' : alreadyApplied ? 'Applied' : 'Apply'}
             </button>
           </div>
         }
@@ -1977,16 +2127,17 @@ function DiffView({ oldText, newText }: { oldText: string; newText: string }) {
 
 /* ─── Memory tab ────────────────────────────────────────────── */
 
-function MemoryTab({ memory, projectId, jobs, datasets, dimensions, onRefresh, onJobsRefresh, onDatasetsRefresh, onPromptCommitted }: {
+function MemoryTab({ memory, projectId, jobs, datasets, dimensions, pipelinePromptForDimension, onRefresh, onJobsRefresh, onDatasetsRefresh, onPromptCommitted }: {
   memory: MemoryVersion[]
   projectId: number
   jobs: Job[]
   datasets: Dataset[]
   dimensions: string[]
+  pipelinePromptForDimension: (dimensionName: string) => string
   onRefresh: () => void
   onJobsRefresh: () => void
   onDatasetsRefresh: () => void
-  onPromptCommitted: () => void
+  onPromptCommitted: () => Promise<void>
 }) {
   const byDim: Record<string, MemoryVersion[]> = {}
   for (const v of memory) {
@@ -2048,12 +2199,13 @@ function MemoryTab({ memory, projectId, jobs, datasets, dimensions, onRefresh, o
             </ul>
           )}
           <div className="flex items-start gap-4 mt-2">
-            <FeedbackBatchPanel
-              projectId={projectId}
-              dimensionName={d}
-              onRefresh={onRefresh}
-              onCommitted={onPromptCommitted}
-            />
+	            <FeedbackBatchPanel
+	              projectId={projectId}
+	              dimensionName={d}
+	              currentPipelinePrompt={pipelinePromptForDimension(d)}
+	              onRefresh={onRefresh}
+	              onCommitted={onPromptCommitted}
+	            />
           </div>
         </div>
       ))}
@@ -2402,12 +2554,13 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
 }
 
 function FeedbackBatchPanel({
-  projectId, dimensionName, onRefresh, onCommitted,
+  projectId, dimensionName, currentPipelinePrompt, onRefresh, onCommitted,
 }: {
   projectId: number
   dimensionName: string
+  currentPipelinePrompt: string
   onRefresh: () => void
-  onCommitted: () => void
+  onCommitted: () => Promise<void>
 }) {
   const [state, setState] = useState<ApplyState>('idle')
   const [open, setOpen] = useState(false)
@@ -2419,8 +2572,10 @@ function FeedbackBatchPanel({
   const [savedPrompt, setSavedPrompt] = useState('')
   const [showSavedPrompt, setShowSavedPrompt] = useState(false)
   const [error, setError] = useState('')
+  const [reapplying, setReapplying] = useState(false)
   const savedPromptKey = `annotagent.humanFeedback.generatedPrompt.${projectId}.${dimensionName}`
   const draftsKey = `annotagent.humanFeedback.drafts.${projectId}.${dimensionName}`
+  const savedPromptApplied = !!savedPrompt && savedPrompt.trim() === currentPipelinePrompt.trim()
 
   useEffect(() => {
     try {
@@ -2499,10 +2654,26 @@ function FeedbackBatchPanel({
       saveDrafts([])
       setState('done')
       onRefresh()
-      onCommitted()
+      await onCommitted()
     } catch (e: any) {
       setError(e?.response?.data?.detail ?? 'Commit failed')
       setState('error')
+    }
+  }
+
+  const handleReapplySavedPrompt = async () => {
+    if (!savedPrompt || savedPromptApplied) return
+    setReapplying(true)
+    setError('')
+    try {
+      await commitPrompt(projectId, dimensionName, savedPrompt)
+      await onCommitted()
+      setState('done')
+    } catch (e: any) {
+      setError(e?.response?.data?.detail ?? 'Re-apply failed')
+      setState('error')
+    } finally {
+      setReapplying(false)
     }
   }
 
@@ -2520,13 +2691,25 @@ function FeedbackBatchPanel({
       <div className="flex items-baseline justify-between gap-3">
         <div className="font-mono-editorial text-xs text-stone-500">
           Generated prompt for <em>{dimensionName}</em>
+          {savedPromptApplied && <span className="ml-2 text-emerald-700">active</span>}
         </div>
-        <button
-          onClick={() => setShowSavedPrompt(false)}
-          className="font-mono-editorial text-xs text-stone-400 hover:text-ink"
-        >
-          hide
-        </button>
+        <div className="flex items-center gap-2">
+          {!savedPromptApplied && (
+            <button
+              onClick={handleReapplySavedPrompt}
+              disabled={reapplying}
+              className="px-2 py-1 bg-violet-700 text-white text-xs font-medium disabled:opacity-40"
+            >
+              {reapplying ? 'Re-applying…' : 'Re-apply'}
+            </button>
+          )}
+          <button
+            onClick={() => setShowSavedPrompt(false)}
+            className="font-mono-editorial text-xs text-stone-400 hover:text-ink"
+          >
+            hide
+          </button>
+        </div>
       </div>
       <pre className="max-h-96 overflow-auto whitespace-pre-wrap break-words border border-seam bg-white p-3 font-mono text-xs leading-relaxed text-stone-800">
         {savedPrompt}
@@ -2602,6 +2785,15 @@ function FeedbackBatchPanel({
               Show generated prompt
             </button>
           )}
+          {savedPrompt && !savedPromptApplied && (
+            <button
+              onClick={handleReapplySavedPrompt}
+              disabled={reapplying}
+              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-700 text-white text-xs font-medium hover:bg-violet-800 transition-colors disabled:opacity-40"
+            >
+              {reapplying ? 'Re-applying…' : 'Re-apply generated prompt'}
+            </button>
+          )}
         </div>
         {generatedPromptPanel}
       </div>
@@ -2623,6 +2815,15 @@ function FeedbackBatchPanel({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 border border-stone-300 text-xs font-medium text-stone-700 hover:bg-stone-200 transition-colors"
             >
               Show generated prompt
+            </button>
+          )}
+          {savedPrompt && !savedPromptApplied && (
+            <button
+              onClick={handleReapplySavedPrompt}
+              disabled={reapplying}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-700 text-white text-xs font-medium hover:bg-violet-800 transition-colors disabled:opacity-40"
+            >
+              {reapplying ? 'Re-applying…' : 'Re-apply generated prompt'}
             </button>
           )}
           <button onClick={reset} className="font-mono-editorial text-xs text-stone-400 hover:text-ink">
