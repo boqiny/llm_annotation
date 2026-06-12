@@ -241,6 +241,8 @@ export default function PromptLabV2() {
         </div>
       </header>
 
+      <DemoWorkflowGuide />
+
       <div className="flex items-end justify-between gap-4 border-b border-seam">
         <Tabs value={tab} onChange={handleTabChange} items={[
           { id: 'prompts', label: 'Prompts',  count: autoPrompt?.prompts.length },
@@ -363,6 +365,61 @@ export default function PromptLabV2() {
 }
 
 /* ─── Tabs primitive ───────────────────────────────────────── */
+
+function DemoWorkflowGuide() {
+  return (
+    <section className="border border-violet-200 bg-violet-50/70 px-4 py-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="font-medium text-violet-950">Suggested demo workflow</div>
+          <p className="mt-1 max-w-4xl text-xs leading-relaxed text-violet-900/85">
+            Treat <span className="font-medium">Prompts</span> as the hub. After Setup generates the pipeline, review the prompts here,
+            then choose a next step based on what evidence you have.
+          </p>
+        </div>
+        <div className="font-mono-editorial text-xs text-violet-700">researcher route map</div>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-4">
+        <WorkflowMiniStep
+          n="01"
+          title="Setup"
+          body="Configure model, inspect the codebook, optionally upload labeled data, then generate the pipeline."
+        />
+        <WorkflowMiniStep
+          n="02"
+          title="Prompts"
+          body="Review active prompts. You can edit, restore, apply an optimization run, or send prompts to annotation."
+        />
+        <WorkflowMiniStep
+          n="03"
+          title="Improve"
+          body="Use labeled/gold examples first when available. Runs evaluate prompt changes before you apply them."
+        />
+        <WorkflowMiniStep
+          n="04"
+          title="Human feedback"
+          body="Use after prompts have produced annotated examples. It is not the first step; create evidence first, then correct it."
+        />
+      </div>
+      <p className="mt-3 border-l-2 border-violet-500 pl-3 text-xs leading-relaxed text-violet-950">
+        After an improvement run, either apply the better prompt and return to Prompts, or continue to Human feedback to review concrete model outputs.
+        After Human feedback applies a generated prompt, return to Prompts to confirm the active source before running large-scale annotation.
+      </p>
+    </section>
+  )
+}
+
+function WorkflowMiniStep({ n, title, body }: { n: string; title: string; body: string }) {
+  return (
+    <div className="border border-violet-200 bg-white/80 px-3 py-2">
+      <div className="flex items-baseline gap-2">
+        <span className="font-mono-editorial text-[11px] text-violet-500">{n}</span>
+        <span className="text-sm font-medium text-violet-950">{title}</span>
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-stone-600">{body}</p>
+    </div>
+  )
+}
 
 function Tabs<T extends string>({
   value, onChange, items,
@@ -492,8 +549,8 @@ function PromptsTab({
             tone="violet"
           />
           <NextStepButton
-            title="💬 Cold-start with human feedback"
-            description="No labeled data yet? Write corrections directly and update prompts."
+            title="💬 Human feedback review"
+            description="First create annotated examples, then write corrections and apply them back to prompts."
             onClick={onHumanFeedback}
             tone="sky"
           />
