@@ -166,6 +166,189 @@ async def test_feedback_endpoint_persists_raw_feedback_text_and_utc_created_at(m
     assert row.rules_json == [{"id": "hypothetical", "boundary": "Hypothetical statements are not actual disclosures."}]
 
 
+async def test_apply_feedback_scopes_memory_to_active_codebook_and_restarts_version(monkeypatch, db_session):
+    async def fake_apply_human_feedback(**kwargs):
+        assert kwargs["existing_rules"] == []
+        return [{"id": "new_codebook_rule", "boundary": "Rule for the replacement codebook."}]
+
+    monkeypatch.setattr(optimizers, "apply_human_feedback", fake_apply_human_feedback)
+
+    project = Project(name="Codebook-scoped feedback", llm_provider="openai", llm_model="test-model")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    old_codebook = Codebook(project_id=project.id, name="Old codebook", raw_json={"dimensions": []})
+    db_session.add(old_codebook)
+    await db_session.commit()
+    await db_session.refresh(old_codebook)
+
+    old_memory = ReflectMemoryVersion(
+        project_id=project.id,
+        codebook_id=old_codebook.id,
+        dimension_name="tone",
+        version=3,
+        rules_json=[{"id": "old_rule", "boundary": "Rule from the previous codebook."}],
+        new_rules_count=1,
+    )
+    db_session.add(old_memory)
+    await db_session.commit()
+
+    replacement_codebook = Codebook(project_id=project.id, name="Replacement codebook", raw_json={"dimensions": []})
+    db_session.add(replacement_codebook)
+    await db_session.commit()
+    await db_session.refresh(replacement_codebook)
+
+    response = await optimizers.apply_feedback(
+        project_id=project.id,
+        body=optimizers._FeedbackRequest(
+            dimension_name="tone",
+            feedback="This is feedback for the replacement codebook.",
+        ),
+        db=db_session,
+    )
+
+    assert response["version"] == 1
+    assert response["codebook_id"] == replacement_codebook.id
+
+    rows = (
+        await db_session.execute(
+            select(ReflectMemoryVersion).where(ReflectMemoryVersion.project_id == project.id)
+        )
+    ).scalars().all()
+    assert sorted((row.codebook_id, row.version) for row in rows) == [
+        (old_codebook.id, 3),
+        (replacement_codebook.id, 1),
+    ]
+
+
+async def test_memory_versions_only_show_active_codebook_rows(db_session):
+    project = Project(name="Active codebook memory list")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    old_codebook = Codebook(project_id=project.id, name="Old codebook", raw_json={"dimensions": []})
+    db_session.add(old_codebook)
+    await db_session.commit()
+    await db_session.refresh(old_codebook)
+
+    replacement_codebook = Codebook(project_id=project.id, name="Replacement codebook", raw_json={"dimensions": []})
+    db_session.add(replacement_codebook)
+    await db_session.commit()
+    await db_session.refresh(replacement_codebook)
+
+    db_session.add_all([
+        ReflectMemoryVersion(
+            project_id=project.id,
+            codebook_id=old_codebook.id,
+            dimension_name="tone",
+            version=1,
+            rules_json=[{"id": "old_rule"}],
+        ),
+        ReflectMemoryVersion(
+            project_id=project.id,
+            codebook_id=replacement_codebook.id,
+            dimension_name="tone",
+            version=1,
+            rules_json=[{"id": "active_rule"}],
+        ),
+    ])
+    await db_session.commit()
+
+    versions = await optimizers.list_memory_versions(project_id=project.id, db=db_session)
+
+    assert len(versions) == 1
+    assert versions[0]["codebook_id"] == replacement_codebook.id
+    assert versions[0]["rules"] == [{"id": "active_rule"}]
+
+
+async def test_preview_prompt_ignores_legacy_unscoped_memory_when_codebook_exists(monkeypatch, db_session):
+    async def fake_apply_rules_to_prompt(**_kwargs):
+        raise AssertionError("Legacy memory should not be used for prompt preview.")
+
+    monkeypatch.setattr(optimizers, "apply_rules_to_prompt", fake_apply_rules_to_prompt)
+
+    project = Project(name="Legacy memory boundary", llm_provider="openai", llm_model="test-model")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    codebook = Codebook(project_id=project.id, name="Active codebook", raw_json={"dimensions": []})
+    legacy_memory = ReflectMemoryVersion(
+        project_id=project.id,
+        codebook_id=None,
+        dimension_name="tone",
+        version=7,
+        rules_json=[{"id": "legacy_rule", "boundary": "Old unscoped rule."}],
+        new_rules_count=1,
+    )
+    pipeline = Pipeline(
+        project_id=project.id,
+        steps=[{"name": "tone", "dimensions": ["tone"], "prompt": "Original prompt."}],
+        auto_generated=True,
+    )
+    db_session.add_all([codebook, legacy_memory, pipeline])
+    await db_session.commit()
+
+    with pytest.raises(Exception) as exc:
+        await optimizers.preview_prompt(
+            project_id=project.id,
+            body=optimizers._PreviewRequest(dimension_name="tone"),
+            db=db_session,
+        )
+
+    assert getattr(exc.value, "status_code", None) == 400
+    assert "No memory rules found" in exc.value.detail
+
+
+async def test_feedback_batch_preview_ignores_legacy_unscoped_memory_when_codebook_exists(monkeypatch, db_session):
+    async def fake_apply_human_feedback(**kwargs):
+        assert kwargs["existing_rules"] == []
+        return [{"id": "fresh_rule", "boundary": "Fresh active-codebook rule."}]
+
+    async def fake_apply_rules_to_prompt(**kwargs):
+        assert [rule["id"] for rule in kwargs["rules"]] == ["fresh_rule"]
+        return "Updated prompt."
+
+    monkeypatch.setattr(optimizers, "apply_human_feedback", fake_apply_human_feedback)
+    monkeypatch.setattr(optimizers, "apply_rules_to_prompt", fake_apply_rules_to_prompt)
+
+    project = Project(name="Legacy batch boundary", llm_provider="openai", llm_model="test-model")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    codebook = Codebook(project_id=project.id, name="Active codebook", raw_json={"dimensions": []})
+    legacy_memory = ReflectMemoryVersion(
+        project_id=project.id,
+        codebook_id=None,
+        dimension_name="tone",
+        version=7,
+        rules_json=[{"id": "legacy_rule", "boundary": "Old unscoped rule."}],
+        new_rules_count=1,
+    )
+    pipeline = Pipeline(
+        project_id=project.id,
+        steps=[{"name": "tone", "dimensions": ["tone"], "prompt": "Original prompt."}],
+        auto_generated=True,
+    )
+    db_session.add_all([codebook, legacy_memory, pipeline])
+    await db_session.commit()
+
+    preview = await optimizers.preview_feedback_batch(
+        project_id=project.id,
+        body=optimizers._FeedbackBatchPreviewRequest(
+            dimension_name="tone",
+            feedbacks=["Use Neutral for ambiguous text."],
+        ),
+        db=db_session,
+    )
+
+    assert preview["memory_version"] == 1
+    assert preview["rules"] == [{"id": "fresh_rule", "boundary": "Fresh active-codebook rule."}]
+
+
 async def test_preview_does_not_write_and_commit_updates_pipeline(monkeypatch, tmp_path, db_session):
     async def fake_apply_rules_to_prompt(**kwargs):
         assert kwargs["base_prompt"] == "Original prompt."
@@ -344,6 +527,43 @@ async def test_feedback_batch_preview_is_dry_run_and_commit_saves_memory_and_pro
     updated = await db_session.get(Pipeline, pipeline.id)
     assert updated.steps[0]["prompt"] == "Batch-updated prompt."
     assert (tmp_path / "prompts" / "self_disclosure" / "human_memory" / "v001.txt").read_text() == "Batch-updated prompt."
+
+
+async def test_feedback_batch_commit_writes_active_codebook_id(monkeypatch, tmp_path, db_session):
+    monkeypatch.setattr(optimizers, "project_paths", lambda _project_id: {"prompts": tmp_path / "prompts"})
+
+    project = Project(name="Batch codebook scoping", llm_provider="openai", llm_model="test-model")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    codebook = Codebook(project_id=project.id, name="Active codebook", raw_json={"dimensions": []})
+    pipeline = Pipeline(
+        project_id=project.id,
+        steps=[{"name": "tone", "dimensions": ["tone"], "prompt": "Original prompt."}],
+        auto_generated=True,
+    )
+    db_session.add_all([codebook, pipeline])
+    await db_session.commit()
+    await db_session.refresh(codebook)
+
+    commit = await optimizers.commit_feedback_batch(
+        project_id=project.id,
+        body=optimizers._FeedbackBatchCommitRequest(
+            dimension_name="tone",
+            feedbacks=["Prefer Neutral for ambiguous cases."],
+            rules=[{"id": "ambiguous_neutral", "boundary": "Ambiguous cases are Neutral."}],
+            new_prompt="Updated prompt.",
+        ),
+        db=db_session,
+    )
+
+    assert commit["memory"]["codebook_id"] == codebook.id
+
+    row = (
+        await db_session.execute(select(ReflectMemoryVersion).where(ReflectMemoryVersion.id == commit["memory"]["id"]))
+    ).scalars().one()
+    assert row.codebook_id == codebook.id
 
 
 async def test_feedback_evidence_returns_content_gold_prediction_and_mismatches(db_session):
