@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.agents.reflect_memory import apply_human_feedback, apply_rules_to_prompt
 from app.api import optimizers
 from app.api import results
-from app.models.tables import AnnotationJob, AnnotationResult, Base, DataItem, Dataset, JobStatus, Pipeline, Project, ReflectMemoryVersion
+from app.models.tables import AnnotationJob, AnnotationResult, Base, Codebook, DataItem, Dataset, JobStatus, Pipeline, Project, ReflectMemoryVersion
 
 
 @pytest.fixture
@@ -116,6 +116,24 @@ async def test_apply_rules_to_prompt_returns_clean_updated_prompt(monkeypatch):
     assert updated == "Updated prompt with calibration guidance."
 
 
+async def test_apply_rules_to_prompt_strips_meta_instruction_leak(monkeypatch):
+    async def fake_call_llm(**_kwargs):
+        return SimpleNamespace(text="Updated prompt with calibration guidance.\n\nReturn the updated prompt.")
+
+    monkeypatch.setattr("app.agents.reflect_memory.call_llm", fake_call_llm)
+
+    updated = await apply_rules_to_prompt(
+        base_prompt="Original prompt.",
+        rules=[{"id": "r1", "boundary": "Clarify Low vs High."}],
+        dimension_name="self_disclosure",
+        provider="openai",
+        model="test-model",
+        api_key="test-key",
+    )
+
+    assert updated == "Updated prompt with calibration guidance."
+
+
 async def test_feedback_endpoint_persists_raw_feedback_text_and_utc_created_at(monkeypatch, db_session):
     async def fake_apply_human_feedback(**kwargs):
         assert kwargs["feedback_text"] == "Use Low for hypothetical statements.\nKeep this exact text."
@@ -201,6 +219,62 @@ async def test_preview_does_not_write_and_commit_updates_pipeline(monkeypatch, t
     updated = await db_session.get(Pipeline, pipeline.id)
     assert updated.steps[0]["prompt"] == "Updated prompt."
     assert (tmp_path / "prompts" / "self_disclosure" / "human_memory" / "v001.txt").read_text() == "Updated prompt."
+
+
+async def test_commit_prompt_splits_grouped_pipeline_and_preserves_other_dimension(monkeypatch, tmp_path, db_session):
+    monkeypatch.setattr(optimizers, "project_paths", lambda _project_id: {"prompts": tmp_path / "prompts"})
+
+    project = Project(name="Grouped pipeline commit test", llm_provider="openai", llm_model="test-model")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    codebook = Codebook(
+        project_id=project.id,
+        name="AI behavior",
+        raw_json={
+            "name": "AI behavior",
+            "dimensions": [
+                {
+                    "name": "Listening Strategy",
+                    "type": "single_label",
+                    "labels": [{"name": "Question-Asking"}, {"name": "Paraphrase"}],
+                },
+                {
+                    "name": "Support Type",
+                    "type": "single_label",
+                    "labels": [{"name": "Emotional"}, {"name": "Functional"}],
+                },
+            ],
+        },
+    )
+    pipeline = Pipeline(
+        project_id=project.id,
+        steps=[{
+            "name": "Combined",
+            "dimensions": ["Listening Strategy", "Support Type"],
+            "prompt": "Combined prompt.",
+        }],
+        auto_generated=True,
+    )
+    db_session.add_all([codebook, pipeline])
+    await db_session.commit()
+    await db_session.refresh(pipeline)
+
+    await optimizers.commit_prompt(
+        project_id=project.id,
+        body=optimizers._CommitRequest(
+            dimension_name="Listening Strategy",
+            new_prompt="Updated listening prompt.",
+        ),
+        db=db_session,
+    )
+
+    updated = await db_session.get(Pipeline, pipeline.id)
+    assert [step["dimensions"] for step in updated.steps] == [["Listening Strategy"], ["Support Type"]]
+    assert updated.steps[0]["prompt"] == "Updated listening prompt."
+    assert "Support Type" in updated.steps[1]["prompt"]
+    assert "Updated listening prompt." not in updated.steps[1]["prompt"]
 
 
 async def test_feedback_batch_preview_is_dry_run_and_commit_saves_memory_and_prompt(monkeypatch, tmp_path, db_session):
@@ -355,6 +429,154 @@ async def test_feedback_evidence_returns_content_gold_prediction_and_mismatches(
 
     assert len(mismatches) == 1
     assert mismatches[0]["item_id"] == item_mismatch.id
+
+
+async def test_feedback_evidence_review_filter_includes_partial_matches(db_session):
+    project = Project(name="Partial evidence test")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    dataset = Dataset(project_id=project.id, name="Gold", total_items=2, is_gold=True)
+    pipeline = Pipeline(project_id=project.id, steps=[], auto_generated=True)
+    db_session.add_all([dataset, pipeline])
+    await db_session.commit()
+    await db_session.refresh(dataset)
+    await db_session.refresh(pipeline)
+
+    partial_item = DataItem(
+        dataset_id=dataset.id,
+        index=0,
+        content="Tell me more.",
+        gold_labels={"Listening strategy": ["Question-asking", "Paraphrase"]},
+    )
+    match_item = DataItem(
+        dataset_id=dataset.id,
+        index=1,
+        content="Uh-huh.",
+        gold_labels={"Listening strategy": "Back-channel response"},
+    )
+    db_session.add_all([partial_item, match_item])
+    await db_session.commit()
+    await db_session.refresh(partial_item)
+    await db_session.refresh(match_item)
+
+    job = AnnotationJob(
+        project_id=project.id,
+        dataset_id=dataset.id,
+        pipeline_id=pipeline.id,
+        status=JobStatus.COMPLETED,
+        total_items=2,
+        completed_items=2,
+    )
+    db_session.add(job)
+    await db_session.commit()
+    await db_session.refresh(job)
+
+    db_session.add_all([
+        AnnotationResult(
+            job_id=job.id,
+            data_item_id=partial_item.id,
+            dimension_name="Listening Strategy (Bodie et al., 2012)",
+            predicted_label="Paraphrase",
+        ),
+        AnnotationResult(
+            job_id=job.id,
+            data_item_id=match_item.id,
+            dimension_name="Listening Strategy (Bodie et al., 2012)",
+            predicted_label="Back-Channel Response",
+        ),
+    ])
+    await db_session.commit()
+
+    review_rows = await results.get_feedback_evidence(
+        project_id=project.id,
+        job_id=job.id,
+        dimension="Listening Strategy (Bodie et al., 2012)",
+        mismatches_only=True,
+        db=db_session,
+    )
+
+    assert len(review_rows) == 1
+    assert review_rows[0]["item_id"] == partial_item.id
+    assert review_rows[0]["match_status"] == "partial"
+    assert review_rows[0]["is_mismatch"] is False
+
+
+async def test_results_metrics_and_confusion_use_normalized_dimension_and_partial_gold(db_session):
+    project = Project(name="Metrics normalization test")
+    db_session.add(project)
+    await db_session.commit()
+    await db_session.refresh(project)
+
+    dataset = Dataset(project_id=project.id, name="Gold", total_items=2, is_gold=True)
+    pipeline = Pipeline(project_id=project.id, steps=[], auto_generated=True)
+    db_session.add_all([dataset, pipeline])
+    await db_session.commit()
+    await db_session.refresh(dataset)
+    await db_session.refresh(pipeline)
+
+    item_partial = DataItem(
+        dataset_id=dataset.id,
+        index=0,
+        content="Tell me more.",
+        gold_labels={"Listening strategy": ["Question-asking", "Paraphrase"]},
+    )
+    item_miss = DataItem(
+        dataset_id=dataset.id,
+        index=1,
+        content="I understand how hard that is.",
+        gold_labels={"Listening strategy": "Sympathetic responsiveness"},
+    )
+    db_session.add_all([item_partial, item_miss])
+    await db_session.commit()
+    await db_session.refresh(item_partial)
+    await db_session.refresh(item_miss)
+
+    job = AnnotationJob(
+        project_id=project.id,
+        dataset_id=dataset.id,
+        pipeline_id=pipeline.id,
+        status=JobStatus.COMPLETED,
+        total_items=2,
+        completed_items=2,
+    )
+    db_session.add(job)
+    await db_session.commit()
+    await db_session.refresh(job)
+
+    dimension = "Listening Strategy (Bodie et al., 2012)"
+    db_session.add_all([
+        AnnotationResult(
+            job_id=job.id,
+            data_item_id=item_partial.id,
+            dimension_name=dimension,
+            predicted_label="Paraphrase",
+        ),
+        AnnotationResult(
+            job_id=job.id,
+            data_item_id=item_miss.id,
+            dimension_name=dimension,
+            predicted_label="Question-Asking",
+        ),
+    ])
+    await db_session.commit()
+
+    metrics = await results.get_metrics(project_id=project.id, job_id=job.id, db=db_session)
+    by_dim = {row.dimension: row.metrics for row in metrics}
+
+    assert by_dim[dimension].n == 2
+    assert by_dim[dimension].accuracy == 0.5
+
+    matrix = await results.get_confusion_matrix(
+        project_id=project.id,
+        job_id=job.id,
+        dimension=dimension,
+        db=db_session,
+    )
+
+    assert matrix["matrix"]["Paraphrase"]["Paraphrase"] == 1
+    assert matrix["matrix"]["Sympathetic responsiveness"]["Question-Asking"] == 1
 
 
 async def test_feedback_evidence_uses_project_gold_dataset_when_job_dataset_has_no_labels(db_session):

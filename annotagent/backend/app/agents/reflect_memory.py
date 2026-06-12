@@ -167,9 +167,7 @@ CURRENT PROMPT:
 {base_prompt}
 
 CALIBRATION RULES TO INCORPORATE:
-{rules_block}
-
-Return the updated prompt."""
+{rules_block}"""
 
     try:
         resp = await call_llm(
@@ -182,13 +180,26 @@ Return the updated prompt."""
             api_key=api_key,
             max_tokens=2048,
         )
-        updated = resp.text.strip()
-        if updated.startswith("```"):
-            updated = updated.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        updated = _clean_updated_prompt(resp.text)
         return updated or base_prompt
     except Exception as e:
         logger.warning(f"apply_rules_to_prompt failed: {e}")
         return base_prompt
+
+
+def _clean_updated_prompt(text: str) -> str:
+    updated = (text or "").strip()
+    if updated.startswith("```"):
+        updated = updated.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+    leaked_lines = {
+        "return the updated prompt.",
+        "return only the updated prompt.",
+        "updated prompt:",
+    }
+    lines = updated.splitlines()
+    while lines and lines[-1].strip().casefold() in leaked_lines:
+        lines.pop()
+    return "\n".join(lines).strip()
 
 
 def _merge_rules(

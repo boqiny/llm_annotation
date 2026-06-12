@@ -179,6 +179,14 @@ export default function ProjectSetupV2() {
         </main>
       </div>
 
+      <div className="border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
+        <div className="font-medium">Demo workflow checkpoint</div>
+        <p className="mt-1 text-xs leading-relaxed text-violet-900/85">
+          After model, codebook, and optional labeled data are ready, click <span className="font-medium">Generate pipeline</span>.
+          AnnotAgent will create one prompt per codebook dimension and take you to the Prompts hub. From there, choose labeled-data improvement, annotation, or human-feedback review.
+        </p>
+      </div>
+
       {/* Sticky footer */}
       {!replacingCodebook && (
         <div className="fixed bottom-0 left-0 right-0 bg-cream border-t border-seam">

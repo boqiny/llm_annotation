@@ -62,6 +62,25 @@ def _match_status(predicted: str, gold: object) -> str:
     return "match" if _labels_agree(predicted, str(gold)) else "mismatch"
 
 
+def _metric_gold_label(predicted: str, gold: object) -> str:
+    """Choose a single gold label for legacy single-label metrics.
+
+    Multi-label coder sheets can mark several acceptable labels for one
+    dimension. If the prediction matches any of them, use the prediction as the
+    target so exact-match metrics count it as correct; otherwise use the first
+    gold label as the representative miss.
+    """
+    if isinstance(gold, list):
+        if predicted:
+            for label in gold:
+                if _labels_agree(predicted, str(label)):
+                    return predicted
+        return str(gold[0]) if gold else ""
+    if gold is not None and predicted and _labels_agree(predicted, str(gold)):
+        return predicted
+    return str(gold) if gold is not None else ""
+
+
 def _metadata_value(metadata: dict, candidates: tuple[str, ...]) -> str:
     for key in candidates:
         value = metadata.get(key)
@@ -146,7 +165,8 @@ async def get_metrics(
         y_true, y_pred = [], []
         for ann in anns:
             gold = gold_map.get(ann.data_item_id, {})
-            gt = gold.get(dim_name, "")
+            gt_raw = _label_for_dimension(gold, dim_name)
+            gt = _metric_gold_label(ann.predicted_label, gt_raw)
             if gt:
                 y_true.append(gt)
                 y_pred.append(ann.predicted_label)
@@ -188,7 +208,8 @@ async def get_confusion_matrix(
     y_true, y_pred = [], []
     for ann in annotations:
         gold = gold_map.get(ann.data_item_id, {})
-        gt = gold.get(dimension, "")
+        gt_raw = _label_for_dimension(gold, dimension)
+        gt = _metric_gold_label(ann.predicted_label, gt_raw)
         if gt:
             y_true.append(gt)
             y_pred.append(ann.predicted_label)
