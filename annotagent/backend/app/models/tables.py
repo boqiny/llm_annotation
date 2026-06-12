@@ -247,6 +247,7 @@ class ReflectMemoryVersion(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    codebook_id = Column(Integer, ForeignKey("codebooks.id", ondelete="SET NULL"), nullable=True)
     dimension_name = Column(String(255), nullable=False)
     version = Column(Integer, nullable=False)
     rules_json = Column(JSON, default=list)

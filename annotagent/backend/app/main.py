@@ -32,6 +32,8 @@ async def lifespan(app: FastAPI):
         )
         if "feedback_text" not in cols:
             await conn.execute(_text("ALTER TABLE reflect_memory_versions ADD COLUMN feedback_text TEXT"))
+        if "codebook_id" not in cols:
+            await conn.execute(_text("ALTER TABLE reflect_memory_versions ADD COLUMN codebook_id INTEGER REFERENCES codebooks(id) ON DELETE SET NULL"))
 
         job_cols = await conn.run_sync(
             lambda c: [col["name"] for col in _inspect(c).get_columns("annotation_jobs")]

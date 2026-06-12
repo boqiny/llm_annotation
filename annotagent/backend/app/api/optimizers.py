@@ -35,6 +35,14 @@ memory_router = APIRouter(prefix="/api/projects/{project_id}/memory", tags=["mem
 _RUNNING_TASKS: dict[int, asyncio.Task] = {}
 
 
+async def _active_codebook(db: AsyncSession, project_id: int) -> Codebook | None:
+    return (await db.execute(
+        select(Codebook).where(Codebook.project_id == project_id)
+        .order_by(Codebook.id.desc())
+        .limit(1)
+    )).scalars().first()
+
+
 @memory_router.get("")
 async def list_memory_versions(
     project_id: int,
@@ -45,7 +53,12 @@ async def list_memory_versions(
 
     Optional ``?dimension=`` filter restricts to a single dimension.
     """
+    active_codebook = await _active_codebook(db, project_id)
     q = select(ReflectMemoryVersion).where(ReflectMemoryVersion.project_id == project_id)
+    if active_codebook:
+        q = q.where(ReflectMemoryVersion.codebook_id == active_codebook.id)
+    else:
+        q = q.where(ReflectMemoryVersion.codebook_id.is_(None))
     if dimension:
         q = q.where(ReflectMemoryVersion.dimension_name == dimension)
     q = q.order_by(
@@ -56,6 +69,7 @@ async def list_memory_versions(
     return [
         {
             "id": r.id,
+            "codebook_id": r.codebook_id,
             "dimension_name": r.dimension_name,
             "version": r.version,
             "n_rules": len(r.rules_json or []),
@@ -85,11 +99,14 @@ async def apply_feedback(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # Load latest memory version for this dimension
+    codebook = await _active_codebook(db, project_id)
+
+    # Load latest memory version for this dimension and active codebook.
     latest = (await db.execute(
         select(ReflectMemoryVersion)
         .where(
             ReflectMemoryVersion.project_id == project_id,
+            ReflectMemoryVersion.codebook_id == (codebook.id if codebook else None),
             ReflectMemoryVersion.dimension_name == body.dimension_name,
         )
         .order_by(ReflectMemoryVersion.version.desc())
@@ -100,9 +117,6 @@ async def apply_feedback(
 
     # Load label definitions from the latest codebook
     label_defs = ""
-    codebook = (await db.execute(
-        select(Codebook).where(Codebook.project_id == project_id).order_by(Codebook.id.desc()).limit(1)
-    )).scalars().first()
     if codebook:
         try:
             parsed = parse_codebook(codebook.raw_json)
@@ -125,6 +139,7 @@ async def apply_feedback(
     new_count = max(0, len(merged_rules) - len(existing_rules))
     row = ReflectMemoryVersion(
         project_id=project_id,
+        codebook_id=codebook.id if codebook else None,
         dimension_name=body.dimension_name,
         version=last_v + 1,
         rules_json=merged_rules,
@@ -138,6 +153,7 @@ async def apply_feedback(
 
     return {
         "id": row.id,
+        "codebook_id": row.codebook_id,
         "dimension_name": row.dimension_name,
         "version": row.version,
         "n_rules": len(row.rules_json or []),
@@ -276,10 +292,12 @@ async def _latest_memory(
     project_id: int,
     dimension_name: str,
 ) -> ReflectMemoryVersion | None:
+    codebook = await _active_codebook(db, project_id)
     return (await db.execute(
         select(ReflectMemoryVersion)
         .where(
             ReflectMemoryVersion.project_id == project_id,
+            ReflectMemoryVersion.codebook_id == (codebook.id if codebook else None),
             ReflectMemoryVersion.dimension_name == dimension_name,
         )
         .order_by(ReflectMemoryVersion.version.desc())
@@ -301,9 +319,7 @@ async def _label_defs_for_dimension(
     project_id: int,
     dimension_name: str,
 ) -> str:
-    codebook = (await db.execute(
-        select(Codebook).where(Codebook.project_id == project_id).order_by(Codebook.id.desc()).limit(1)
-    )).scalars().first()
+    codebook = await _active_codebook(db, project_id)
     if not codebook:
         return ""
     try:
@@ -339,16 +355,8 @@ async def preview_prompt(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    # Latest memory version for this dimension
-    latest_mem = (await db.execute(
-        select(ReflectMemoryVersion)
-        .where(
-            ReflectMemoryVersion.project_id == project_id,
-            ReflectMemoryVersion.dimension_name == body.dimension_name,
-        )
-        .order_by(ReflectMemoryVersion.version.desc())
-        .limit(1)
-    )).scalars().first()
+    # Latest memory version for this dimension under the active codebook.
+    latest_mem = await _latest_memory(db, project_id, body.dimension_name)
 
     if not latest_mem or not latest_mem.rules_json:
         raise HTTPException(400, "No memory rules found for this dimension. Add feedback first.")
@@ -535,9 +543,11 @@ async def commit_feedback_batch(
     last_v = latest_mem.version if latest_mem else 0
     existing_rules: list[dict] = list(latest_mem.rules_json or []) if latest_mem else []
     feedback_text = _join_feedbacks(feedbacks)
+    codebook = await _active_codebook(db, project_id)
 
     row = ReflectMemoryVersion(
         project_id=project_id,
+        codebook_id=codebook.id if codebook else None,
         dimension_name=body.dimension_name,
         version=last_v + 1,
         rules_json=body.rules,
@@ -595,6 +605,7 @@ async def commit_feedback_batch(
         "dimension_name": body.dimension_name,
         "memory": {
             "id": row.id,
+            "codebook_id": row.codebook_id,
             "dimension_name": row.dimension_name,
             "version": row.version,
             "n_rules": len(row.rules_json or []),
@@ -954,10 +965,12 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
         seed_rules: list[dict] = []
         if run.optimizer_name == "reflect_agent":
             async with async_session() as session:
+                codebook = await _active_codebook(session, project_id)
                 latest = await session.execute(
                     select(ReflectMemoryVersion)
                     .where(
                         ReflectMemoryVersion.project_id == project_id,
+                        ReflectMemoryVersion.codebook_id == (codebook.id if codebook else None),
                         ReflectMemoryVersion.dimension_name == run.dimension_name,
                     )
                     .order_by(ReflectMemoryVersion.version.desc())
@@ -1127,10 +1140,12 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
             final_rules = list((result.artifact or {}).get("rule_library") or [])
             new_count = max(0, len(final_rules) - len(seed_rules))
             async with async_session() as session:
+                codebook = await _active_codebook(session, project_id)
                 last = await session.execute(
                     select(ReflectMemoryVersion.version)
                     .where(
                         ReflectMemoryVersion.project_id == project_id,
+                        ReflectMemoryVersion.codebook_id == (codebook.id if codebook else None),
                         ReflectMemoryVersion.dimension_name == run.dimension_name,
                     )
                     .order_by(ReflectMemoryVersion.version.desc())
@@ -1139,6 +1154,7 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
                 last_v = last.scalar() or 0
                 session.add(ReflectMemoryVersion(
                     project_id=project_id,
+                    codebook_id=codebook.id if codebook else None,
                     dimension_name=run.dimension_name,
                     version=last_v + 1,
                     rules_json=final_rules,
