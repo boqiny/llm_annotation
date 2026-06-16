@@ -1,9 +1,11 @@
 import { Outlet, NavLink, Link, useParams, useLocation } from 'react-router-dom'
+import { useTour } from '../tour/TourProvider'
 
 export default function AppLayout() {
   const { id } = useParams()
   const loc = useLocation()
   const onHome = loc.pathname === '/'
+  const { start } = useTour()
 
   return (
     <div className="min-h-screen bg-cream text-ink">
@@ -30,6 +32,13 @@ export default function AppLayout() {
                 <TopLink to={`/projects/${id}/pipeline`}>Annotate</TopLink>
               </>
             )}
+            <span className="text-stone-300 mx-1 select-none">/</span>
+            <button
+              onClick={start}
+              className="px-3 py-2 text-sm font-medium text-stone-500 hover:text-ink transition-colors"
+            >
+              Guide
+            </button>
           </nav>
         </div>
       </header>
