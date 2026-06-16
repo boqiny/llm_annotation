@@ -1,26 +1,7 @@
 {
   "name": "Self-Disclosure Analysis",
-  "description": "Classify self-disclosure in human-AI conversations across 6 dimensions: Topic, Level, Depth, Intimacy, Confession, and Temporality.",
+  "description": "Classify self-disclosure in human-AI conversations across 4 dimensions: Level, Confession, Depth, and Intimacy.",
   "dimensions": [
-    {
-      "name": "Topic",
-      "type": "single_label",
-      "labels": [
-        {"name": "Causal conversation", "definition": "Broad default for informational/narrative sharing — narrating events, biographical facts, preferences, current activities.", "examples": []},
-        {"name": "Emotional response", "definition": "The sentence reveals or expresses the speaker's emotional experience — direct emotional states, complaints, frustrations, emotional self-characterization.", "examples": []},
-        {"name": "Information and advice", "definition": "The conversation involves seeking, receiving, or responding to advice/guidance.", "examples": []},
-        {"name": "Intimate exchange", "definition": "Direct romantic/sexual interaction between speakers — flirting, role-play, expressions of romantic love TO the other person.", "examples": []},
-        {"name": "Philosophical perspective", "definition": "Generalized statement about how the world works, human nature, morality, or philosophy.", "examples": []},
-        {"name": "Desire for friendship", "definition": "Social connection difficulty or desire is the central theme.", "examples": []},
-        {"name": "Work stress", "definition": "Primarily about job-specific pressure or burnout.", "examples": []},
-        {"name": "Financial struggles", "definition": "Money difficulty is the sole and exclusive subject.", "examples": []},
-        {"name": "Current life challenges", "definition": "Multi-faceted life situation involving multiple overlapping challenges.", "examples": []},
-        {"name": "Future plans", "definition": "Primarily states the speaker's future-oriented intentions, goals, or aspirations.", "examples": []},
-        {"name": "Interpersonal issue", "definition": "Relationship problems or interpersonal conflicts.", "examples": []},
-        {"name": "Emotional distress", "definition": "Equivalent to Emotional response — use Emotional response instead.", "examples": []}
-      ],
-      "instructions": "Apply topics in priority order: IA > IE > DF > WS > CLC > PP > ER > CC. CC is the broad default — use when uncertain."
-    },
     {
       "name": "Level of disclosure",
       "type": "single_label",
@@ -39,16 +20,6 @@
         {"name": "No, it's not a confession", "definition": "None of the above (Croes et al., 2024).", "examples": []}
       ],
       "instructions": "Broader than just revealing hidden burdens — includes shame/stigma-adjacent admissions."
-    },
-    {
-      "name": "Temporality",
-      "type": "single_label",
-      "labels": [
-        {"name": "Past", "definition": "Sentence mainly refers to something that already happened or prior experience.", "examples": []},
-        {"name": "Now", "definition": "Sentence mainly refers to the current state, present reaction, or ongoing condition.", "examples": []},
-        {"name": "Future", "definition": "Sentence mainly refers to plans, intentions, upcoming actions, or expectations.", "examples": []}
-      ],
-      "instructions": ""
     },
     {
       "name": "Depth of disclosure",
@@ -72,7 +43,7 @@
     }
   ],
   "decomposition_hints": {
-    "groups": [["Topic"], ["Level of disclosure", "Disclosure as confession", "Temporality"], ["Depth of disclosure", "Intimacy of self-disclosure"]],
-    "order": ["Topic", "Level+Confession+Temporality", "Depth+Intimacy"]
+    "groups": [["Level of disclosure", "Disclosure as confession"], ["Depth of disclosure", "Intimacy of self-disclosure"]],
+    "order": ["Level+Confession", "Depth+Intimacy"]
   }
 }

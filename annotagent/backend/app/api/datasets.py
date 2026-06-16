@@ -1,6 +1,7 @@
 """Dataset API routes — upload CSV/JSON, parse into data_items; preview; load seeds."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -10,11 +11,52 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
-from app.models.tables import Dataset, DataItem, Project
+from app.engine.codebook_parser import parse_codebook
+from app.models.tables import Codebook, Dataset, DataItem, Project
 from app.schemas.schemas import DatasetOut, DatasetPreview, DataItemOut
 from app.utils.file_parsers import parse_json_dataset, parse_csv_dataset
 
 router = APIRouter(prefix="/api/projects/{project_id}/datasets", tags=["datasets"])
+
+
+def _norm_dim(value: str) -> str:
+    """Normalize a dimension name for matching (mirrors optimizers._norm_dimension_name)."""
+    text = re.sub(r"\([^)]*\)", " ", str(value or ""))
+    text = re.sub(r"[^0-9a-zA-Z]+", " ", text)
+    return " ".join(text.split()).casefold()
+
+
+async def _codebook_dim_map(db: AsyncSession, project_id: int) -> dict[str, str] | None:
+    """norm-name -> canonical dimension name for the project's active (latest) codebook.
+
+    Returns None when the project has no codebook yet, in which case gold labels are
+    stored unfiltered.
+    """
+    codebook = (await db.execute(
+        select(Codebook).where(Codebook.project_id == project_id)
+        .order_by(Codebook.id.desc()).limit(1)
+    )).scalars().first()
+    if not codebook:
+        return None
+    parsed = parse_codebook(codebook.raw_json)
+    return {_norm_dim(d.name): d.name for d in parsed.dimensions}
+
+
+def _filter_gold_labels(labels: dict, dim_map: dict[str, str] | None) -> dict:
+    """Keep only gold labels whose dimension exists in the codebook; drop the rest.
+
+    The codebook is the schema of record, so a gold file carrying extra dimensions
+    (for example Topic or Temporality) contributes only the dimensions the codebook
+    actually defines. Keys are canonicalized to the codebook's spelling.
+    """
+    if not dim_map:
+        return labels or {}
+    out: dict = {}
+    for key, value in (labels or {}).items():
+        canonical = dim_map.get(_norm_dim(key))
+        if canonical is not None:
+            out[canonical] = value
+    return out
 
 
 # Known seed files ship with the repo under SEED_DATA_DIR (project-root /data).
@@ -95,6 +137,10 @@ async def upload_dataset(
     db.add(dataset)
     await db.flush()
 
+    # Gold labels follow the codebook schema: drop any dimension the codebook does
+    # not define so a richer gold file only contributes the active dimensions.
+    dim_map = await _codebook_dim_map(db, project_id) if is_gold else None
+
     for item in items:
         data_item = DataItem(
             dataset_id=dataset.id,
@@ -102,7 +148,7 @@ async def upload_dataset(
             content=item["content"],
             context=item.get("context", ""),
             metadata_=item.get("metadata", {}),
-            gold_labels=item.get("gold_labels", {}),
+            gold_labels=_filter_gold_labels(item.get("gold_labels", {}), dim_map),
         )
         db.add(data_item)
 
@@ -203,6 +249,11 @@ async def load_seed_dataset(
     db.add(dataset)
     await db.flush()
 
+    # Gold labels follow the codebook schema (see _filter_gold_labels). A seed like
+    # the self-disclosure agreed set ships more dimensions than a trimmed codebook;
+    # only the codebook's dimensions are loaded.
+    dim_map = await _codebook_dim_map(db, project_id) if is_gold else None
+
     for item in items:
         data_item = DataItem(
             dataset_id=dataset.id,
@@ -210,7 +261,7 @@ async def load_seed_dataset(
             content=item["content"],
             context=item.get("context", ""),
             metadata_=item.get("metadata", {}),
-            gold_labels=item.get("gold_labels", {}),
+            gold_labels=_filter_gold_labels(item.get("gold_labels", {}), dim_map),
         )
         db.add(data_item)
 
