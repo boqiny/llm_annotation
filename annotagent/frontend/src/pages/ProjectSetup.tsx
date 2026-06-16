@@ -141,40 +141,46 @@ export default function ProjectSetupV2() {
         {/* Main pane */}
         <main className="flex-1 min-w-0">
           {step === 'codebook' && (
-            <CodebookStep
-              activeCb={activeCb}
-              wizardMode={wizardMode}
-              setWizardMode={setWizardMode}
-              presets={presets}
-              projectId={projectId}
-              onAccepted={() => { setWizardMode(false); loadData(); setStep('data') }}
-              onContinue={() => setStep('data')}
-            />
+            <div data-tour="setup-codebook" data-tour-done={activeCb ? 'true' : 'false'}>
+              <CodebookStep
+                activeCb={activeCb}
+                wizardMode={wizardMode}
+                setWizardMode={setWizardMode}
+                presets={presets}
+                projectId={projectId}
+                onAccepted={() => { setWizardMode(false); loadData(); setStep('data') }}
+                onContinue={() => setStep('data')}
+              />
+            </div>
           )}
           {step === 'data' && (
-            <DataStep
-              activeCb={activeCb}
-              seeds={seeds}
-              datasets={datasets}
-              loadingSeed={loadingSeed}
-              removingDataset={removingDataset}
-              onLoadSeed={handleLoadSeed}
-              onRemoveDataset={handleRemoveDataset}
-              onUpload={handleDataUpload}
-            />
+            <div data-tour="setup-data">
+              <DataStep
+                activeCb={activeCb}
+                seeds={seeds}
+                datasets={datasets}
+                loadingSeed={loadingSeed}
+                removingDataset={removingDataset}
+                onLoadSeed={handleLoadSeed}
+                onRemoveDataset={handleRemoveDataset}
+                onUpload={handleDataUpload}
+              />
+            </div>
           )}
           {step === 'model' && (
-            <ModelStep
-              backendCfg={backendCfg}
-              llmProvider={llmProvider}
-              llmModel={llmModel}
-              apiKey={apiKey}
-              setLlmProvider={setLlmProvider}
-              setLlmModel={setLlmModel}
-              setApiKey={setApiKey}
-              onSaveAndContinue={handleSaveModelAndContinue}
-              saving={loading}
-            />
+            <div data-tour="setup-model" data-tour-done={keyOK ? 'true' : 'false'}>
+              <ModelStep
+                backendCfg={backendCfg}
+                llmProvider={llmProvider}
+                llmModel={llmModel}
+                apiKey={apiKey}
+                setLlmProvider={setLlmProvider}
+                setLlmModel={setLlmModel}
+                setApiKey={setApiKey}
+                onSaveAndContinue={handleSaveModelAndContinue}
+                saving={loading}
+              />
+            </div>
           )}
         </main>
       </div>
@@ -198,6 +204,8 @@ export default function ProjectSetupV2() {
               }
             </div>
             <button
+              data-tour="generate-pipeline"
+              data-tour-ready={canGenerate ? 'true' : 'false'}
               onClick={handleGeneratePipeline}
               disabled={!canGenerate || loading}
               className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40"

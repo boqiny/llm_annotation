@@ -74,6 +74,7 @@ export default function ProjectList() {
             <h2 className="text-3xl font-medium tracking-tight">Your projects</h2>
           </div>
           <button
+            data-tour="create-project"
             onClick={() => setShowCreate(v => !v)}
             className="group inline-flex items-center gap-2 px-5 py-2.5 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition-colors"
           >
@@ -83,7 +84,7 @@ export default function ProjectList() {
         </div>
 
         {showCreate && (
-          <div className="mb-8 border border-seam bg-white p-6">
+          <div className="mb-8 border border-seam bg-white p-6" data-tour="name-project">
             <div className="font-mono-editorial text-stone-500 mb-4">Create a new project</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>

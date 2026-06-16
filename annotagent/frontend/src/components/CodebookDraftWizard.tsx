@@ -109,14 +109,14 @@ export default function CodebookDraftWizard({
 
   /* Render --------------------------------------------------------------- */
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Door chooser */}
       {!hasDraft && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="border-l-2 border-ink pl-4 text-sm leading-relaxed text-stone-700">
             A codebook is your label definition. Select one option below to define your codebook.
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <DoorCard
               door="upload"
               active={door === 'upload'}
@@ -153,7 +153,7 @@ export default function CodebookDraftWizard({
 
       {/* Door body */}
       {!hasDraft && (
-        <div className="border border-seam bg-white p-6">
+        <div className="border border-seam bg-white p-4">
           {door === 'upload' && (
             <UploadForm onFile={handleUpload} busy={inFlight} />
           )}
@@ -230,13 +230,13 @@ function DoorCard({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`text-left p-5 bg-white border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+      className={`text-left p-4 bg-white border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
         active
           ? 'border-ink shadow-[4px_4px_0_0_rgba(11,11,10,0.08)]'
           : 'border-seam hover:border-stone-400'
       } ${emphasized ? 'ring-1 ring-offset-0 ring-indigo-200' : ''}`}
     >
-      <div className="text-lg font-medium tracking-tight mb-1">
+      <div className="text-base font-medium tracking-tight mb-0.5">
         {title}
         {emphasized && <span className="ml-2 align-middle font-mono-editorial text-xs text-indigo-700">default</span>}
       </div>
@@ -332,14 +332,14 @@ function PresetForm({
 }) {
   return (
     <div>
-      <div className="font-mono-editorial text-stone-500 mb-3">
+      <div className="font-mono-editorial text-stone-500 mb-2">
         Choose a preset — instant load, no LLM drafting
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-4">
         {presets.map(p => (
           <label
             key={p.name}
-            className={`flex items-start gap-3 p-4 border cursor-pointer transition-colors ${
+            className={`flex items-start gap-3 p-3 border cursor-pointer transition-colors ${
               value === p.name ? 'border-ink bg-paper' : 'border-seam hover:border-stone-400'
             }`}
           >

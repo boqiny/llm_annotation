@@ -243,7 +243,7 @@ export default function PromptLabV2() {
 
       <DemoWorkflowGuide />
 
-      <div className="flex items-end justify-between gap-4 border-b border-seam">
+      <div className="flex items-end justify-between gap-4 border-b border-seam" data-tour="lab-tabs">
         <Tabs value={tab} onChange={handleTabChange} items={[
           { id: 'prompts', label: 'Prompts',  count: autoPrompt?.prompts.length },
           { id: 'improve', label: 'Improve',                                     },
@@ -477,7 +477,22 @@ function PromptsTab({
     return <Empty>Load a codebook on Setup first.</Empty>
   }
   if (loading && !autoPrompt) {
-    return <Empty>Drafting prompts for {activeCb.dimensions.length} dimensions…</Empty>
+    return (
+      <div data-tour="first-prompt" className="border border-seam bg-white p-8 text-center">
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <span className="inline-block w-2 h-2 rounded-full bg-ink animate-pulse" />
+          <span className="font-mono-editorial text-stone-600">CodebookAgent · drafting</span>
+        </div>
+        <h3 className="text-lg font-medium tracking-tight">Generating your starting prompts…</h3>
+        <p className="mt-2 text-sm text-stone-600 max-w-md mx-auto leading-relaxed">
+          AnnotAgent is writing one prompt for each of your {activeCb.dimensions.length} codebook
+          dimensions. This runs once and takes a few seconds.
+        </p>
+        <div className="mt-5 mx-auto max-w-xs h-1 overflow-hidden bg-paper">
+          <div className="h-full w-1/3 bg-ink" style={{ animation: 'barShimmer 1.2s ease-in-out infinite' }} />
+        </div>
+      </div>
+    )
   }
   if (error) {
     return (
@@ -514,7 +529,7 @@ function PromptsTab({
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {autoPrompt.prompts.map(p => {
+        {autoPrompt.prompts.map((p, i) => {
           const completedRuns = runs.filter(r =>
             normDimensionName(r.dimension_name) === normDimensionName(p.dimension_name)
             && normStatus(r.status) === 'completed'
@@ -524,16 +539,17 @@ function PromptsTab({
           const appliedRun = completedRuns.find(r => appliedPrompt && r.optimized_prompt.trim() === appliedPrompt)
           const optimized = appliedRun ?? completedRuns[0]
           return (
-            <PromptCard
-              key={p.dimension_name}
-              dp={p}
-              pipelinePrompt={appliedPrompt}
-              optimizedRun={optimized}
-              appliedRunId={appliedRun?.id ?? null}
-              onJumpToRun={onJumpToRun}
-              projectId={projectId}
-              onPipelineSaved={onPipelinesRefresh}
-            />
+            <div key={p.dimension_name} data-tour={i === 0 ? 'first-prompt' : undefined}>
+              <PromptCard
+                dp={p}
+                pipelinePrompt={appliedPrompt}
+                optimizedRun={optimized}
+                appliedRunId={appliedRun?.id ?? null}
+                onJumpToRun={onJumpToRun}
+                projectId={projectId}
+                onPipelineSaved={onPipelinesRefresh}
+              />
+            </div>
           )
         })}
       </div>
@@ -1043,6 +1059,7 @@ function ImproveTab({
           </p>
         </div>
         <button onClick={handleLaunch} disabled={launching || noLabels || tooFew}
+                data-tour="run-improvement"
                 className="w-full py-2.5 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40">
           {launching ? 'Starting…' : 'Run improvement →'}
         </button>
