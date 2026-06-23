@@ -26,10 +26,10 @@ export default function AppLayout() {
             {id && (
               <>
                 <Separator />
-                <TopLink to={`/projects/${id}/setup`}>Setup</TopLink>
+                <TopLink to={`/projects/${id}/setup`} step={1}>Setup</TopLink>
+                <TopLink to={`/projects/${id}/prompt-lab`} step={2}>Prompts</TopLink>
+                <TopLink to={`/projects/${id}/pipeline`} step={3}>Annotate</TopLink>
                 <TopLink to={`/projects/${id}/codebook`}>Codebook</TopLink>
-                <TopLink to={`/projects/${id}/prompt-lab`}>Prompts</TopLink>
-                <TopLink to={`/projects/${id}/pipeline`}>Annotate</TopLink>
               </>
             )}
             <span className="text-stone-300 mx-1 select-none">/</span>
@@ -54,7 +54,7 @@ export default function AppLayout() {
   )
 }
 
-function TopLink({ to, children }: { to: string; children: React.ReactNode }) {
+function TopLink({ to, step, children }: { to: string; step?: number; children: React.ReactNode }) {
   return (
     <NavLink
       to={to}
@@ -66,6 +66,7 @@ function TopLink({ to, children }: { to: string; children: React.ReactNode }) {
           : 'text-stone-500 hover:text-ink')
       }
     >
+      {step != null && <span className="font-mono text-[10px] text-stone-400 mr-1.5">{step}</span>}
       {children}
     </NavLink>
   )

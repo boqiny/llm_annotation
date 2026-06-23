@@ -185,11 +185,13 @@ export default function ProjectSetupV2() {
         </main>
       </div>
 
-      <div className="border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
-        <div className="font-medium">Demo workflow checkpoint</div>
-        <p className="mt-1 text-xs leading-relaxed text-violet-900/85">
-          After model, codebook, and optional labeled data are ready, click <span className="font-medium">Generate pipeline</span>.
-          AnnotAgent will create one prompt per codebook dimension and take you to the Prompts hub. From there, choose labeled-data improvement, annotation, or human-feedback review.
+      <div className="border-l-2 border-ink bg-paper px-4 py-3 text-sm">
+        <div className="font-medium">What happens next</div>
+        <p className="mt-1 text-xs leading-relaxed text-stone-600">
+          Work through the three steps on the left: pick a model, confirm a codebook, and (optionally) add a
+          few labeled examples. When they show a checkmark, click <span className="font-medium text-ink">Generate
+          pipeline</span> at the bottom. AnnotAgent writes one set of labeling instructions per label in your
+          codebook and opens the Prompts page, where you improve them and start labeling.
         </p>
       </div>
 
