@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listProjects, createProject, deleteProject } from '../lib/api'
+import { useTour } from '../components/tour/TourProvider'
 import type { Project } from '../types'
 
 export default function ProjectList() {
@@ -9,6 +10,17 @@ export default function ProjectList() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const navigate = useNavigate()
+  const { start } = useTour()
+
+  // Open the create form and bring it into view. This is the hero CTA a
+  // first-time visitor reaches for before scrolling to the projects band.
+  const openCreate = () => {
+    setShowCreate(true)
+    setTimeout(
+      () => document.getElementById('projects-band')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      50,
+    )
+  }
 
   useEffect(() => { listProjects().then(setProjects) }, [])
 
@@ -27,45 +39,76 @@ export default function ProjectList() {
 
   return (
     <div className="space-y-16">
-      {/* Hero */}
-      <section className="max-w-3xl">
-        <div className="font-mono-editorial text-stone-500 mb-5">
-          Annotation workbench · for messy multi-label tasks
+      {/* Hero — split: the statement on the left, the workflow visual on the
+          right. Collapses to a single column (text, then figure) below lg. */}
+      <section className="pt-6 pb-2 grid lg:grid-cols-12 gap-10 items-center">
+        <div className="lg:col-span-5">
+          <div className="font-mono-editorial text-stone-500 mb-6">
+            Codebook-driven text annotation
+          </div>
+          <h1 className="text-5xl font-medium tracking-tight leading-[0.95]">
+            Label text the way<br />
+            <span className="italic font-display font-normal">you</span> would.
+          </h1>
+          <p className="mt-7 text-xl leading-relaxed text-stone-600 max-w-md">
+            You set the labels. AnnotAgent writes the prompts and labels the rest.
+          </p>
+          <div className="mt-9 flex flex-wrap items-center gap-5">
+            <button
+              onClick={openCreate}
+              className="px-6 py-3 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition-colors"
+            >
+              Start a project →
+            </button>
+            <button
+              onClick={start}
+              className="text-sm font-medium text-stone-500 hover:text-ink transition-colors underline-offset-4 hover:underline"
+            >
+              or take the 60-second tour
+            </button>
+          </div>
         </div>
-        <h1 className="text-5xl sm:text-6xl font-medium tracking-tight leading-[1.05]">
-          Label text the way<br />
-          <span className="italic font-display font-normal">you'd label it</span> —
-          using an LLM.
-        </h1>
-        <p className="mt-8 text-lg leading-relaxed text-stone-600">
-          Bring a codebook (your label definitions) and AnnotAgent walks you through four steps:
-          define what to label, let the system draft a starting prompt for each dimension,
-          improve it with a few labeled examples, then annotate your data. No prompt engineering
-          required.
-        </p>
-      </section>
-
-      {/* How it works — 4-step workflow with figure slot */}
-      <section className="border-t border-seam pt-10">
-        <div className="font-mono-editorial text-stone-500 mb-3">How it works</div>
-        <h2 className="text-3xl font-medium tracking-tight mb-8">From codebook to annotated data in four steps</h2>
-
-        {/* Workflow figure — transparent PNG sits flush on the page background.
-            Source: annotagent/assets/workflow_transparent.png. No wrapper fill
-            so the cream page tone shows through any transparent areas. */}
-        <figure className="mb-12">
+        <figure className="lg:col-span-7">
           <img
             src="/workflow_0517.png"
-            alt="AnnotAgent workflow: Define codebook → Auto-draft prompts → Improve from examples → Annotate dataset"
-            className="w-2/3 h-auto mx-auto block"
+            alt="AnnotAgent workflow: set up, generate, refine, then get results"
+            className="w-full h-auto block"
             onError={(e) => { (e.currentTarget.style.display = 'none') }}
           />
         </figure>
+      </section>
 
+      {/* How it works: four steps in a compact 2x2 grid (the workflow figure
+          now lives in the hero). Collapses to one column below sm. */}
+      <section className="border-t border-seam pt-12">
+        <h2 className="text-3xl font-medium tracking-tight mb-10">From your labels to a labeled dataset, in four steps</h2>
+
+        <ol className="grid sm:grid-cols-2 gap-x-12 gap-y-9">
+          <Step
+            n="01"
+            title="Define your labels"
+            body="Bring your codebook, or start from a ready-made example and edit it."
+          />
+          <Step
+            n="02"
+            title="It writes the prompts"
+            body="AnnotAgent turns each label into LLM instructions. You write nothing."
+          />
+          <Step
+            n="03"
+            title="Show a few examples"
+            body="It studies your labeled examples and tunes itself to match how you label."
+          />
+          <Step
+            n="04"
+            title="Label everything"
+            body="Run it on your whole dataset and export the results as CSV or JSON."
+          />
+        </ol>
       </section>
 
       {/* Projects band */}
-      <section>
+      <section id="projects-band" className="scroll-mt-24">
         <div className="flex items-end justify-between pb-4 mb-4">
           <div>
             <div className="font-mono-editorial text-stone-500 mb-2">
