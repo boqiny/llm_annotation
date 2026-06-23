@@ -7,13 +7,33 @@ from pydantic_settings import BaseSettings
 
 # Search the nearest parent dir that has a .env (supports: annotagent/backend/.env,
 # annotagent/.env, or project-root .env).
+_KEY_NAMES = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY")
+
+
+def _env_defines_key(path: Path) -> bool:
+    """True if the .env actually sets a non-empty provider key."""
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("#") or "=" not in line:
+                continue
+            name, _, value = line.partition("=")
+            if name.strip() in _KEY_NAMES and value.strip():
+                return True
+    except OSError:
+        pass
+    return False
+
+
 def _find_env_file() -> str:
     here = Path(__file__).resolve()
-    for parent in here.parents:
-        candidate = parent / ".env"
-        if candidate.exists():
+    existing = [parent / ".env" for parent in here.parents if (parent / ".env").exists()]
+    # Prefer the nearest .env that actually defines a provider key, so an empty
+    # placeholder .env never shadows a populated one further up the tree.
+    for candidate in existing:
+        if _env_defines_key(candidate):
             return str(candidate)
-    return ".env"
+    return str(existing[0]) if existing else ".env"
 
 
 _BACKEND_DIR = Path(__file__).resolve().parent.parent  # .../annotagent/backend
