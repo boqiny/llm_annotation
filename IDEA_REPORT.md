@@ -1,40 +1,109 @@
 # AnnotAgent
 
-## Paper Claims
+## What this is
 
-AnnotAgent is a **multi-agent system** for codebook-driven annotation. It covers the same surface area as a general-purpose labeling tool (LabelLLM, Prodigy, Doccano) and adds two **self-evolving** agents that learn interpretable rules from labeled items, carry those rules across sessions, and use them either to keep improving on gold-labeled data or to propose adjudications when human annotators disagree. The paper makes two claims:
+AnnotAgent is an open-source, codebook-driven system for LLM-assisted text
+annotation. A small research team feeds it a codebook and raw text; the system
+ingests the codebook into a structured schema, drafts one annotation prompt per
+dimension, labels items with bounded-concurrency batch runs, and closes a
+failure-driven improvement loop that refines each prompt against the team's own
+labeled examples. The whole pipeline runs behind a React UI with a FastAPI
+backend, and every artifact it produces (the parsed codebook, each prompt
+version, the learned rules, the per-class metrics) is inspectable and
+exportable.
 
-**C1 (proposed). Adjudication-as-data-cleaning loop.** One contribution with two halves that depend on each other. *First half — the mechanism.* When two or more human annotators have already labeled data and they disagree on some subset of items, the disputed items are adjudicated by an LLM that has first learned rules from the items the same annotators agreed on. The LLM emits a verdict together with the rules it cited; a human reviews and accepts, overrides, or skips. *Second half — the payoff.* Hold the model and the initial prompt fixed and run C2 twice on the same dimension: first on the agreed-only subset, then on the full corpus after the adjudication step above. Overlay the two validation curves. The first plateaus; the second climbs past it. The gap is the value of cleaning the labels, measured in held-out test accuracy with everything else held constant, and a matched-size control rules out the trivial "more data is better" reading. The two halves are pitched as one contribution because each is incomplete on its own: the mechanism without the overlay does not show that adjudication-via-LLM is worth doing, and the overlay without the mechanism has nothing to demonstrate. The empirical bet behind the first half — that rules mined from the agreed (easy) subset transfer usefully to the disputed (hard) subset — is unverified at the time of writing and will be tested in a verification spike on Fiona's `Level` dimension before the paper is committed to print.
+This is a **system demonstration**, framed for the EMNLP System Demonstrations
+track. The paper documents a working, deployable system rather than a controlled
+study. The evaluation, required by the track, is deliberately compact: it shows
+that the improvement loop does the one thing the system claims, on a hard
+subjective codebook, with honest held-out numbers.
 
-**C2 (built).** A ReflectAgent loop runs failure-driven prompt optimization on a leakage-guarded train/val/test split, distilling failures into interpretable rules and rolling back rule updates that regress held-out validation. Rules persist across sessions in a versioned Memory table: each run on a dimension seeds from the last run's rule library. This is what is built today, and the evaluation tables for self-disclosure annotation will exercise it. We can further integrate prompt optimization techniques like DSPy, GEPA here.
+## The claim
 
-The paper is framed as a system demonstration rather than a controlled study. The evaluation shows the system works on a representative hard case (a low-IAA codebook for AI-companion conversation analysis). It is not a benchmark sweep across optimizers, model backbones, or codebook domains.
+Most LLM-assisted labeling tools pre-fill a label with a fixed prompt and ask a
+human to accept or correct it. The prompt is written once, against an assumed
+notion of the "right" label, and it does not move as the team's own decisions
+accumulate. On subjective codebooks this is the wrong default, because there is
+often no single right label: two trained coders applying the same codebook to
+the same text agree only part of the time, and each one is internally
+consistent in a different way.
 
-The draft figure below shows the system at a glance: the top tier traces the pipeline from user inputs through CodebookAgent, AutoPromptGenerator, the labeling stage, and the ReflectAgent improvement loop; the bottom tier zooms into the labeling stage and lays the three user-facing paths (cold start, disputed items, gold labels) side by side, with the middle column rendering both halves of the proposed C1 contribution.
+AnnotAgent's contribution is a labeling pipeline whose improvement loop
+**calibrates the annotator to a chosen target rater**. Point the loop at coder
+A's labels and it learns to label the way A labels; point it at coder B and it
+learns B. The system does not force the two coders into one consensus before it
+can help. It treats each coder's labels as a legitimate target and raises
+agreement with whichever target the team selects. For teams that do want a
+single resolved label, the multi-annotator review UI is still there as a
+feature; it is no longer the headline.
 
-![AnnotAgent workflow: top tier shows the five-stage pipeline (user inputs → CodebookAgent → AutoPromptGenerator → Labeling → ReflectAgent + Memory); bottom tier zooms into the labeling stage and lays the three paths (A cold start, B disputed items with C1 mechanism and measurement, C gold-label optimization) side by side.](assets/workflow_v1.png)
+The rest of this document describes the system, then reports a per-target
+alignment evaluation on a four-dimension self-disclosure codebook with two
+independent annotators.
+
+![AnnotAgent pipeline: messy inputs flow through CodebookAgent, AutoPromptGenerator, the labeling stage, and the ReflectAgent improvement loop with cross-session Memory. The labeling stage exposes three entry paths: cold-start interactive labeling, multi-annotator review, and target-aligned optimization.](assets/workflow_v1.png)
+
+*(Figure to be refreshed for the system-demo framing: the current asset still
+labels the old adjudication contribution.)*
 
 ---
 
-## Why annotation at production scale is broken
+## Why codebook annotation needs this
 
-A trained human coder reading a multi-turn AI-companion dialogue and applying a six-dimension codebook spends thirty to ninety seconds per item. Multiply by a hundred thousand items per release cycle and the budget is measured in person-months. The data-centric AI literature (Ng, 2021; Northcutt et al., 2021) frames this scale problem as the central constraint of modern AI engineering: model quality is bottlenecked by label quality, and label quality is bottlenecked by human time.
+A trained coder reading a multi-turn dialogue and applying a six-dimension
+codebook spends thirty to ninety seconds per item. At a hundred thousand items
+per release cycle, the budget is person-months. The data-centric AI literature
+(Ng, 2021; Northcutt et al., 2021) frames this as a central constraint: model
+quality is bounded by label quality, and label quality is bounded by human
+time. A tool that pre-fills labels and lets a human correct them removes some of
+that time, and several open tools do exactly this.
 
-The cost problem is compounded by drift. Conversational-AI products ship new model versions; user populations turn over; codebooks evolve as researchers discover new failure modes. Each drift invalidates a slice of the existing gold set. Re-labeling at production cadence is the friction that kills longitudinal projects, and it is the friction that a static "LLM pre-fills, human accepts" tool like LabelLLM does nothing to ease. The LLM's pre-fill prompt was set on the old data distribution and does not update as the human's accept/edit signal accumulates.
+Two problems remain that a static pre-fill tool does not touch.
 
-The third problem is disagreement. On subtle dimensions like *intimacy*, *depth*, or *emotional valence*, trained coders agree only 60–70% of the time. Standard inter-annotator agreement metrics — Cohen's κ for two raters, Fleiss' κ for three or more, Krippendorff's α when raters miss items — let researchers quantify the gap, but the same data can yield κ from below zero to above 0.6 depending on which pair of raters one picks. The disputed slice is where the codebook actually lives: the boundary cases tell you what the distinctions mean. It is also the slice that is most expensive to adjudicate. The standard practice is a single senior coder making silent calls behind the scenes, with no audit trail.
+The first is drift. Conversational-AI products ship new model versions, user
+populations turn over, and codebooks evolve as researchers discover new failure
+modes. Each shift invalidates a slice of the existing gold set. A pre-fill
+prompt written on the old distribution does not update as the human's
+accept-and-edit signal accumulates, so the tool's assistance decays exactly when
+re-labeling cost is highest.
 
-A growing line of work argues that disagreement is not always error. On tasks like sarcasm or toxicity, the right answer is often a distribution over labels rather than a single label, and soft labels with annotator-specific models capture more signal than forced consensus does. AnnotAgent does not contest this view. For codebooks where downstream analysis genuinely requires a single label per item (per-class F1, downstream model training, manuscript findings), we offer an auditable alternative to silent senior-coder adjudication. For codebooks where the right answer is a distribution, we recommend a soft-label workflow elsewhere.
+The second is subjectivity. On dimensions like intimacy, depth, or emotional
+valence, trained coders agree only 60 to 70 percent of the time. Inter-annotator
+agreement metrics (Cohen's kappa for two raters, Fleiss' kappa for more,
+Krippendorff's alpha when coverage is incomplete) quantify the gap, but they do
+not tell you whose label to imitate. The standard fix is to adjudicate
+disagreements into one consensus label, usually by a senior coder making silent
+calls. That throws away a real signal: a growing line of work argues that
+disagreement reflects genuine ambiguity rather than error, and that
+annotator-specific targets carry information a forced consensus destroys.
 
-LLM-as-judge offers a partial way out. The standard recipe (Zheng et al., 2023; Shankar et al., 2024) is to write a judge prompt, split labeled data into train/dev/test, iteratively refine the prompt, and measure true-positive and true-negative rates against human labels. The recipe works for evaluating LLM outputs; transplanting it to production *annotation* surfaces three concerns. LLM verdicts are sensitive to prompt wording and carry biases — position, verbosity, self-preference — that interact unpredictably with subtle codebooks. The verdicts are not naturally interpretable: a human coder can explain her label, a black-box LLM cannot. And a tool that ignores the multi-annotator workflows labeling teams already use is a tool that asks for replacement, not adoption.
+AnnotAgent takes the second view seriously inside a usable tool. It does not
+assume a single ground truth exists. It lets the team pick a target rater and
+calibrates the LLM annotator to that target. Where a team genuinely needs one
+resolved label, the disagreement-review UI supports that workflow too, but the
+system's default stance is that the target is a choice, not a given.
 
-AnnotAgent is built on the bet that wiring failure-driven rule extraction, multi-annotator workflows, and a shared persistent rule library together yields a system a small team can use to keep a production annotation pipeline calibrated against a moving data distribution. The rest of this document argues that bet section by section.
+LLM-as-judge offers a partial precedent. The standard recipe (Zheng et al.,
+2023; Shankar et al., 2024) writes a judge prompt, splits labeled data into
+train, dev, and test, refines the prompt, and measures agreement with human
+labels. AnnotAgent borrows the leakage-guarded split and the iterate-against-
+held-out-data discipline, and applies them to production annotation with an
+interpretable rule library and a target rater rather than an assumed gold
+standard.
 
 ---
 
 ## What AnnotAgent does
 
-The system is composed of four LLM-backed agents and two shared persistent artifacts. The four agents are `CodebookAgent`, which ingests user-supplied codebook materials and produces a structured schema; `AutoPromptGenerator`, which drafts one annotation prompt per dimension in parallel; `Annotator`, which applies a prompt to items; and `ReflectAgent`, which mines rules from labeled items and updates the Annotator's prompt subject to a held-out validation check. The two shared artifacts are the **Rule Library**, a versioned set of interpretable rules with positive and negative cues per label, and the **Memory**, a per-dimension log of rule library versions that lets the next session seed from the previous session.
+The system is four LLM-backed agents and two shared persistent artifacts. The
+agents are `CodebookAgent`, which ingests codebook materials into a structured
+schema; `AutoPromptGenerator`, which drafts one annotation prompt per dimension
+in parallel; `Annotator`, which applies a prompt to items; and `ReflectAgent`,
+which mines interpretable rules from labeled items and updates the Annotator's
+prompt under a held-out validation check. The shared artifacts are the **Rule
+Library**, a versioned set of rules with positive and negative cues per label,
+and the **Memory**, a per-dimension log of rule-library versions that lets the
+next session seed from the previous one.
 
 ```
               ┌───────────────────────────────────────────────────────┐
@@ -45,120 +114,142 @@ The system is composed of four LLM-backed agents and two shared persistent artif
               └───────────────────────────────────────────────────────┘
                                     │  CodebookDef (validated)
                                     ▼
-              ┌───────────────────────────────────────────────────────----┐
-              │  2. AutoPromptGenerator                                   │
-              │  LLM drafts a starting annotation prompt PER DIMENSION    │
-              │  in parallel (asyncio.gather, return_exceptions)          │
-              │  Versioned on disk: workspace/.../prompts/<dim>/auto_v00N │
-              └───────────────────────────────────────────────────────-----
+              ┌───────────────────────────────────────────────────────┐
+              │  2. AutoPromptGenerator                                │
+              │  LLM drafts a starting prompt PER DIMENSION in         │
+              │  parallel (asyncio.gather). Versioned on disk.         │
+              └───────────────────────────────────────────────────────┘
                                     │  one prompt per dim
                                     ▼
               ┌───────────────────────────────────────────────────────┐
-              │  3. Annotator                                         │   ◀── Flow A entry:
-              │  Batch (Flows B + C): pipeline runner, per-dim or     │       interactive single-
-              │     all-together, async, pause/cancel/resume, WS prog.│       item labeling with
-              │  Interactive (Flow A): per-item pre-fill on demand,   │       LLM pre-fill +
-              │     drives the Cold-start Labeling page               │       shadow ReflectAgent
+              │  3. Annotator                                          │
+              │  Batch: pipeline runner, per-dim or all-together,      │
+              │     async, pause/cancel/resume, WebSocket progress.    │
+              │  Interactive: per-item pre-fill for cold-start label.  │
               └───────────────────────────────────────────────────────┘
-                                    │  predictions + per-class metrics    ◀── C1 entry:
-                                    ▼                                        rule-augmented run on
-              ┌───────────────────────────────────────────────────────-┐      disputed items, store
-              │  4. ReflectAgent (the shared engine)                   │      verdict + cited rules
-              │  PatternExtractor:                                     │
-              │    • rules from failures (C2 + shadow / Flow A)        │   ◀── C1 entry:
-              │    • rules from agreed items (C1 / Flow B)             │       PatternExtractor
-              │  Annotator role: labels items with current prompt+rules│       on agreed subset
-              │  Governor: holdout-gated rollback                      │
-              │  Held-out test scored ONCE at end (leakage guard)      │
-              └───────────────────────────────────────────────────────-┘
+                                    │  predictions + per-class metrics
+                                    ▼
+              ┌───────────────────────────────────────────────────────┐
+              │  4. ReflectAgent (improvement loop)                    │
+              │  PatternExtractor: abstract rules from failures        │
+              │  Annotator role: label with current prompt + rules     │
+              │  Governor: held-out-gated rollback                     │
+              │  Test scored ONCE at the end (leakage guard)           │
+              └───────────────────────────────────────────────────────┘
                                     │  rule library + optimized prompt
                                     ▼
               ┌───────────────────────────────────────────────────────┐
-              │  5. Memory (cross-session)                            │   ◀── C3 entry:
-              │  ReflectMemoryVersion table, versioned per (project,  │       re-seed Run 2
-              │  dimension). Each run seeds from the latest version.  │       from same v0 prompt
-              │  Editable, exportable, accumulates across sessions.   │       after corpus update
-              │  Shadow runs in Flow A write Memory mid-session.      │
+              │  5. Memory (cross-session)                             │
+              │  Versioned per (project, dimension). Each run seeds     │
+              │  from the latest version. Editable, exportable.        │
               └───────────────────────────────────────────────────────┘
 ```
 
-`CodebookAgent` does three jobs inside one agent. The Ingestor parses the upload (PDF, DOCX, XLSX, CSV, JSON, or plain text), normalizing messy spreadsheets along the way: multiple sheets, continuation rows, `&`-separated multi-label cells. The Drafter produces a structured `CodebookDef` with single-label or multi-label inferred per dimension. The Critic flags ambiguities for the user. The user then edits the draft in a wizard before committing, and the wizard outputs an analysis-friendly `cleaned_data.json` side-artifact for any downstream tool that wants a flat view of the items.
+`CodebookAgent` does three jobs in one agent. The Ingestor parses the upload
+(PDF, DOCX, XLSX, CSV, JSON, or plain text) and normalizes messy spreadsheets:
+multiple sheets, continuation rows, `&`-separated multi-label cells. The Drafter
+produces a structured `CodebookDef` with single-label or multi-label inferred
+per dimension. The Critic flags ambiguities. The user edits the draft in a
+wizard before committing, and the wizard emits an analysis-friendly
+`cleaned_data.json` side-artifact for downstream tools.
 
-`AutoPromptGenerator` uses a Jinja meta-prompt (`auto_prompt_generator.jinja`) to write one annotation prompt per dimension in parallel. Each prompt is versioned on disk under `workspace/project_<id>/prompts/<dim>/auto_v00N`, so the user can roll back or compare. A separate deterministic generator, `prompt_generator.jinja`, remains in place for the gallery and preset codebooks where reproducibility outweighs adaptiveness.
+`AutoPromptGenerator` uses a Jinja meta-prompt to write one annotation prompt
+per dimension in parallel. Each prompt is versioned on disk under
+`workspace/project_<id>/prompts/<dim>/auto_v00N`, so the user can roll back or
+compare. A deterministic generator stays in place for the gallery and preset
+codebooks where reproducibility matters more than adaptiveness.
 
-`Annotator` runs in two modes. Batch mode handles full datasets with bounded concurrency, WebSocket progress updates, and pause/cancel/resume; the per-dimension sub-mode runs one step per dim and avoids cross-dimensional interference, while the all-together sub-mode covers every dim in one LLM call per item and is cheaper but noisier. Interactive mode handles one item at a time and drives the cold-start labeling page (Flow A below).
+`Annotator` runs in two modes. Batch mode handles full datasets with bounded
+concurrency, WebSocket progress, and pause, cancel, or resume; the per-dimension
+sub-mode runs one step per dimension to avoid cross-dimensional interference,
+while the all-together sub-mode covers every dimension in one call per item and
+is cheaper but noisier. Interactive mode handles one item at a time and drives
+the cold-start labeling page.
 
-`ReflectAgent` is the shared engine for both improvement loops. The PatternExtractor distills a batch of items into interpretable rules (positive cues, negative cues, target labels, plain-English boundary). The same role is invoked with two different batch compositions: in C2 it consumes failure cases mined from the current prompt's wrong predictions on the training slice; in C1 it consumes items where every human annotator agreed, treating the convergence itself as positive evidence of how the codebook resolves a given decision. The Governor scores each candidate prompt on a held-out validation slice and rolls back any rule update that regresses validation accuracy by more than a small epsilon. A held-out test slice is scored exactly once at the end, and the train/val/test partition is asserted disjoint by object identity before any run starts.
+`ReflectAgent` is the improvement loop. The PatternExtractor distills a batch of
+mislabeled items into interpretable rules (positive cues, negative cues, target
+labels, a plain-English boundary); it is forbidden from quoting failure
+sentences verbatim and must abstract the boundary it sees. The Annotator labels
+the validation slice with the candidate rule set. The Governor compares
+validation accuracy before and after and rolls back any update that regresses by
+more than `rollback_epsilon`. A held-out test slice is scored exactly once at
+the end, and the train, validation, and test partitions are asserted disjoint by
+object identity before any round starts.
 
-`Memory` writes a new `ReflectMemoryVersion` row after every successful run, indexed by `(project, dimension)`. The next run on the same dimension reads the latest version's rules as its starting library; trajectory chart round zero shows `action: baseline_seeded` whenever this happens. Memory is editable in the UI: the user can manually add, edit, or retire rules, and the audit log persists.
+`Memory` writes a new `ReflectMemoryVersion` row after each successful run,
+indexed by `(project, dimension)`. The next run on the same dimension reads the
+latest version's rules as its starting library; the trajectory chart shows
+`baseline_seeded` at round zero. Memory is editable in the UI, and the audit log
+persists. This is a convenience that lets a dimension's rules compound across
+sessions, not a claim about open-ended self-improvement.
 
 ---
 
 ## Three user flows
 
-Different projects walk in at different stages of labeling maturity. The same four agents serve all three flows; what changes is which agents activate, in what order, and what artifact they write.
+Different projects walk in at different stages of labeling maturity. The same
+four agents serve all three flows; what changes is which agents activate and
+what artifact they write.
 
-**Flow A — cold start.** The user has a codebook (or wants help drafting one) and raw data. They want to label item by item with LLM assistance, the way LabelLLM and Prodigy support today. AnnotAgent covers this case: CodebookAgent ingests the codebook, AutoPromptGenerator drafts a starting prompt per dimension, and the Annotator runs in interactive mode. Each accepted or edited verdict becomes a gold-label row. Once the dimension accumulates roughly twenty accepted items, a background ReflectAgent run mines rules from the accepted set and updates the pre-fill prompt for the rest of the session. A small badge on the labeling page tells the user the pre-fill improved and which revision is active.
+**Flow A, cold start.** The user has a codebook (or wants help drafting one) and
+raw data, and wants to label item by item with LLM assistance. CodebookAgent
+ingests the codebook, AutoPromptGenerator drafts a starting prompt per
+dimension, and the Annotator runs interactively. Each accepted or edited verdict
+becomes a labeled row. Once a dimension accumulates roughly twenty accepted
+items, a background ReflectAgent run mines rules from the accepted set and
+updates the pre-fill prompt for the rest of the session. A badge tells the user
+the pre-fill improved and which revision is active.
 
-**Flow B — resolving disagreement.** The user has labels from two or more coders on the same items. CodebookAgent ingests the codebook; the dataset wizard joins the annotator files on item index; the system computes IAA per dimension (Krippendorff's α by default, Cohen's κ for the N=2 pairwise case, Fleiss' κ when N≥3 with no missing values). Per the chosen agreement mode (unanimous, majority, or plurality), items split into agreed and disputed subsets per dimension. ReflectAgent runs on the agreed subset, producing a rule library that encodes how the codebook resolves the easy cases. The Annotator labels each disputed item with the rule-augmented prompt and emits a verdict together with the IDs of the rules it cited. The user reviews each disputed item in a queue: every annotator's label sits in a horizontal strip next to the LLM verdict, the reasoning, and the cited rules (clickable, navigates to the rule). Accepted or overridden verdicts move into the agreed corpus and bump the rule library version. This flow embodies C1, which is unverified.
+**Flow B, multiple annotators.** The user has labels from two or more coders on
+the same items. CodebookAgent ingests the codebook; the dataset wizard joins the
+annotator files on item index; the system computes IAA per dimension
+(Krippendorff's alpha by default, Cohen's kappa for the two-rater case, Fleiss'
+kappa when three or more rate every item). The user can inspect where coders
+diverge and, per dimension, pick a **target rater** to calibrate toward, or, for
+a team that needs one resolved label, work the disputed items in a review queue
+where every annotator's label sits next to the LLM verdict and its cited rules.
+The target-rater path feeds Flow C; the review path produces a single resolved
+corpus. Both are supported; the system does not force the choice.
 
-**Flow C — gold-label optimization.** The user has gold-labeled data already adjudicated, or has accumulated enough cold-start labels through Flow A. AutoPromptGenerator drafts the starting prompts; ReflectAgent runs failure-driven optimization with held-out validation; Memory writes a new version. Subsequent runs on the same dimension seed from the latest version, and rules compound across sessions.
+**Flow C, target-aligned optimization.** The user has labeled data for a chosen
+target (a single coder's labels, an adjudicated corpus, or accumulated
+cold-start labels). AutoPromptGenerator drafts the starting prompts; ReflectAgent
+runs failure-driven optimization with held-out validation against that target;
+Memory writes a new version. Subsequent runs on the same dimension seed from the
+latest version and the rules compound.
 
-The three flows are not isolated. Flow A's accepted labels feed Flow C the moment the user wants to switch to batch optimization. Flow B's adjudicated verdicts upgrade a partially-labeled corpus into a fully-labeled one, which is then the natural input for Flow C. C1's second half lives precisely in this composition: run Flow C twice from the same starting prompt, once before and once after Flow B's adjudication step, and overlay the validation curves.
-
----
-
-## The two contributions in depth
-
-### C1 (proposed): adjudication-as-data-cleaning loop
-
-C1 has two halves. The first half resolves disagreement by adding an LLM third voice with cited rules and human re-judgment. The second half re-runs the optimizer from the same starting prompt on the post-adjudication corpus and overlays the curve against the pre-adjudication run. The first half is the mechanism; the second half is the measurement. Neither half stands alone in the paper: a mechanism with no measurement asks the reader to trust that the adjudication is worth doing, and a measurement with no mechanism has nothing to attribute the lift to.
-
-**The mechanism.** Two trained coders disagree on a disputed item. The traditional resolution is silent: a senior coder reads the item and chooses a label, the record reflects only the final answer. We propose to add a third voice. ReflectAgent first mines rules from the items the same coders agreed on for the same dimension, producing a rule library that encodes the codebook's resolved decisions. The Annotator then applies the rule-augmented prompt to each disputed item and emits a verdict with cited rules. The user sees every annotator's label, the LLM's verdict, and the rules the LLM relied on, and clicks accept, override, or skip. The mechanism is unusual in *which* items the LLM sees rules from. The LLM trains on agreement and is consulted on disagreement; the rules carry the codebook's already-resolved cases into the unresolved ones. The Disagreement Review queue then logs the human re-judgment, so the resolution is auditable in a way silent senior adjudication is not.
-
-**The measurement.** The data-centric AI thesis (Ng, 2021) says model performance is bottlenecked by data quality more often than by model architecture or prompt design. The second half of C1 instantiates that thesis inside our system on a single overlay figure with two curves on the same axes, plus an appendix control curve.
-
-```
-       val accuracy
-         │
-   high  │            ╭───── Run 2: full corpus
-         │           ╱      (post-adjudication via C1, same prompt, same model)
-         │         ╱
-   mid   │       ╱╮
-         │      ╱ │
-         │    ╱   ╰─────── Run 1: agreed-only subset
-         │  ╱       (plateaus — data is the ceiling, not the prompt)
-         │╱
-         └────────────────────► round
-```
-
-Run 1 trains ReflectAgent on the subset where humans agreed. Items that two annotators independently labeled the same way are by construction the *unambiguous* items, and a modest set of rules handles them. The validation slice is drawn from the same distribution, so once the rule library captures the easy patterns, additional rounds yield diminishing returns. Run 1 plateaus. Run 2 trains on the same starting prompt and the same model, but on the full corpus after Flow B has resolved the disputed items. The adjudicated-disputed items are the boundary cases — each one encodes a decision the annotators could not resolve in isolation. Mixing them into the training corpus exposes the PatternExtractor to the boundary cases the easy items hid. Run 2 climbs past Run 1. The gap between the curves is the value of cleaning labels, measured in held-out test accuracy with everything else held constant.
-
-A reviewer might read Figure 4 as "more data is better" and discount the contribution. The matched-N control curve rules that reading out. Run 3 trains on a size-matched random slice of the post-adjudication corpus, equal in item count to the agreed-only set. The composition of Run 3 is a mix of agreed and adjudicated-disputed items in roughly the natural ratio of the full corpus. The comparison between Run 1 and Run 3 isolates the label-quality lift at matched corpus size. Run 3 lives in the appendix and is referenced from a footnote in the eval section.
-
-**The empirical risks and the verification spike.** The empirical premise behind the mechanism is that rules mined from the agreed subset transfer usefully to the disputed subset. The premise might fail in at least three ways. The disputed items might live in a region of the codebook the agreed rules never cover, so the LLM's `cited_rules` field comes back empty and the verdict falls back to zero-shot behavior. The rules might fire but resolve disputes the way the *majority annotator* would rather than the way an external adjudicator would; that is empirically distinguishable from a true calibration signal. Or what looks like agreement might be coordinated annotator bias, in which case the rules re-encode the bias and the verdict is wrong in the same way the agreed labels are wrong. The empirical risk behind the measurement is independent of these: even if the mechanism works, the lift between Run 1 and Run 2 might be small, noisy, or absorbed by the matched-N control — in which case the data-centric story does not survive Figure 4.
-
-The verification spike resolves the mechanism's risks. On Fiona's `Level` dimension we build the agreed/disputed split, run ReflectAgent on the agreed subset, apply the rule-augmented prompt to the disputed items, and compare the LLM verdicts to the eventually-adjudicated labels we have on hand from Fiona's senior-coder pass. Three measurements fall out. The grounded-rate counts disputed items where `cited_rules` is non-empty; if this is below 50%, the rules do not transfer. The accuracy with rules versus zero-shot tells us whether the rule library actually lifts performance on the hard items. And the bias check correlates the LLM verdict with each individual annotator's labels on the disputed items; if the LLM behaves like a copy of one specific annotator, the rules absorbed that annotator's idiosyncratic patterns. The measurement's risk is checked end-to-end by Figure 4 itself: if the gap between Run 1 and Run 3 is within noise, we report it that way.
-
-If the spike comes back positive and Figure 4 shows a real lift, C1 ships as written. If the spike fails, C1 becomes a useful negative result in the same section, supported by the same numbers: rules from agreement do not transfer to disagreement on this codebook, and here is why. The Disagreement Review UI itself ships either way; making adjudication visible is a contribution to codebook research workflows even without the LLM verdict button.
-
-### C2: a self-evolving annotator with cross-session memory
-
-Existing prompt optimizers — GEPA, MIPROv2, OPRO — return a single optimized prompt from a fixed training set and keep no persistent artifact. ReflectAgent does the analogous job inside our system but produces an inspectable rule library and a Memory log that carries forward across sessions on the same dimension.
-
-Each round of optimization runs a small loop. The PatternExtractor takes failure cases from the current prompt's predictions on the training slice and distills them into candidate rules; it is forbidden from quoting failure sentences verbatim and must abstract the boundary it sees. The Annotator labels the validation slice with the candidate rule set. The Governor compares validation accuracy before and after; if the candidate regresses by more than `rollback_epsilon`, the round rolls back. The trajectory chart makes rollbacks visible as small dips that get undone.
-
-The held-out test slice is scored exactly once, at the end of optimization, on the final rule library. The asserts in `api/optimizers.py::_execute_run` verify the three sets are disjoint by object identity before any round starts. This is the standard rule from LLM-as-judge prompt development — validation and test items never enter the prompt — and it is the line we hold.
-
-Memory is the part that compounds across sessions. After each successful run on a dimension, the final rule library writes a new `ReflectMemoryVersion` row. The next run on the same dimension reads the latest version's rules as its starting library; the trajectory shows `baseline_seeded` at round zero and the prompt arrives at the loop already richer than it started. Over enough sessions a dimension reaches saturation: the rule library stops growing because the PatternExtractor cannot find new failure patterns to abstract.
+The flows compose. Flow A's accepted labels become a target for Flow C the
+moment the user switches to batch optimization. Flow B's per-rater split hands
+Flow C a target without any forced consensus. This composition is exactly what
+the evaluation exercises: take each annotator as a separate target and run Flow C
+against that target alone.
 
 ---
 
-## How the system is built
+## The improvement loop in depth
+
+Existing prompt optimizers (GEPA, MIPROv2, OPRO) return a single optimized
+prompt from a fixed training set and keep no persistent artifact. ReflectAgent
+does the analogous job inside the system but produces an inspectable rule library
+and a Memory log that carries forward across sessions on the same dimension. The
+loop is the engine behind the per-target alignment the system claims.
+
+Each round runs a small loop. The PatternExtractor takes failure cases from the
+current prompt's predictions on the training slice and distills them into
+candidate rules. The Annotator labels the validation slice with the candidate
+rule set. The Governor compares validation accuracy before and after; if the
+candidate regresses by more than `rollback_epsilon`, the round rolls back. The
+trajectory chart renders rollbacks as small dips that get undone.
+
+The held-out test slice is scored exactly once, at the end, on the final rule
+library. The asserts in `api/optimizers.py::_execute_run` verify the three sets
+are disjoint by object identity before any round starts. Validation and test
+items never enter the prompt. This is the standard discipline from LLM-as-judge
+prompt development, and it is what makes the reported alignment numbers honest.
 
 ### The rule library
 
-Each rule is a structured object with the following fields:
+Each rule is a structured object:
 
 ```json
 {
@@ -179,207 +270,211 @@ Each rule is a structured object with the following fields:
 }
 ```
 
-Rules are versioned. Each `ReflectMemoryVersion` row stores the full ordered list of rules active at the time, with `created_at` and the ID of the optimizer run that produced it. New runs may add, modify, or retire individual rule IDs, and rule deletion is soft (the row stays, marked `retired_at`) so audit trails survive.
-
-### Mining rules: from failures and from agreement
-
-The PatternExtractor role is invoked with different input batches and different system prompts in C2 versus C1, but it produces the same rule schema either way.
-
-| | C2 — failure mining | C1 — agreement mining |
-|---|---|---|
-| Input batch | Items where the current prompt produced a wrong label, with `(sentence, prefix, gold, predicted, reasoning)` | Items where every human annotator chose the same label, with `(sentence, prefix, agreed_label)` |
-| What the extractor produces | Rules that would have prevented this batch of failures | Rules that explain why the codebook resolves this batch the way it does |
-| Implicit "boundary" signal | The gap between gold and predicted | The convergence itself: every annotator chose the same label |
-| Source-quoting | Forbidden from quoting source sentences verbatim | Same |
-| Governor check | Candidate must not regress validation accuracy on gold | Candidate must not regress prediction-vs-agreed-label accuracy on a held-out validation slice of the agreed subset |
-
-Both flavors share the same prompt scaffold; the differences are the system prompt header and the input batch. The Governor's leakage and rollback guards apply identically in both.
-
-### Verdict format and the Disagreement Review queue
-
-When the Annotator labels a disputed item in Flow B, it emits a structured object the UI can render:
-
-```json
-{
-  "item_id": 4271,
-  "dimension": "Level",
-  "verdict": "Low",
-  "confidence": 0.78,
-  "reasoning": "The speaker names a personal preference (\"I prefer to keep things to myself\"), which is a first-person anchor with a stated opinion. Per Rule level-2025-05-14-001 this is Low, not No.",
-  "cited_rules": ["level-2025-05-14-001"],
-  "human_labels": {"annotator_A": "No", "annotator_B": "Low"}
-}
-```
-
-The `cited_rules` list drives clickable in-place rule popovers in the Review queue. If the Annotator returns a non-default verdict with an empty `cited_rules`, the verdict is flagged in yellow and the user sees "ungrounded — manual review recommended." This is the mechanism that surfaces failure mode (1) from the C1 verification plan: when rules from the agreed subset cover none of the disputed items, the user sees yellow on most of the queue and knows to distrust the LLM voice on this batch.
+Rules are versioned. Each `ReflectMemoryVersion` row stores the full ordered list
+of active rules with `created_at` and the optimizer run that produced it. New
+runs may add, modify, or retire rule IDs; deletion is soft (the row stays, marked
+`retired_at`) so the audit trail survives. Because the rules are explicit text,
+the prompt the system calibrates to a given rater is readable: a reviewer can see
+*how* the system learned to label like coder A, not just that it did.
 
 ### Multi-annotator ingest and IAA
 
-The current `Dataset` model stores one `gold_labels` dict per item. Flow B needs every annotator's label intact, so `DataItem` gains a `labels_by_annotator` field keyed by annotator ID:
+`DataItem` carries a `labels_by_annotator` field keyed by annotator ID, so every
+coder's label stays intact:
 
 ```python
 labels_by_annotator: dict[str, dict[str, str | list[str]]]
-# Three annotators:
-# {"A": {"Level": "Low"},
-#  "B": {"Level": "No"},
-#  "C": {"Level": "Low"}}
-# Multi-label dimensions use list values:
-# {"A": {"AI_behaviors": ["validate", "advise"]},
-#  "B": {"AI_behaviors": ["validate"]}}
+# {"Fiona": {"Level": "Low"},
+#  "Chang": {"Level": "No"}}
 ```
 
-Annotator IDs are user-provided strings (display names like `Fiona` or `Chang`). Missing values are allowed: an annotator may have rated some items but not others, which is the common real-world case. The wizard joins on item index or on a user-selected key column.
-
-Defining "agreed" for two raters is unambiguous. For three or more, the system surfaces a choice and defaults to the strictest variant. Under `unanimous` mode (the default) an item is agreed only when every annotator who rated it chose the same label. Under `majority`, a strict majority suffices. Under `plurality`, the most common label wins as long as it has strictly more votes than any other. The default is unanimous because the training-data quality matters more for the rule library than the sample size; Researcher mode exposes the toggle.
-
-The system computes and reports inter-annotator agreement per dimension at three levels of generality:
-
-| Metric | Preconditions | When AnnotAgent reports it |
-|---|---|---|
-| Cohen's κ | Exactly two raters, no missing data, nominal scale | Pairwise, when N=2, or for any selected pair when N>2. Useful for catching one outlier rater |
-| Fleiss' κ | N raters, all rate all items, nominal | Reported when N≥3 with no missing data |
-| Krippendorff's α | Any N, missing data permitted, any scale | Default report; always shown. Handles the common case where coverage is incomplete |
-
-Interpretation thresholds appear inline next to each value: < 0.00 "no agreement," 0.21–0.40 "fair," 0.41–0.60 "moderate," and so on per Landis & Koch (1977); for α, > 0.80 "reliable," 0.67–0.80 "tentative," < 0.67 "revisit guidelines" per Krippendorff. The UI does not editorialize beyond the standard thresholds.
-
-Per-dimension IAA is computed on ingest and recomputed whenever the Review queue moves an item from disputed to agreed. A small delta arrow shows the lift.
-
-### The matched-N protocol
-
-Let A be the number of agreed items for the flagship dimension and D be the number of disputed items. The three Run-1/Run-2/Run-3 curves in Figure 4 differ only in which dataset rows the optimizer sees as its `gold_dataset_id`:
-
-| Run | Training corpus | Labels |
-|---|---|---|
-| Run 1 (`agreed-only`) | A items where annotators converged | Consensus labels |
-| Run 2 (`full-post-adjudication`) | A + D items after Flow B resolved the disputed slice | Consensus for the A; accepted or overridden verdict for the D |
-| Run 3 (`matched-N`) | A items sampled at random (fixed seed) from the A + D corpus | Mixed composition: roughly A·(A/(A+D)) agreed and A·(D/(A+D)) adjudicated |
-
-All three runs use the same model, the same starting prompt (`auto_v001` from AutoPromptGenerator), the same optimizer (`reflect_agent`), and the same hyperparameters. The held-out test slice is the same for all three, drawn before any of the three runs starts and never visible to the optimizer.
-
-Reading the figure: the Run 1 → Run 2 gap is the combined effect of label quality and corpus size. The Run 1 → Run 3 gap is the label-quality lift at matched size — the number the paper headlines. The Run 3 → Run 2 gap is the marginal effect of size at fixed label quality.
-
-### A worked example: Fiona, dimension `Level`
-
-To make the pipeline concrete, here is the trace we expect on the flagship dimension.
-
-The Fiona dataset has two annotators on five hundred items. Joined on utterance ID, the agreed/disputed split for `Level` comes to 412 agreed and 88 disputed. Cohen's κ on the dimension is about 0.51 (fair). ReflectAgent runs on the 412 agreed items and, after roughly five rounds, the rule library stabilizes at around twelve rules. Validation accuracy on the held-out slice of the agreed subset reaches roughly 92%.
-
-The rule-augmented Annotator then labels each of the 88 disputed items. For each item the system records the verdict, the confidence, the reasoning, and the cited rules. We then compare the verdicts to the eventually-adjudicated labels from Fiona's senior-coder pass.
-
-The user opens the Disagreement Review queue and decides each disputed item: accept the LLM, override to a different label, or skip. Accepted and overridden items move to the agreed corpus and bump the rule library version.
-
-ReflectAgent runs again, this time from the same `auto_v001` starting prompt but on the full five-hundred-item corpus. Validation accuracy climbs past Run 1's plateau. The matched-N variant, sampled uniformly from the full corpus at A = 412 items, runs separately for the appendix and is expected to land between Run 1 and Run 2.
+Annotator IDs are user-provided display names. Missing values are allowed: a
+coder may rate some items and not others, the common real-world case. The wizard
+joins on item index or a user-selected key column. The system computes and
+reports IAA per dimension with the standard metrics and interpretation
+thresholds (Landis and Koch, 1977; Krippendorff). IAA here is a diagnostic that
+tells the team how much the choice of target rater matters, not a gate that must
+be cleared before the system will help.
 
 ---
 
 ## Walkthroughs
 
-The walkthroughs below describe what a user sees in the UI for each of the three flows plus the overlay run that completes C1's second half. Each one corresponds to a labeled segment of the demo video and to a screenshot in the paper.
+Each walkthrough corresponds to a segment of the demo video and a screenshot in
+the paper.
 
-### W0 — cold-start labeling
+**W0, cold-start labeling.** A user with a fresh codebook and unlabeled data
+lands on Setup. CodebookAgent drafts a structured codebook and shows an editable
+preview; the user tweaks dimension names and label definitions, then commits.
+The user uploads raw data and lands on the Annotate page, which renders one item
+at a time with a pre-filled label and one-line reasoning per dimension. The user
+accepts, edits one dimension, or rejects. After about twenty accepted items on a
+dimension, a background ReflectAgent run mines rules from the accepted set and
+updates the pre-fill prompt; a "Pre-fill improved (rev 2)" badge appears.
 
-A user with a fresh codebook and unlabeled data lands on the Setup page. CodebookAgent ingests the upload, drafts a structured codebook, and shows an editable preview; the user tweaks dimension names and label definitions, then commits. The user then uploads raw data and lands on the Annotate page, which now renders one item at a time. AutoPromptGenerator has already drafted one prompt per dimension in parallel. For each item, the Annotator pre-fills every dimension with a predicted label and a one-line reasoning, and the user clicks Accept, edits a single dimension, or rejects entirely. After about twenty accepted items on a dimension, a shadow ReflectAgent run mines rules from the accepted set and silently updates the Annotator's prompt. A "Pre-fill improved (rev 2)" badge appears at the top of the page. The session ends when the user is satisfied; the accumulated labels and the rule library are ready for batch annotation on the rest of the corpus.
+**W1, multiple annotators and target selection.** The user uploads two annotator
+spreadsheets on Setup; the wizard joins on item index and populates
+`labels_by_annotator`. The system computes IAA per dimension and shows where the
+coders diverge. The user picks a target rater (or opens the review queue to
+resolve disputes into one corpus). Picking a target hands that rater's labels to
+Flow C.
 
-### W1 — adjudicating disputed items (Flow B, C1 mechanism)
-
-The user uploads N annotator spreadsheets on the Setup page; the wizard joins on item index and produces a single dataset with `labels_by_annotator` populated. Missing values are tolerated. The system computes IAA per dimension and the agreed/disputed split under the current agreement mode. The Improve page shows a panel: "Dim `Level`, three raters: 412 agreed (unanimous), 88 disputed. α = 0.49, fair." Researcher mode exposes the agreement mode toggle; the split recomputes live. The user clicks "Learn from the agreed items." ReflectAgent runs on the agreed subset, and the rule library populates the Memory section.
-
-The user then opens the Disagreement Review page. Disputed items sit in a queue. Each row shows the text, every annotator's verdict in a horizontal strip, the LLM verdict with reasoning, and the rules the LLM cited (clickable). The user clicks Accept LLM, Override to a specific label, or Skip per item. Accepted and overridden items move into the agreed corpus, the dimension's IAA recomputes (the LLM is treated as an additional rater for the resolved item), and the rule library version bumps on the next pass.
-
-### W2 — annotating unseen data (Flow C, C2)
-
-The user lands on the Improve page. For a user-uploaded codebook, AutoPromptGenerator has already drafted one prompt per dimension in parallel, and the cards appear under "Current prompts." The user clicks "Improve from examples." The trajectory chart shows validation accuracy and macro F1 climbing round by round; rollbacks appear as small dips that get undone. The Memory section then shows a versioned rule library with plain-English boundaries and positive and negative cues per rule. The user navigates to the Annotate page, picks the test set, and clicks Run annotation. The Results page shows per-class precision, recall, and F1; a confusion matrix; and CSV and JSON export. A second improvement run on the same dimension reads the latest Memory version, so round zero shows `action: baseline_seeded` and the prompt already carries the rules from the prior session.
-
-### W3 — the data-centric overlay (Flow B + Flow C composition, C1 measurement)
-
-After W1, the user has a cleaned, fully-labeled corpus. The Improve page now offers a "Compare runs" toggle. The user picks the earlier agreed-only run and the new full-corpus run, both seeded from the same `auto_v001` prompt. The trajectory chart overlays both curves on the same axes. Annotations on the chart point out: Run 1 plateaus at round 4; Run 2 climbs past it; same prompt, same model, only the labels differ. A small panel below shows the matched-N variant for the appendix, so the user can see the size confound is not the explanation.
+**W2, target-aligned optimization.** On the Improve page, AutoPromptGenerator has
+already drafted one prompt per dimension. The user clicks "Improve from
+examples." The trajectory chart shows validation accuracy and macro F1 climbing
+round by round against the chosen target; rollbacks appear as small dips that get
+undone. The Memory section shows the versioned rule library with plain-English
+boundaries and per-label cues. The user runs annotation on the held-out test
+set; the Results page shows per-class precision, recall, and F1, a confusion
+matrix, and CSV and JSON export.
 
 ---
 
 ## Evaluation plan
 
-### Flagship dataset
+The evaluation answers one question: does the improvement loop raise agreement
+with a chosen target rater, and is the lift specific to that rater rather than a
+generic prompt improvement? The track requires an evaluation; this one is sized
+to demonstrate the claimed capability, not to sweep optimizers, backbones, or
+domains.
 
-The evaluation centers on a single hard codebook: AI-companion conversation analysis, with user-side self-disclosure (five dimensions, single-label) and AI-side behavior (three themes, multi-label), annotated on adjudicated dialogues. Two annotator datasets are available with per-annotator columns intact. *Fiona* has multiple coders, raw cell-level labels per coder, and an IAA on `Level` near 68.6% (κ ≈ 0.5, fair). *Chang* has multiple coders on the same codebook and provides cross-coder consistency for an external validation of Flow B. The flagship is the hardest case in our hands; nothing in the system is dialogue-specific.
+### Dataset and why it is hard
 
-### Table A — per-dimension self-disclosure (C2)
+The flagship codebook is AI-companion self-disclosure, four single-label
+dimensions: Level of disclosure, Disclosure as confession, Depth of disclosure,
+and Intimacy of self-disclosure. Two coders, **Fiona** and **Chang**, labeled it
+independently. Fiona labeled 333 utterances, Chang 330, with 177 utterances in
+common.
 
-A three-way split (train 15% / val 42% / test 43%) with test items held out from the optimizer. Five dimensions, one flagship model (`gpt-5.4-mini`), zero-shot versus ReflectAgent:
+The two coders apply the same codebook in measurably different ways, which is the
+point. On the 177 shared utterances their raw agreement is 67.4% on Level, 62.7%
+on Confession, 69.7% on Depth, and 34.8% on Intimacy. Their label-space usage
+diverges too: Fiona uses a `No` class on Level (42 items) that Chang never uses;
+on Confession, Fiona calls 271 No against 45 Yes while Chang is nearly balanced
+at 156 No against 173 Yes; on Depth and Intimacy, Fiona almost never uses the
+`Peripheral` class (5 and 3 items) while Chang uses it about 80 times each. A
+single consensus target would erase these differences. Per-target alignment
+preserves them.
 
-| Dimension | n_labeled | Zero-shot test | + ReflectAgent test | Δ pp |
+### Table 1, per-target alignment (the headline)
+
+For each annotator and each dimension, split that annotator's labeled items
+deterministically into train, validation, and test (seed derived from
+`(annotator, dimension)`, test held out from the optimizer). Baseline is the
+zero-shot starting prompt (`auto_v001`); treatment is the prompt after
+ReflectAgent optimizes against that annotator's train slice under validation
+gating. Agreement is accuracy against the same annotator's held-out test labels.
+One flagship model (`gpt-5.4-mini`), no per-class tuning.
+
+| Target | Dimension | n_labeled | n_test | Zero-shot agree | + ReflectAgent agree | Δ pp |
+|---|---|---|---|---|---|---|
+| Fiona | Level of disclosure | 323 | (run) | (run) | (run) | +X.X |
+| Fiona | Disclosure as confession | 316 | (run) | (run) | (run) | +X.X |
+| Fiona | Depth of disclosure | 166 | (run) | (run) | (run) | +X.X |
+| Fiona | Intimacy of self-disclosure | 124 | (run) | (run) | (run) | +X.X |
+| Chang | Level of disclosure | 330 | (run) | (run) | (run) | +X.X |
+| Chang | Disclosure as confession | 329 | (run) | (run) | (run) | +X.X |
+| Chang | Depth of disclosure | 330 | (run) | (run) | (run) | +X.X |
+| Chang | Intimacy of self-disclosure | 330 | (run) | (run) | (run) | +X.X |
+
+Macro-F1 deltas accompany each row in an appendix table, since agreement
+(accuracy) can flatter a skewed dimension such as Fiona's Confession. The
+expected reading: each annotator's own optimized prompt agrees with that
+annotator better than the zero-shot prompt does, on held-out items.
+
+### Table 2, the specificity control (is alignment real?)
+
+A reviewer could read Table 1 as "the optimizer makes the prompt better in
+general." The specificity control rules that out. Take the prompt optimized for
+Fiona and the prompt optimized for Chang, and evaluate each against both
+annotators' held-out test sets. The diagonal (own target) should beat the
+off-diagonal (other target). The gap is the personalization the system claims.
+
+| Dimension | Prompt→Fiona on Fiona-test | Prompt→Chang on Fiona-test | Prompt→Fiona on Chang-test | Prompt→Chang on Chang-test |
 |---|---|---|---|---|
-| Level of disclosure | 118 | (run) | (run) | +X.X |
-| Depth of disclosure | 62 | (run) | (run) | +X.X |
-| Disclosure as confession | 104 | (run) | (run) | +X.X |
-| Intimacy of self-disclosure | 24 | (run) | (run) | +X.X |
-| Temporality | 12 | n/a (< 15-item gate) | — | — |
+| Level of disclosure | (run, diag) | (run, off) | (run, off) | (run, diag) |
+| Disclosure as confession | (run, diag) | (run, off) | (run, off) | (run, diag) |
+| Depth of disclosure | (run, diag) | (run, off) | (run, off) | (run, diag) |
+| Intimacy of self-disclosure | (run, diag) | (run, off) | (run, off) | (run, diag) |
 
-### Table B — adjudication metrics (C1 mechanism)
-
-Per dimension, on the disputed-items subset:
-
-| Metric | Without rules | With rules from agreed subset |
-|---|---|---|
-| LLM verdict matches eventually-adjudicated label | (run) | (run) |
-| Tie-broken IAA on dimension `d` (3-way: A, B, LLM) | (run) | (run) |
-| Human acceptance rate of LLM verdict (Review UI) | n/a | (run, small sample) |
-| Mean review time per disputed item (s) | n/a | (run, demo sample) |
-
-The headline result we expect: rules learned from the agreed subset make the LLM verdict materially better than zero-shot on disputed items, and humans accept it often enough that adjudication time falls without rubber-stamping. If the verification spike comes back negative, Table B reports those numbers honestly as a negative result.
-
-### Figure 4 — the data-centric overlay (C1 measurement)
-
-Two trajectories on one chart for the flagship dimension, same model, same `auto_v001` initial prompt, same optimizer budget. Run 1 is agreed-only; Run 2 is agreed plus adjudicated-disputed (full corpus, post-W1). The appendix adds Run 3, the matched-N control. The text frames the gap between Run 1 and Run 2 as "data quality lift" and the gap between Run 1 and Run 3 as "data quality lift controlling for size."
+If the diagonal beats the off-diagonal, the loop learned each rater's idiosyncrasy
+rather than a shared notion of correctness. On dimensions where the two coders
+already agree (Depth at 69.7%) the gap will be small; on Intimacy (34.8%) it
+should be large. That dependence is itself evidence the effect is real.
 
 ### Supporting context
 
-End-to-end annotation throughput in items per minute on the flagship model. Raw IAA on the gold source (68.6% on `Level`, 24.6% on `Topic`) to motivate why this codebook is hard. Memory growth across sessions on the flagship dimension: number of rules after each session, until saturation.
+End-to-end annotation throughput in items per minute on the flagship model. The
+shared-item agreement numbers above, reported as the motivation for per-target
+alignment. Memory growth across sessions on one dimension: number of rules after
+each session, until the PatternExtractor stops finding new failure patterns.
 
 ### What we deliberately do not evaluate
 
-We do not run a full optimizer × codebook × model matrix. We do not compare against human-only baselines in a user study. We do not run multi-seed significance tests on any of the headline numbers. Those analyses belong in a research follow-up. The rigor bar for this submission is system demonstration: the system works on a representative hard case and produces inspectable artifacts.
+We do not run a full optimizer-by-codebook-by-model matrix. We do not run a human
+user study of the labeling UI. We do not run multi-seed significance tests on the
+headline numbers. We do not claim cross-domain generalization from a single
+codebook. Those analyses belong in a research follow-up; the bar for this
+submission is a working system demonstration with an honest, held-out alignment
+result.
 
 ---
 
 ## Related work
 
-### Closest neighbors and how AnnotAgent relates
-
 | Prior work | What it does | How AnnotAgent relates |
 |---|---|---|
-| **LabelLLM** (OpenDataLab, open source; no dedicated paper) — and other general-purpose labeling tools (Prodigy, Doccano) | Open-source human-annotation platforms with task management, multi-format ingest, per-item labeling UI, and "AI-assisted pre-annotation" where an LLM proposes and humans correct | Feature baseline AnnotAgent matches and extends. Flow A (cold-start labeling) provides the same per-item labeling surface with LLM pre-fill. On top of that surface, AnnotAgent adds three agentic capabilities these tools do not have: a `CodebookAgent` that ingests messy codebook materials into a structured editable schema; a `ReflectAgent` that runs shadow-style to learn from the user's accept/edit signal mid-session and update the pre-fill prompt; and the Flow B disputed-item review queue. LabelLLM's pre-fill is static; ours self-evolves. LabelLLM has no concept of inter-annotator agreement; we treat it as a first-class signal |
-| **CrowdAgent** (EMNLP 2025 Demo) | Multi-agent system that routes fresh annotation tasks across LLMs, SLMs, and human experts under joint quality/cost management | CrowdAgent allocates *who labels what*. AnnotAgent assumes humans already labeled and focuses on resolving the disputed subset with rules mined from the agreed subset |
-| **EvoAgentX** (EMNLP 2025 Demo) | Platform for evolving multi-agent workflow topology; integrates TextGrad, AFlow, MIPRO; benchmarks on HotPotQA / MBPP / MATH / GAIA | EvoAgentX evolves workflow topology on general benchmarks. AnnotAgent evolves a single annotator prompt anchored in a codebook with disagreement signal |
-| **Shankar et al., UIST 2024** (*Who Validates the Validators?*, EvalGen) | Mixed-initiative tool that helps users align LLM-generated evaluators with human grades; surfaces "criteria drift" | Their LLM scores LLM outputs against user-elicited criteria. Our LLM annotates the underlying data as a third labeler when two humans disagree; it is not validating any model, and its rules are mined from human agreement |
-| **Cleanlab / Confident Learning** (Northcutt et al., JAIR 2021) | Estimates joint distribution of noisy vs. true labels via model probabilities; flags suspected label errors at scale | Cleanlab flags suspected errors on items where humans agreed. AnnotAgent operates on items known to be disputed and produces a verdict with cited rules; disagreement signal is given, not inferred |
-| **Dawid–Skene (1979); MACE** (Hovy et al., NAACL 2013) | EM / Bayesian crowd-aggregation models that recover ground truth from redundant labels by jointly estimating annotator competence | Dawid–Skene and MACE produce an inferred latent label from disagreement statistics. They emit no reasoning, no rule traceability, and no human re-judge. AnnotAgent's output is an LLM verdict with cited rules and a human re-judgment, turning adjudication into an auditable artifact |
-| **Lapras** (Wang et al., CHI 2024 — *Human–LLM Collaborative Annotation Through Effective Verification of LLM Labels*) | LLM labels everything; a learned verifier scores LLM labels; humans re-annotate the low-confidence subset | Closest spirit-neighbor. The disagreement signal in Lapras is LLM-vs-verifier; humans enter to fix the LLM. In AnnotAgent the disagreement signal is human-vs-human; the LLM enters to break human ties. Inverse roles, different loop |
-| **GEPA** (Agrawal et al., 2025), **MIPROv2** (Opsahl-Ong et al., EMNLP 2024), **OPRO** (Yang et al., ICLR 2024) | Offline batch prompt optimizers; each returns a single optimized prompt | Batch, one-shot, no cross-session artifact. ReflectAgent runs online and accumulates a rule library across sessions |
-| **Ni et al., EACL 2026** (*Can Reasoning Help LLMs Capture Human Annotator Disagreement?*) | Studies whether LLMs can predict human disagreement distributions; finds RLVR-style reasoning hurts, verbalized distributions help | Orthogonal task. We cite the paper as evidence that LLM behavior on disagreement is an open problem |
+| **LabelLLM** (OpenDataLab), and other general-purpose labeling tools (Prodigy, Doccano) | Open-source human-annotation platforms with task management, multi-format ingest, per-item labeling, and static LLM pre-annotation | Feature baseline AnnotAgent matches and extends. Flow A provides the same per-item surface with LLM pre-fill; on top, AnnotAgent adds codebook ingestion into a structured schema, an improvement loop that learns from the team's own labels, and multi-annotator IAA as a first-class signal. Their pre-fill is fixed; ours calibrates to a target rater |
+| **CrowdAgent** (EMNLP 2025 Demo) | Multi-agent system that routes fresh annotation tasks across LLMs, SLMs, and human experts under joint quality and cost management | CrowdAgent allocates who labels what. AnnotAgent assumes humans already labeled and calibrates the LLM to a chosen rater's labels |
+| **EvoAgentX** (EMNLP 2025 Demo) | Platform for evolving multi-agent workflow topology; integrates TextGrad, AFlow, MIPRO | EvoAgentX evolves workflow topology on general benchmarks. AnnotAgent refines a single annotator prompt anchored in a codebook and a target rater |
+| **Shankar et al., UIST 2024** (EvalGen) | Mixed-initiative tool that aligns LLM-generated evaluators with human grades; surfaces criteria drift | Their LLM scores LLM outputs against user criteria. Our LLM annotates the underlying data and is tuned to a specific human's labels |
+| **Cleanlab / Confident Learning** (Northcutt et al., JAIR 2021) | Estimates noisy-vs-true label distribution; flags suspected label errors | Cleanlab assumes a single latent true label and flags deviations. AnnotAgent does not assume one true label; it tunes to a chosen target |
+| **Dawid-Skene (1979); MACE** (Hovy et al., NAACL 2013) | Crowd-aggregation models that recover one latent label from redundant annotations | They collapse disagreement into one inferred label with no reasoning trace. AnnotAgent keeps each rater as a separate target and produces inspectable rules per target |
+| **Lapras** (Wang et al., CHI 2024) | LLM labels everything; a learned verifier scores LLM labels; humans re-annotate low-confidence items | Closest spirit-neighbor on the human-LLM loop, but it pursues one correct label. AnnotAgent pursues alignment with a chosen rater |
+| **GEPA** (Agrawal et al., 2025), **MIPROv2** (Opsahl-Ong et al., EMNLP 2024), **OPRO** (Yang et al., ICLR 2024) | Offline batch prompt optimizers; each returns one optimized prompt, no persistent artifact | ReflectAgent runs online inside the tool, accumulates an inspectable rule library across sessions, and optimizes against a target rater |
+| **Ni et al., 2025** (Reasoning and annotator disagreement) | Studies whether LLMs can predict human disagreement distributions | We cite it as evidence that LLM behavior under disagreement is an open problem, and we take the practical stance of aligning to one chosen rater rather than predicting the full distribution |
 
-### Position vs "Disagreement is signal"
+### Position vs "disagreement is signal"
 
-A growing line of work argues that disagreement should be preserved rather than resolved: keep soft labels, train annotator-specific models, report full distributions. The premise — that disagreement often reflects genuine ambiguity rather than annotator error — is correct, and on tasks like sarcasm or toxicity we agree. AnnotAgent's contribution is for the subset of projects where downstream analysis genuinely requires a single label per item: per-class F1, downstream model training, manuscript findings. For those projects we offer an auditable alternative to silent senior-coder adjudication, not a rebuttal of the soft-label view. The methodological choice between preserving and resolving is the researcher's; the system is honest about which choice it serves.
+A growing line of work argues that disagreement should be preserved rather than
+resolved: keep soft labels, train annotator-specific models, report full
+distributions. AnnotAgent sits inside that view rather than against it. Where a
+forced consensus would discard the difference between Fiona and Chang, the system
+keeps both as targets and calibrates to whichever the team picks. For teams that
+do require one resolved label, the review queue supports that path too, but the
+default is to respect the annotator-specific signal, not erase it.
 
-### Existential check and an honest caveat
+### Honest caveat
 
-Across the searches we ran (LabelLLM, CrowdAgent, EvoAgentX, EvalGen, Cleanlab, Dawid–Skene / MACE, Lapras, GEPA / MIPROv2 / OPRO, Ni et al.), no published paper combines (i) LLM as third labeler trained on the human-agreed subset, (ii) cross-session rule accumulation, and (iii) a data-centric re-run loop that overlays training curves to attribute lift to label quality. Lapras is the nearest neighbor and solves the inverse problem.
-
-Two caveats. First, the absence of a published combination is not the same as the combination being a good idea — specifically, C1's two halves are both unverified at the time of writing. If the verification spike on Fiona shows that rules from agreed items do not transfer to disputed items, or if Figure 4 shows no measurable lift after the matched-N control, the right story is "C2 stands; C1 was a useful negative result," not "the combined contribution works." Second, the multi-agent umbrella (cold-start labeling, multi-annotator workflows, gold-label optimization) overlaps with the surface of LabelLLM, Prodigy, and Doccano. What is new is the self-evolving rule library that ties the flows together, not the labeling UI itself.
+Across the tools we surveyed, none combines a codebook-ingestion agent, an
+online improvement loop with a cross-session rule library, and per-target
+alignment in one deployable system. That a combination is unpublished does not
+make it important; the demonstration's job is to show it works and is usable. The
+labeling UI itself overlaps with LabelLLM, Prodigy, and Doccano. What is new is
+the improvement loop that calibrates to a chosen rater and the inspectable rules
+it produces.
 
 ---
 
 ## Limitations
 
-C1 carries two empirical bets that must both clear for the contribution to land as a positive result. The mechanism's bet is that rules mined from the agreed subset transfer usefully to disputed items; the verification spike on Fiona's `Level` dimension tests this. The measurement's bet is that the gap between Run 1 (agreed-only) and Run 2 (full post-adjudication) is large enough to survive the matched-N control; Figure 4 itself tests this. Either failure has a publishable form: if the mechanism fails, we report rules from agreement do not transfer on this codebook; if the measurement fails, we report no data-centric lift was detectable at the scales we ran. If both fail, the section becomes "C2 stands; C1 was a useful negative result on both halves."
+The flagship evaluation runs on a single codebook and two annotators, so we make
+no cross-domain or large-population claim. Per-target alignment is demonstrated
+for n=2 targets; whether it holds across many raters or for raters whose labels
+are internally inconsistent is future work.
 
-The flagship evaluation runs on a single dataset, so we do not claim cross-domain generalization in this paper. The system runs end-to-end on a hard codebook and produces inspectable artifacts; cross-domain claims require a separate evaluation.
+The system aligns to a target rater's labels as given. If those labels encode a
+bias, the calibrated prompt will reproduce that bias. This is a property of the
+chosen target, not a defect the system can detect on its own, and the inspectable
+rules are the mitigation: a reviewer can read what the system learned to imitate.
 
-C1 emits one verdict per disputed item. Codebooks where the right answer is genuinely a distribution (sarcasm, toxicity) are better served by a soft-label workflow. The scope choice is methodological, not a system limitation per se, but it matters to say out loud.
+The system improves a prompt and a rule library, not model weights. There is no
+fine-tuning. For codebooks whose ceiling truly requires weight updates,
+AnnotAgent is the wrong tool.
 
-The system is designed to make adjudication cheaper, not to eliminate it. The Accept LLM button still requires a human to read the verdict and the cited rules. We have no story for fully automated adjudication, and we do not claim one.
-
-There is no fine-tuning. Domain adaptation happens through the rule library and the prompt, not through model weights. For codebooks whose ceiling truly requires fine-tuning, AnnotAgent is the wrong tool.
+The improvement loop assumes enough labeled items per dimension to form a
+train, validation, and test split; dimensions below the gate are labeled
+zero-shot and not optimized.
 
 ---
 
@@ -391,16 +486,14 @@ There is no fine-tuning. Domain adaptation happens through the rule library and 
 - EvoAgentX: An Automated Framework for Evolving Agentic Workflows. EMNLP 2025 Demo. https://aclanthology.org/2025.emnlp-demos.47/
 - Shankar, S. et al. (2024). *Who Validates the Validators? Aligning LLM-Assisted Evaluation of LLM Outputs with Human Preferences.* UIST 2024. arXiv:2404.12272.
 - Northcutt, C. et al. (2021). *Confident Learning: Estimating Uncertainty in Dataset Labels.* JAIR. arXiv:1911.00068. https://github.com/cleanlab/cleanlab
-- Dawid, A. P. and Skene, A. M. (1979). *Maximum Likelihood Estimation of Observer Error-Rates Using the EM Algorithm.* Applied Statistics 28(1), 20–28.
+- Dawid, A. P. and Skene, A. M. (1979). *Maximum Likelihood Estimation of Observer Error-Rates Using the EM Algorithm.* Applied Statistics 28(1), 20-28.
 - Hovy, D., Berg-Kirkpatrick, T., Vaswani, A., and Hovy, E. (2013). *Learning Whom to Trust with MACE.* NAACL 2013. https://aclanthology.org/N13-1132/
-- Wang, X. et al. (2024). *Human–LLM Collaborative Annotation Through Effective Verification of LLM Labels* (Lapras). CHI 2024. https://dl.acm.org/doi/10.1145/3613904.3641960
+- Wang, X. et al. (2024). *Human-LLM Collaborative Annotation Through Effective Verification of LLM Labels* (Lapras). CHI 2024. https://dl.acm.org/doi/10.1145/3613904.3641960
 - Ni, J. et al. (2025). *Can Reasoning Help LLMs Capture Human Annotator Disagreement?* arXiv:2506.19467.
 - Agrawal, L. et al. (2025). *GEPA: Reflective Prompt Evolution.* arXiv:2507.19457.
 - Opsahl-Ong, K. et al. (2024). *Optimizing Instructions and Demonstrations for Multi-Stage Language Model Programs* (MIPROv2). EMNLP 2024. arXiv:2406.11695.
-- Yang, C. et al. (2024). *Large Language Models as Optimizers* (OPRO). ICLR
-  2024. arXiv:2309.03409.
+- Yang, C. et al. (2024). *Large Language Models as Optimizers* (OPRO). ICLR 2024. arXiv:2309.03409.
 - Zheng, L. et al. (2023). *Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena.* NeurIPS 2023. arXiv:2306.05685.
-- Landis, J. R. and Koch, G. G. (1977). *The Measurement of Observer Agreement for Categorical Data.* Biometrics 33(1), 159–174.
+- Landis, J. R. and Koch, G. G. (1977). *The Measurement of Observer Agreement for Categorical Data.* Biometrics 33(1), 159-174.
 - Krippendorff, K. *Content Analysis: An Introduction to Its Methodology.*
 - Ng, A. (2021). *MLOps: Model-Centric to Data-Centric AI.* Talk.
-- Ouyang, L. et al. (2022). *Training Language Models to Follow Instructions with Human Feedback* (InstructGPT). NeurIPS 2022.

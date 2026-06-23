@@ -26,7 +26,7 @@ PRESETS_DIR = Path(__file__).parent.parent / "presets"
 
 # Display order for the wizard's preset list. Anything not listed here
 # falls to the back, alphabetized.
-_PRESET_ORDER = ["ai_behavior", "self_disclosure", "harm"]
+_PRESET_ORDER = ["self_disclosure", "ai_behavior"]
 
 
 @router.get("/presets", response_model=list[PresetInfo])
