@@ -527,8 +527,6 @@ function DraftPreview({
                   >
                     <option value="single_label">single_label</option>
                     <option value="multi_label">multi_label</option>
-                    <option value="binary">binary</option>
-                    <option value="ordinal">ordinal</option>
                   </select>
                   <span className="font-mono-editorial text-stone-400">
                     {(dim.labels || []).length} labels
