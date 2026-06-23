@@ -525,10 +525,8 @@ function DraftPreview({
                       (dim.type || '').includes('multi') ? 'text-violet-700' : 'text-indigo-700'
                     }`}
                   >
-                    <option value="single_label">single_label</option>
-                    <option value="multi_label">multi_label</option>
-                    <option value="binary">binary</option>
-                    <option value="ordinal">ordinal</option>
+                    <option value="single_label">Single-label (one per item)</option>
+                    <option value="multi_label">Multi-label (a set per item)</option>
                   </select>
                   <span className="font-mono-editorial text-stone-400">
                     {(dim.labels || []).length} labels
