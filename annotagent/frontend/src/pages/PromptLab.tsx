@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend,
 } from 'recharts'
@@ -1917,13 +1917,17 @@ function AuditBadge({ run }: { run: OptimizerRun }) {
 }
 
 function PerClassMini({ initial, final }: { initial: any; final: any }) {
-  const labels: string[] = (final?.classes ?? Object.keys(final?.per_class || {})).slice().sort()
+  const labels: string[] = (final?.classes ?? Object.keys(final?.per_class || {})).slice()
+    .sort((a: string, b: string) => (final?.per_class?.[b]?.support ?? 0) - (final?.per_class?.[a]?.support ?? 0))
+  const [open, setOpen] = useState<string | null>(null)
+  const pct = (x: any) => `${((x ?? 0) * 100).toFixed(0)}`
   return (
     <div className="text-xs font-mono">
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-2">
-        <Stat label="Macro F1" value={`${(initial.macro_f1 * 100).toFixed(0)}% → ${(final.macro_f1 * 100).toFixed(0)}%`} />
-        <Stat label="Weighted F1" value={`${(initial.weighted_f1 * 100).toFixed(0)}% → ${(final.weighted_f1 * 100).toFixed(0)}%`} />
+        <Stat label="Macro F1" value={`${pct(initial.macro_f1)}% → ${pct(final.macro_f1)}%`} />
+        <Stat label="Weighted F1" value={`${pct(initial.weighted_f1)}% → ${pct(final.weighted_f1)}%`} />
       </div>
+      <div className="font-mono-editorial text-stone-400 text-[10px] mb-1">click a label for its precision / recall / errors</div>
       <table className="w-full">
         <thead><tr className="border-b border-seam text-stone-500 font-mono-editorial">
           <th className="text-left py-1">label</th>
@@ -1934,22 +1938,56 @@ function PerClassMini({ initial, final }: { initial: any; final: any }) {
           {labels.map(l => {
             const i = initial?.per_class?.[l], f = final?.per_class?.[l]
             const d = (f?.f1 ?? 0) - (i?.f1 ?? 0)
+            const isOpen = open === l
             return (
-              <tr key={l}>
-                <td className="py-1 truncate max-w-[140px]" title={l}>{l}</td>
-                <td className="py-1 text-right text-stone-600">{f?.support ?? 0}</td>
-                <td className="py-1 text-right">
-                  <span className="text-stone-600">{((i?.f1 ?? 0) * 100).toFixed(0)}</span>
-                  <span className="text-stone-300 mx-1">→</span>
-                  <span className={d > 0 ? 'text-emerald-700' : d < 0 ? 'text-red-600' : 'text-stone-700'}>
-                    {((f?.f1 ?? 0) * 100).toFixed(0)}
-                  </span>
-                </td>
-              </tr>
+              <Fragment key={l}>
+                <tr className="cursor-pointer hover:bg-paper/60" onClick={() => setOpen(isOpen ? null : l)}>
+                  <td className="py-1 truncate max-w-[150px]" title={l}>
+                    <span className="text-stone-400 mr-1">{isOpen ? '▾' : '▸'}</span>{l}
+                  </td>
+                  <td className="py-1 text-right text-stone-600">{f?.support ?? 0}</td>
+                  <td className="py-1 text-right">
+                    <span className="text-stone-500">{pct(i?.f1)}</span>
+                    <span className="text-stone-300 mx-1">→</span>
+                    <span className={d > 0 ? 'text-emerald-700' : d < 0 ? 'text-red-600' : 'text-stone-700'}>{pct(f?.f1)}</span>
+                  </td>
+                </tr>
+                {isOpen && (
+                  <tr className="bg-paper/40">
+                    <td colSpan={3} className="px-2 py-2">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-stone-600 mb-1.5">
+                        <span>Precision {pct(i?.precision)}% → <span className="text-stone-800">{pct(f?.precision)}%</span></span>
+                        <span>Recall {pct(i?.recall)}% → <span className="text-stone-800">{pct(f?.recall)}%</span></span>
+                        <span>F1 Δ <span className={d >= 0 ? 'text-emerald-700' : 'text-red-600'}>{d >= 0 ? '+' : ''}{(d * 100).toFixed(0)}pp</span></span>
+                        <span className="text-stone-500">final: tp {f?.tp ?? 0} · fp {f?.fp ?? 0} · fn {f?.fn ?? 0}</span>
+                      </div>
+                      <BeforeAfterBar before={i?.f1 ?? 0} after={f?.f1 ?? 0} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             )
           })}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+function BeforeAfterBar({ before, after }: { before: number; after: number }) {
+  const w = (x: number) => `${Math.round(Math.max(0, Math.min(1, x)) * 100)}%`
+  return (
+    <div className="space-y-0.5">
+      <div className="flex items-center gap-1.5">
+        <span className="w-9 text-[10px] text-stone-400 shrink-0">before</span>
+        <div className="flex-1 h-1.5 bg-stone-200"><div className="h-full bg-stone-400" style={{ width: w(before) }} /></div>
+        <span className="w-8 text-[10px] text-stone-500 text-right shrink-0">{Math.round(before * 100)}%</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="w-9 text-[10px] text-stone-400 shrink-0">after</span>
+        <div className="flex-1 h-1.5 bg-stone-200"><div className={`h-full ${after >= before ? 'bg-emerald-500' : 'bg-red-400'}`} style={{ width: w(after) }} /></div>
+        <span className="w-8 text-[10px] text-stone-500 text-right shrink-0">{Math.round(after * 100)}%</span>
+      </div>
     </div>
   )
 }
@@ -2068,17 +2106,38 @@ function UseImprovedPromptCard({
             <button
               onClick={handleCommit}
               disabled={!canCommit}
-              className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition"
+              className={`px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition ${
+                canCommit ? 'ring-2 ring-amber-400/70 ring-offset-1' : ''
+              }`}
             >
-              {saving ? 'Applying…' : alreadyApplied ? 'Applied' : 'Apply'}
+              {saving ? 'Applying…' : alreadyApplied ? 'Applied ✓' : 'Apply →'}
             </button>
           </div>
         }
       >
         <div className="space-y-2">
+          {/* Dynamic next-step guidance: users were missing the Apply click. */}
+          {!loading && !err && foundCurrentPrompt && (
+            alreadyApplied ? (
+              <div className="border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 flex items-center justify-between gap-3 flex-wrap">
+                <span>
+                  <span className="font-semibold">Applied.</span> “{run.dimension_name}” now uses this improved prompt for annotation. Apply other dimensions too, then run.
+                </span>
+                <Link to={`/projects/${projectId}/pipeline`} className="shrink-0 font-medium underline hover:no-underline">
+                  Go to Annotate →
+                </Link>
+              </div>
+            ) : (
+              <div className="border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <span className="font-semibold">Not applied yet.</span> This improved prompt is not live — click{' '}
+                <span className="font-semibold">Apply →</span> (top right) to replace the active prompt for “{run.dimension_name}”.
+                Until you do, annotation keeps using the current prompt.
+              </div>
+            )
+          )}
           <div className="flex items-baseline justify-between gap-3 text-xs">
             <p className="text-stone-600 leading-relaxed">
-              Replace the active pipeline prompt for this dimension with the improved prompt.
+              {draftDirty ? 'Apply will save your edit and replace the active pipeline prompt.' : 'Replace the active pipeline prompt for this dimension with the improved prompt.'}
             </p>
             {pipelineId ? <span className="font-mono-editorial text-stone-400 shrink-0">Pipeline {pipelineId}</span> : null}
           </div>
