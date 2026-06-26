@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   listPipelines, listDatasets, startJob, uploadDataset, listJobs,
@@ -25,6 +25,14 @@ export default function PipelineView() {
   const [activeCb, setActiveCb] = useState<Codebook | null>(null)
   const [selectedDataset, setSelectedDataset] = useState<number | null>(null)
   const [expandedStep, setExpandedStep] = useState<number | null>(null)
+  const previewRef = useRef<HTMLElement | null>(null)
+  // When a prompt card is opened, scroll its preview into view so it's obvious
+  // something happened (the preview renders below the card grid).
+  useEffect(() => {
+    if (expandedStep !== null) {
+      previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [expandedStep])
   const [loading, setLoading] = useState(false)
   const [loadingSeed, setLoadingSeed] = useState<string | null>(null)
   const [jobs, setJobs] = useState<Job[]>([])
@@ -189,7 +197,7 @@ export default function PipelineView() {
 
       {/* Prompt preview */}
       {expandedStep !== null && steps[expandedStep] && (
-        <section className="border border-seam bg-white">
+        <section ref={previewRef} className="border border-seam bg-white scroll-mt-4">
           <div className="flex items-center justify-between p-5 border-b border-seam">
             <div>
               <div className="font-mono-editorial text-stone-500 mb-1">

@@ -59,6 +59,7 @@ export interface GoldReport {
   ok: boolean
   n_items: number
   n_error_items: number
+  n_errors_shown: number
   summary: Record<string, number>
   issues: { row: number; severity: string; kind: string; dimension: string; value: any; message: string }[]
   unknown_label_values: Record<string, Record<string, number>>
@@ -87,6 +88,17 @@ export const validateLabeledUpload = (projectId: number, file: File, isGold: boo
 export const autofixLabeledData = (projectId: number, items: any[]) =>
   api.post<GoldAutofix>(`/projects/${projectId}/datasets/autofix`, { items }, { timeout: 180_000 })
     .then(r => r.data)
+
+export interface GoldFixSpec {
+  dimension_map?: Record<string, string>
+  label_map?: Record<string, Record<string, string>>
+  multi_split?: string[]
+  drop_dimensions?: string[]
+}
+export const applyLabeledFix = (projectId: number, items: any[], spec: GoldFixSpec) =>
+  api.post<{ items: any[]; report: GoldReport }>(
+    `/projects/${projectId}/datasets/apply-fix`, { items, spec },
+  ).then(r => r.data)
 
 export const commitLabeledData = (
   projectId: number,
@@ -150,8 +162,11 @@ export const getFeedbackEvidence = (
   api.get<FeedbackEvidence[]>(`/projects/${projectId}/jobs/${jobId}/results/evidence`, {
     params: { dimension, ...(params || {}) },
   }).then(r => r.data)
-export const exportResults = (projectId: number, jobId: number, format: 'csv' | 'json' = 'csv') =>
-  api.get(`/projects/${projectId}/jobs/${jobId}/results/export`, { params: { format }, responseType: format === 'csv' ? 'blob' : 'json' })
+export const exportResults = (projectId: number, jobId: number, format: 'csv' | 'json' | 'xlsx' = 'csv') =>
+  api.get(`/projects/${projectId}/jobs/${jobId}/results/export`, { params: { format }, responseType: format === 'json' ? 'json' : 'blob' })
+
+export const editResult = (projectId: number, jobId: number, item_id: number, dimension: string, label: string) =>
+  api.patch(`/projects/${projectId}/jobs/${jobId}/results/edit`, { item_id, dimension, label }).then(r => r.data)
 
 // Seeds + backend config
 export interface SeedDatasetInfo {

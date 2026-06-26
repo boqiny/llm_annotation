@@ -6,16 +6,20 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import resolve_api_key, settings
 from app.database import get_db
 from app.engine.codebook_parser import parse_codebook
 from app.engine.gold_align import (
-    autofix_items, build_gold_schema, canonicalize_items, schema_for_ui, validate_items,
+    apply_transform, autofix_items, build_gold_schema, canonicalize_items,
+    schema_for_ui, validate_items,
 )
-from app.models.tables import Codebook, Dataset, DataItem, Project
+from app.models.tables import (
+    AnnotationJob, AnnotationResult, CalibrationRun, Codebook, Dataset, DataItem,
+    OptimizerRun, Project,
+)
 from app.schemas.schemas import DatasetOut, DatasetPreview, DataItemOut
 from app.utils.file_parsers import parse_json_dataset, parse_csv_dataset
 
@@ -262,6 +266,27 @@ async def autofix_labeled_upload(
     return await autofix_items(body.items, schema, provider=provider, model=model, api_key=api_key)
 
 
+class _ApplyFixBody(BaseModel):
+    items: list[dict]
+    spec: dict   # {dimension_map, label_map, multi_split, drop_dimensions, content_from}
+
+
+@router.post("/apply-fix")
+async def apply_fix_labeled_upload(
+    project_id: int,
+    body: _ApplyFixBody,
+    db: AsyncSession = Depends(get_db),
+):
+    """Apply a user-built transform spec (manual mismatch fixes) deterministically
+    and re-validate. Same spec shape the LLM auto-fix produces — no LLM here."""
+    raw = await _active_codebook_raw(db, project_id)
+    if raw is None:
+        raise HTTPException(400, "Accept a codebook before fixing labeled data.")
+    schema = build_gold_schema(raw)
+    fixed = apply_transform(body.items, body.spec or {}, schema)
+    return {"items": fixed, "report": validate_items(fixed, schema)}
+
+
 class _CommitBody(BaseModel):
     name: str = "labeled_data"
     is_gold: bool = True
@@ -328,7 +353,22 @@ async def delete_dataset(
     dataset = await db.get(Dataset, dataset_id)
     if not dataset or dataset.project_id != project_id:
         raise HTTPException(404, "Dataset not found")
-    await db.delete(dataset)
+
+    # Walk the subtree explicitly: the live SQLite FKs predate the ondelete=CASCADE
+    # migration, so a bare delete on a dataset with data_items / jobs / runs fails.
+    job_ids = select(AnnotationJob.id).where(AnnotationJob.dataset_id == dataset_id)
+    di_ids = select(DataItem.id).where(DataItem.dataset_id == dataset_id)
+
+    await db.execute(delete(AnnotationResult).where(AnnotationResult.job_id.in_(job_ids)))
+    await db.execute(delete(AnnotationResult).where(AnnotationResult.data_item_id.in_(di_ids)))
+    await db.execute(delete(CalibrationRun).where(CalibrationRun.job_id.in_(job_ids)))
+    await db.execute(delete(CalibrationRun).where(CalibrationRun.gold_dataset_id == dataset_id))
+    await db.execute(delete(AnnotationJob).where(AnnotationJob.dataset_id == dataset_id))
+    # Optimizer runs keep their history; just drop the gold link (model: SET NULL).
+    await db.execute(update(OptimizerRun).where(OptimizerRun.gold_dataset_id == dataset_id)
+                     .values(gold_dataset_id=None))
+    await db.execute(delete(DataItem).where(DataItem.dataset_id == dataset_id))
+    await db.execute(delete(Dataset).where(Dataset.id == dataset_id))
     await db.commit()
 
 
