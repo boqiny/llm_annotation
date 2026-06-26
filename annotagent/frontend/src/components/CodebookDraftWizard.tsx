@@ -612,22 +612,44 @@ function DraftPreview({
                     aria-label="Edit dimension instructions"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  {(dim.labels || []).map((lbl: any, j: number) => (
-                    <LabelEditor
-                      key={`${draft.id}-${i}-${j}`}
-                      lbl={lbl}
-                      onChange={(patch) => updateLabel(i, j, patch)}
-                      onRemove={() => removeLabel(i, j)}
+                {(dim.labels || []).some((l: any) => l.path?.length) ? (
+                  <div className="grid lg:grid-cols-[1fr_240px] gap-4 items-start">
+                    <div className="space-y-2">
+                      <WizardNestedGroups
+                        node={wBuildTree(dim.labels || [])} depth={0}
+                        levelKinds={[dim.gated_by || '', dim.category_dimension || '']}
+                        keyPrefix={`${draft.id}-${i}`}
+                        onChange={(j, patch) => updateLabel(i, j, patch)}
+                        onRemove={(j) => removeLabel(i, j)}
+                      />
+                      <button onClick={() => addLabel(i)}
+                        className="text-xs px-2 py-1 border border-dashed border-seam hover:border-ink text-stone-500 hover:text-ink">
+                        + add label
+                      </button>
+                    </div>
+                    <WizardTree
+                      labels={dim.labels || []} gatedBy={dim.gated_by || ''}
+                      levelKinds={[dim.gated_by || '', dim.category_dimension || '']}
                     />
-                  ))}
-                  <button
-                    onClick={() => addLabel(i)}
-                    className="text-xs px-2 py-1 border border-dashed border-seam hover:border-ink text-stone-500 hover:text-ink"
-                  >
-                    + add label
-                  </button>
-                </div>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {(dim.labels || []).map((lbl: any, j: number) => (
+                      <LabelEditor
+                        key={`${draft.id}-${i}-${j}`}
+                        lbl={lbl}
+                        onChange={(patch) => updateLabel(i, j, patch)}
+                        onRemove={() => removeLabel(i, j)}
+                      />
+                    ))}
+                    <button
+                      onClick={() => addLabel(i)}
+                      className="text-xs px-2 py-1 border border-dashed border-seam hover:border-ink text-stone-500 hover:text-ink"
+                    >
+                      + add label
+                    </button>
+                  </div>
+                )}
                 {rationalePerDim[dim.name] && (
                   <p className="text-xs text-stone-500 italic leading-relaxed border-l-2 border-stone-200 pl-3 mt-3">
                     {rationalePerDim[dim.name]}
@@ -735,6 +757,109 @@ function DraftPreview({
 	  )
 	}
 
+/* ─── Hierarchy tree for the draft wizard (editable leaves) ── */
+
+type WNode = { name: string; children: Map<string, WNode>; leaves: { lbl: any; j: number }[] }
+
+function wBuildTree(labels: any[]): WNode {
+  const root: WNode = { name: '', children: new Map(), leaves: [] }
+  labels.forEach((lbl, j) => {
+    let node = root
+    for (const seg of (lbl.path || [])) {
+      let child = node.children.get(seg)
+      if (!child) { child = { name: seg, children: new Map(), leaves: [] }; node.children.set(seg, child) }
+      node = child
+    }
+    node.leaves.push({ lbl, j })
+  })
+  return root
+}
+
+function wCount(node: WNode): number {
+  let n = node.leaves.length
+  for (const c of node.children.values()) n += wCount(c)
+  return n
+}
+
+/* Editable labels grouped under nested path headers (gate value, then category). */
+function WizardNestedGroups({ node, depth, levelKinds, keyPrefix, onChange, onRemove }: {
+  node: WNode; depth: number; levelKinds: string[]; keyPrefix: string
+  onChange: (j: number, patch: any) => void; onRemove: (j: number) => void
+}) {
+  const isGate = depth === 0 && !!levelKinds[0]
+  return (
+    <div className="space-y-3">
+      {node.leaves.length > 0 && (
+        <div className="space-y-1.5">
+          {node.leaves.map(({ lbl, j }) => (
+            <LabelEditor key={`${keyPrefix}-${j}`} lbl={lbl}
+              onChange={(patch) => onChange(j, patch)} onRemove={() => onRemove(j)} />
+          ))}
+        </div>
+      )}
+      {[...node.children.values()].map((child, i) => (
+        <section key={i} className={`border-l-2 pl-3 ${isGate ? 'border-indigo-300' : 'border-stone-200'}`}>
+          <header className="mb-1.5">
+            {levelKinds[depth] && (
+              <div className="font-mono-editorial text-[10px] uppercase tracking-wider text-stone-400">{levelKinds[depth]}</div>
+            )}
+            <div className={`text-sm font-medium ${isGate ? 'text-indigo-800' : 'text-stone-700'}`}>
+              {isGate && <span className="font-normal text-stone-400">when = </span>}
+              {child.name}
+              <span className="ml-2 font-mono text-[11px] text-stone-400">{wCount(child)}</span>
+            </div>
+          </header>
+          <WizardNestedGroups node={child} depth={depth + 1} levelKinds={levelKinds}
+            keyPrefix={keyPrefix} onChange={onChange} onRemove={onRemove} />
+        </section>
+      ))}
+    </div>
+  )
+}
+
+/* Read-only dependency-tree visualizer for the draft wizard. */
+function WizardTree({ labels, gatedBy, levelKinds }: { labels: any[]; gatedBy: string; levelKinds: string[] }) {
+  const root = wBuildTree(labels)
+  return (
+    <aside className="lg:sticky lg:top-4 border border-seam bg-paper/40 p-3">
+      <div className="font-mono-editorial text-[11px] text-stone-500 mb-1.5">Structure</div>
+      <p className="text-[11px] leading-relaxed text-stone-500 mb-2">
+        {gatedBy
+          ? <>Predicted after <span className="font-medium text-indigo-700">{gatedBy}</span>; labels depend on its value.</>
+          : <>Pick one leaf; the grouping above it is context.</>}
+      </p>
+      <div className="max-h-[360px] overflow-auto pr-1">
+        <WizardTreeLines node={root} depth={0} levelKinds={levelKinds} />
+      </div>
+    </aside>
+  )
+}
+
+function WizardTreeLines({ node, depth, levelKinds }: { node: WNode; depth: number; levelKinds: string[] }) {
+  const isGate = depth === 0 && !!levelKinds[0]
+  return (
+    <ul className="space-y-0.5">
+      {[...node.children.values()].map((c, i) => (
+        <li key={`n${i}`}>
+          <div className="flex items-baseline gap-1.5 text-[11px]" style={{ paddingLeft: depth * 12 }}>
+            <span className={`truncate ${isGate ? 'text-indigo-700 font-medium' : 'text-stone-700'}`}>{c.name}</span>
+            <span className="font-mono text-[10px] text-stone-400 shrink-0">{wCount(c)}</span>
+          </div>
+          {(c.children.size > 0 || c.leaves.length > 0) &&
+            <WizardTreeLines node={c} depth={depth + 1} levelKinds={levelKinds} />}
+        </li>
+      ))}
+      {node.leaves.map(({ lbl }, i) => (
+        <li key={`l${i}`} className="flex items-baseline gap-1.5 text-[10.5px] text-stone-500"
+            style={{ paddingLeft: depth * 12 + 8 }}>
+          <span className="text-stone-300" aria-hidden="true">·</span>
+          <span className="truncate">{lbl.name}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 function LabelEditor({
   lbl, onChange, onRemove,
 }: {
@@ -754,22 +879,15 @@ function LabelEditor({
         >
           {open ? '−' : '+'}
         </button>
-        <div className="flex-1 min-w-0">
-          {Array.isArray(lbl.path) && lbl.path.length > 0 && (
-            <div className="pl-5 text-[11px] text-stone-500 truncate" title={lbl.path.join(' › ')}>
-              {lbl.path.join(' › ')} ›
-            </div>
-          )}
-          <div className="relative">
-            <Pencil className="absolute left-1 top-1.5 h-3 w-3 text-stone-400" aria-hidden="true" />
-            <input
-              value={lbl.name || ''}
-              onChange={e => onChange({ name: e.target.value })}
-              className="w-full pl-5 pr-1 py-1 bg-transparent border-0 focus:outline-none focus:bg-white text-sm text-stone-800"
-              placeholder="label name"
-              aria-label="Edit label name"
-            />
-          </div>
+        <div className="relative flex-1 min-w-0">
+          <Pencil className="absolute left-1 top-1.5 h-3 w-3 text-stone-400" aria-hidden="true" />
+          <input
+            value={lbl.name || ''}
+            onChange={e => onChange({ name: e.target.value })}
+            className="w-full pl-5 pr-1 py-1 bg-transparent border-0 focus:outline-none focus:bg-white text-sm text-stone-800"
+            placeholder="label name"
+            aria-label="Edit label name"
+          />
         </div>
         <button
           onClick={onRemove}
