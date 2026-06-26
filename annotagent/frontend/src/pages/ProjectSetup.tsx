@@ -43,6 +43,7 @@ export default function ProjectSetupV2() {
   const [loadingSeed, setLoadingSeed] = useState<string | null>(null)
   const [removingDataset, setRemovingDataset] = useState<number | null>(null)
   const [wizardMode, setWizardMode] = useState(false)
+  const [fewShot, setFewShot] = useState(false)
 
   const loadData = useCallback(async () => {
     const [p, pr, cb, ds, sd, cfg] = await Promise.all([
@@ -90,7 +91,7 @@ export default function ProjectSetupV2() {
     setLoading(true)
     try {
       await handleSaveLLM()
-      await decomposePipeline(projectId)
+      await decomposePipeline(projectId, fewShot)
       navigate(`/projects/${projectId}/prompt-lab?tab=prompts`)
     } finally { setLoading(false) }
   }
@@ -98,6 +99,9 @@ export default function ProjectSetupV2() {
   if (!project) return <div className="font-mono-editorial text-stone-400 py-24 text-center">Loading…</div>
 
   const activeCb = codebooks[codebooks.length - 1]
+  const codebookHasExamples = !!activeCb?.dimensions?.some(
+    d => d.labels?.some(l => (l.examples?.length ?? 0) > 0)
+  )
   const hasDataset = datasets.length > 0
   const keyOK = envKeyAvailable(backendCfg, llmProvider) || apiKey.length > 0
   const canGenerate = !!activeCb && keyOK
@@ -205,15 +209,29 @@ export default function ProjectSetupV2() {
                 : <>Still need: <span className="text-ink">{missing.join(' · ')}</span></>
               }
             </div>
-            <button
-              data-tour="generate-pipeline"
-              data-tour-ready={canGenerate ? 'true' : 'false'}
-              onClick={handleGeneratePipeline}
-              disabled={!canGenerate || loading}
-              className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40"
-            >
-              {loading ? 'Generating…' : 'Generate pipeline →'}
-            </button>
+            <div className="flex items-center gap-4">
+              {codebookHasExamples && (
+                <label className="flex items-center gap-2 text-xs text-stone-600 cursor-pointer select-none"
+                       title="Append each label's codebook examples to the generated prompts as few-shot demonstrations.">
+                  <input
+                    type="checkbox"
+                    checked={fewShot}
+                    onChange={e => setFewShot(e.target.checked)}
+                    className="accent-ink"
+                  />
+                  Include few-shot examples
+                </label>
+              )}
+              <button
+                data-tour="generate-pipeline"
+                data-tour-ready={canGenerate ? 'true' : 'false'}
+                onClick={handleGeneratePipeline}
+                disabled={!canGenerate || loading}
+                className="px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40"
+              >
+                {loading ? 'Generating…' : 'Generate pipeline →'}
+              </button>
+            </div>
           </div>
         </div>
       )}

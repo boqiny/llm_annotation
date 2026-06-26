@@ -1,0 +1,82 @@
+{
+  "gated_dimensions": [
+    {
+      "dimension": "Topics",
+      "gated_by": "Level Of Disclosure",
+      "category_dimension": "Topic thematic categories",
+      "allowed": {
+        "High": [
+          "Emotional Distress",
+          "Emotional Response",
+          "Desire For Romantic Connection",
+          "Casual Conversation",
+          "Current Life Challenges",
+          "Suicidal Thoughts",
+          "Desire For Friendship",
+          "Substance Use",
+          "Financial Struggles",
+          "Work Stress",
+          "Mental Health Discussion",
+          "Interpersonal Issues",
+          "Information And Advice",
+          "Future Plans",
+          "Roleplay",
+          "Intimate Exchange"
+        ],
+        "Low": [
+          "Current Life Challenges",
+          "Philosophical Perspective",
+          "Emotional Response",
+          "Desire For Friendship",
+          "Learning Limitations",
+          "Work Stress",
+          "Desire For Romantic Connection",
+          "Trust Issues",
+          "Financial Struggles",
+          "Entertainment",
+          "Casual Conversation",
+          "Interpersonal Issues",
+          "Information And Advice",
+          "Future Plans",
+          "Writing",
+          "Roleplay",
+          "Creative Ideation"
+        ],
+        "No": [
+          "Information And Advice",
+          "Writing",
+          "Roleplay",
+          "Creative Ideation"
+        ]
+      }
+    }
+  ],
+  "leaf_to_category": {
+    "Emotional Distress": "Emotional and social support",
+    "Emotional Response": "Emotional and social support",
+    "Desire For Friendship": "Emotional and social support",
+    "Current Life Challenges": "Emotional and social support",
+    "Desire For Romantic Connection": "Romantic and intimacy roleplay",
+    "Intimate Exchange": "Romantic and sexual interactions",
+    "Casual Conversation": "Causal exchange",
+    "Suicidal Thoughts": "Risky and dark roleplay",
+    "Substance Use": "Risky and dark roleplay",
+    "Financial Struggles": "Emotional disclosure",
+    "Work Stress": "Emotional disclosure",
+    "Work": "Emotional disclosure",
+    "Mental Health Discussion": "Emotional disclosure",
+    "Interpersonal Issues": "Emotional disclosure",
+    "Trust Issues": "Emotional disclosure",
+    "Learning Limitations": "Philosophical and moral inquiry",
+    "Information And Advice": "Knowledge seeking",
+    "Future Plans": "Creative development",
+    "Writing": "Creative development",
+    "Creative Ideation": "Creative development",
+    "Roleplay": "Collaborative storytelling and character impersonation",
+    "Entertainment": "Causal exchange",
+    "Philosophical Perspective": "Philosophical and moral inquiry",
+    "Critical Debates And Strategic Analysis": "Critical debates and strategic analysis",
+    "Collaborative Storytelling And Character Impersonation": "Collaborative storytelling and character impersonation",
+    "N/A Requires More Info From The Transcript To Know": "N/A Requires more info from the transcript to know"
+  }
+}

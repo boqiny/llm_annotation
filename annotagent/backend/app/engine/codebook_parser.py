@@ -10,6 +10,10 @@ class LabelDef:
     name: str
     definition: str = ""
     examples: list[str] = field(default_factory=list)
+    # Ancestor chain between the dimension and this leaf, leftmost-first.
+    # e.g. a Subcode leaf under Type->Function->Code->Subcode carries
+    # path=["<Function>", "<Code>"]. Empty for a flat (non-hierarchical) label.
+    path: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -18,6 +22,14 @@ class DimensionDef:
     dim_type: str = "single_label"
     labels: list[LabelDef] = field(default_factory=list)
     instructions: str = ""
+    # Name of another dimension that gates this one: this dimension's valid labels
+    # depend on the gate dimension's predicted value. Each label's path[0] is the
+    # gate value it belongs to. Empty for an ordinary (independent) dimension.
+    gated_by: str = ""
+    # Display name for the derived parent-category output (e.g. "Topic thematic
+    # categories"). When set, each leaf's category (path[-1]) is surfaced as a
+    # second, derived result so users see it rather than it living only in `path`.
+    category_dimension: str = ""
 
 
 @dataclass
@@ -37,6 +49,7 @@ def parse_codebook(raw: dict[str, Any]) -> CodebookDef:
                 name=lbl.get("name", ""),
                 definition=lbl.get("definition", ""),
                 examples=lbl.get("examples", []),
+                path=[str(p) for p in (lbl.get("path") or []) if str(p).strip()],
             )
             for lbl in dim_raw.get("labels", [])
         ]
@@ -46,6 +59,8 @@ def parse_codebook(raw: dict[str, Any]) -> CodebookDef:
                 dim_type=dim_raw.get("type", "single_label"),
                 labels=labels,
                 instructions=dim_raw.get("instructions", ""),
+                gated_by=dim_raw.get("gated_by", "") or "",
+                category_dimension=dim_raw.get("category_dimension", "") or "",
             )
         )
     return CodebookDef(

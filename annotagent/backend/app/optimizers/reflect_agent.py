@@ -35,6 +35,17 @@ from app.optimizers.base import (
 logger = logging.getLogger(__name__)
 
 
+def _per_class_f1(metrics: dict) -> dict[str, float]:
+    """Pull a compact {label: f1} map out of a compute_metrics() result.
+
+    Recorded on each trajectory round so the UI can draw one val-F1 line per
+    class. Pure validation signal — same data as ``val_macro_f1``, just not
+    averaged over classes.
+    """
+    pc = metrics.get("per_class") or {}
+    return {label: round(m.get("f1", 0.0), 4) for label, m in pc.items()}
+
+
 async def _extract_patterns(
     *, dimension: str, label_defs: str,
     failures: list[dict], existing_rules: list[dict],
@@ -293,9 +304,14 @@ class ReflectAgent(PromptOptimizer):
 
         current_val_acc = base_acc
         base_metrics = compute_metrics(val_y_true, base_preds)
+        # Per-class val F1 of the current *accepted* prompt, carried forward to
+        # rounds that don't re-score val (converged / no_new_rules) so the
+        # per-class lines stay continuous with the Val acc line.
+        last_pc_f1 = _per_class_f1(base_metrics)
 
         await record({"round": 0, "val_acc": base_acc,
                       "val_macro_f1": round(base_metrics.get("macro_f1", 0.0), 4),
+                      "val_per_class_f1": last_pc_f1,
                       "n_rules": len(rules),
                       "action": "baseline_seeded" if rules else "baseline"})
 
@@ -318,6 +334,7 @@ class ReflectAgent(PromptOptimizer):
             if not failures:
                 await record({
                     "round": r, "val_acc": current_val_acc, "n_rules": len(rules),
+                    "val_per_class_f1": last_pc_f1,
                     "n_failures": 0, "action": "converged",
                 })
                 break
@@ -332,6 +349,7 @@ class ReflectAgent(PromptOptimizer):
             if not new_rules:
                 await record({
                     "round": r, "val_acc": current_val_acc, "n_rules": len(rules),
+                    "val_per_class_f1": last_pc_f1,
                     "n_failures": len(failures), "action": "no_new_rules",
                 })
                 continue
@@ -360,11 +378,15 @@ class ReflectAgent(PromptOptimizer):
             total_tokens += t
             val_metrics = compute_metrics(val_y_true, val_preds)
             val_f1 = round(val_metrics.get("macro_f1", 0.0), 4)
+            val_pc_f1 = _per_class_f1(val_metrics)
 
             if val_acc + self.rollback_epsilon < current_val_acc:
-                # Regression — rollback
+                # Regression — rollback. Log the rejected candidate's per-class
+                # F1 (matches the val_acc dip plotted) but keep last_pc_f1 at the
+                # still-accepted state.
                 await record({
                     "round": r, "val_acc": val_acc, "val_macro_f1": val_f1,
+                    "val_per_class_f1": val_pc_f1,
                     "n_rules": len(rules),
                     "n_failures": len(failures), "n_candidate_rules": len(new_rules),
                     "action": "rollback", "regression": round(current_val_acc - val_acc, 4),
@@ -374,8 +396,10 @@ class ReflectAgent(PromptOptimizer):
                 rules = candidate_rules
                 current_prompt = candidate_prompt
                 current_val_acc = val_acc
+                last_pc_f1 = val_pc_f1
                 await record({
                     "round": r, "val_acc": val_acc, "val_macro_f1": val_f1,
+                    "val_per_class_f1": val_pc_f1,
                     "n_rules": len(rules),
                     "n_failures": len(failures), "n_candidate_rules": len(new_rules),
                     "action": "accept", "delta": round(val_acc - base_acc, 4),
@@ -419,10 +443,13 @@ class ReflectAgent(PromptOptimizer):
                     rules = merged
                     current_prompt = initial_prompt + _compile_rules(rules)
 
+            cons_metrics = compute_metrics(val_y_true, val_preds_pre)
+            last_pc_f1 = _per_class_f1(cons_metrics)
             await record({
                 "round": consolidation_round,
                 "val_acc": val_acc_pre,
-                "val_macro_f1": round(compute_metrics(val_y_true, val_preds_pre).get("macro_f1", 0.0), 4),
+                "val_macro_f1": round(cons_metrics.get("macro_f1", 0.0), 4),
+                "val_per_class_f1": last_pc_f1,
                 "n_rules": len(rules),
                 "n_failures": n_val_failures,
                 "n_candidate_rules": n_val_rules,
@@ -457,10 +484,12 @@ class ReflectAgent(PromptOptimizer):
                 total_tokens += t
                 final_metrics = compute_metrics(val_y_true, val_preds)
                 current_val_acc = val_acc
+                last_pc_f1 = _per_class_f1(final_metrics)
                 await record({
                     "round": consolidation_round + 1 if self.use_val_consolidation and valset else self.budget + 1,
                     "val_acc": val_acc,
                     "val_macro_f1": round(final_metrics.get("macro_f1", 0.0), 4),
+                    "val_per_class_f1": last_pc_f1,
                     "n_rules": len(rules), "n_demos": n_demos,
                     "action": "demos_appended",
                     "delta": round(val_acc - base_acc, 4),
@@ -483,10 +512,12 @@ class ReflectAgent(PromptOptimizer):
             total_tokens += t
             final_metrics = compute_metrics(val_y_true, val_preds)
             current_val_acc = val_acc
+            last_pc_f1 = _per_class_f1(final_metrics)
             await record({
                 "round": consolidation_round + 2 if self.use_val_consolidation and valset else self.budget + 2,
                 "val_acc": val_acc,
                 "val_macro_f1": round(final_metrics.get("macro_f1", 0.0), 4),
+                "val_per_class_f1": last_pc_f1,
                 "n_rules": len(rules), "n_demos": n_demos,
                 "action": "prompt_integrated",
                 "delta": round(val_acc - base_acc, 4),

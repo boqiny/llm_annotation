@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend,
 } from 'recharts'
 import api, {
   listAvailableOptimizers, listOptimizerRuns, startOptimizerRun, getOptimizerRun,
@@ -1342,6 +1342,17 @@ function RunDetailV2({
   const budget = run.budget || 1
   const progressPct = isRunning ? Math.max(4, Math.min(100, (currentRound / budget) * 100)) : 100
   const [rulesOpen, setRulesOpen] = useState(false)
+  const [trajView, setTrajView] = useState<'overall' | 'per-class'>('overall')
+  // Per-class val-F1 lines come from runs that log `val_per_class_f1` each round.
+  // Older runs only have the aggregate curve, so the toggle stays hidden for them.
+  const perClassClasses: string[] = (() => {
+    const fromTest = (test as any)?.final_metrics?.classes
+    if (Array.isArray(fromTest) && fromTest.length) return fromTest.slice()
+    const set = new Set<string>()
+    for (const t of traj) for (const k of Object.keys(t?.val_per_class_f1 || {})) set.add(k)
+    return Array.from(set)
+  })()
+  const hasPerClassTraj = traj.some((t: any) => t?.val_per_class_f1 && Object.keys(t.val_per_class_f1).length > 0)
 
   return (
     <div>
@@ -1387,13 +1398,29 @@ function RunDetailV2({
 
       {/* Cards row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
-        <Card title="Trajectory">
+        <Card title="Trajectory" rightSlot={hasPerClassTraj ? (
+          <div className="inline-flex border border-seam bg-white text-[11px] font-medium">
+            {([['overall', 'Overall'], ['per-class', 'Per class']] as const).map(([v, lbl]) => (
+              <button
+                key={v}
+                onClick={() => setTrajView(v)}
+                className={`px-2 py-0.5 transition-colors ${trajView === v ? 'bg-ink text-cream' : 'text-stone-500 hover:text-ink'}`}
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+        ) : undefined}>
           {traj.length >= 1 ? (
             <div className="space-y-3">
               {/* Phase ribbon: the val curve and the per-round numbers are the
                   optimizer's internal signal; the honest number is the held-out
                   test scored once at the end. */}
               <PhaseRibbon traj={traj} test={test} />
+              {trajView === 'per-class' ? (
+                <PerClassTrajectoryChart traj={traj} classes={perClassClasses} isRunning={isRunning} />
+              ) : (
+              <>
               <div style={{ width: '100%', height: 200 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
@@ -1423,6 +1450,8 @@ function RunDetailV2({
               <div className="font-mono-editorial text-stone-400 text-[10px] -mt-1 px-1">
                 validation accuracy · the optimizer's internal signal, not the reported score
               </div>
+              </>
+              )}
               {/* Compact step-by-step list — separates requested improvement
                   rounds from baseline/final bookkeeping passes. */}
               <ul className="text-xs font-mono divide-y divide-seam border-t border-seam max-h-40 overflow-auto">
@@ -1920,13 +1949,33 @@ function PerClassMini({ initial, final }: { initial: any; final: any }) {
   const labels: string[] = (final?.classes ?? Object.keys(final?.per_class || {})).slice()
     .sort((a: string, b: string) => (final?.per_class?.[b]?.support ?? 0) - (final?.per_class?.[a]?.support ?? 0))
   const [open, setOpen] = useState<string | null>(null)
+  const [view, setView] = useState<'table' | 'chart'>('table')
   const pct = (x: any) => `${((x ?? 0) * 100).toFixed(0)}`
   return (
     <div className="text-xs font-mono">
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-2">
-        <Stat label="Macro F1" value={`${pct(initial.macro_f1)}% → ${pct(final.macro_f1)}%`} />
-        <Stat label="Weighted F1" value={`${pct(initial.weighted_f1)}% → ${pct(final.weighted_f1)}%`} />
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 flex-1 min-w-0">
+          <Stat label="Macro F1" value={`${pct(initial?.macro_f1)}% → ${pct(final.macro_f1)}%`} />
+          <Stat label="Weighted F1" value={`${pct(initial?.weighted_f1)}% → ${pct(final.weighted_f1)}%`} />
+        </div>
+        <div className="inline-flex shrink-0 border border-seam bg-white text-[11px] font-medium">
+          {(['table', 'chart'] as const).map(v => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={`px-2.5 py-1 capitalize transition-colors ${
+                view === v ? 'bg-ink text-cream' : 'text-stone-500 hover:text-ink'
+              }`}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
       </div>
+      {view === 'chart' ? (
+        <PerClassChart labels={labels} initial={initial} final={final} />
+      ) : (
+      <>
       <div className="font-mono-editorial text-stone-400 text-[10px] mb-1">click a label for its precision / recall / errors</div>
       <table className="w-full">
         <thead><tr className="border-b border-seam text-stone-500 font-mono-editorial">
@@ -1970,7 +2019,105 @@ function PerClassMini({ initial, final }: { initial: any; final: any }) {
           })}
         </tbody>
       </table>
+      </>
+      )}
     </div>
+  )
+}
+
+function PerClassChart({ labels, initial, final }: { labels: string[]; initial: any; final: any }) {
+  // Per-category before -> after F1. Same data the table shows, charted so the
+  // whole class breakdown reads at a glance instead of one expanded row at a time.
+  const data = labels.map(l => {
+    const i = initial?.per_class?.[l], f = final?.per_class?.[l]
+    return {
+      label: l,
+      before: Math.round((i?.f1 ?? 0) * 100),
+      after: Math.round((f?.f1 ?? 0) * 100),
+      support: f?.support ?? 0,
+    }
+  })
+  const chartH = Math.max(120, data.length * 44 + 28)
+  return (
+    <div>
+      <div className="font-mono-editorial text-stone-400 text-[10px] mb-1.5">per-class F1 · before → after</div>
+      <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+        <div style={{ width: '100%', height: chartH }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} layout="vertical" margin={{ top: 4, right: 30, left: 4, bottom: 4 }} barCategoryGap="24%">
+              <CartesianGrid horizontal={false} strokeDasharray="2 4" stroke="#E5E2D9" />
+              <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: '#9A968F' }} stroke="#D6D2C8" tickFormatter={(v) => `${v}%`} />
+              <YAxis type="category" dataKey="label" width={104} tick={{ fontSize: 10, fill: '#6B6B6B' }} stroke="#D6D2C8" />
+              <Tooltip
+                contentStyle={{ fontSize: 11 }}
+                formatter={(v: any, name: any) => [`${v}%`, name]}
+                labelFormatter={(l: any) => {
+                  const row = data.find(d => d.label === l)
+                  return row ? `${l} · supp ${row.support}` : l
+                }}
+              />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              <Bar dataKey="before" name="Before" fill="#A8A29E" radius={[0, 2, 2, 0]} isAnimationActive={false} />
+              <Bar dataKey="after" name="After" fill="#0B0B0A" radius={[0, 2, 2, 0]} isAnimationActive={false} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Categorical palette for per-class lines — moderate saturation, on-brand.
+const PER_CLASS_COLORS = ['#0B0B0A', '#6E4FBE', '#2F8A6F', '#C2683A', '#B23A48', '#3A6EA5', '#9A7B2E', '#5A5A55']
+
+function PerClassTrajectoryChart({ traj, classes, isRunning }: { traj: any[]; classes: string[]; isRunning: boolean }) {
+  // One val-F1 line per class across optimization rounds. Same validation
+  // signal as the macro curve, broken out per category.
+  const data = traj.map((t: any) => {
+    const row: any = { round: t.round }
+    const pc = t.val_per_class_f1 || {}
+    for (const c of classes) row[c] = typeof pc[c] === 'number' ? pc[c] * 100 : null
+    return row
+  })
+  const vals: number[] = []
+  for (const row of data) for (const c of classes) if (typeof row[c] === 'number') vals.push(row[c])
+  let domain: [number, number] | ['auto', 'auto'] = ['auto', 'auto']
+  if (vals.length) {
+    const lo = Math.min(...vals), hi = Math.max(...vals)
+    const pad = Math.max(4, (hi - lo) * 0.15)
+    domain = [Math.max(0, Math.floor((lo - pad) / 5) * 5), Math.min(100, Math.ceil((hi + pad) / 5) * 5)]
+  }
+  if (!classes.length) return <Empty>No per-class data in this run.</Empty>
+  return (
+    <>
+      <div style={{ width: '100%', height: 200 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="2 4" stroke="#E5E2D9" />
+            <XAxis dataKey="round" type="number" domain={[0, 'dataMax']} tick={{ fontSize: 10, fill: '#9A968F' }} stroke="#D6D2C8" allowDecimals={false} />
+            <YAxis domain={domain} tick={{ fontSize: 10, fill: '#9A968F' }} stroke="#D6D2C8" tickFormatter={(v) => `${v}%`} width={42} />
+            <Tooltip contentStyle={{ fontSize: 11 }} formatter={(v: any, name: any) => [typeof v === 'number' ? `${v.toFixed(1)}%` : '—', name]} />
+            <Legend wrapperStyle={{ fontSize: 10 }} />
+            {classes.map((c, i) => (
+              <Line
+                key={c}
+                type="monotone"
+                dataKey={c}
+                name={c}
+                stroke={PER_CLASS_COLORS[i % PER_CLASS_COLORS.length]}
+                strokeWidth={2}
+                dot={{ r: 2 }}
+                connectNulls
+                isAnimationActive={!isRunning}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="font-mono-editorial text-stone-400 text-[10px] -mt-1 px-1">
+        per-class validation F1 · the optimizer's internal signal, not the reported score
+      </div>
+    </>
   )
 }
 

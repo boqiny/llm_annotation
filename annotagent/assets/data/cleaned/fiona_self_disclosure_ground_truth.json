@@ -9,8 +9,8 @@
       "topic_category": "Causal exchange",
       "timestamp": "8/5/2025, 12:46:09 AM",
       "labels": {
-        "Intimacy of self-disclosure": "Intermediate level",
-        "Depth of disclosure": "Central layer",
+        "Intimacy of self-disclosure": "Intermediate",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -36,7 +36,7 @@
       "timestamp": "8/4/2025, 8:40:59 PM",
       "labels": {
         "Disclosure as confession": "No, it's not a confession",
-        "Intimacy of self-disclosure": "Peripheral level"
+        "Intimacy of self-disclosure": "Peripheral"
       }
     },
     {
@@ -101,8 +101,8 @@
       "timestamp": "8/4/2025, 8:53:27 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -115,8 +115,8 @@
       "topic_category": "Emotional and social support",
       "timestamp": "8/4/2025, 8:54:49 PM",
       "labels": {
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "No, it's not a confession",
         "Level of disclosure": "High"
       }
@@ -130,8 +130,8 @@
       "topic_category": "Emotional and social support",
       "timestamp": "8/4/2025, 8:55:41",
       "labels": {
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "Yes, it's a confession",
         "Level of disclosure": "High"
       }
@@ -145,8 +145,8 @@
       "topic_category": "Emotional and social support",
       "timestamp": "8/4/2025, 8:56:00 PM",
       "labels": {
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "No, it's not a confession",
         "Level of disclosure": "High"
       }
@@ -160,8 +160,8 @@
       "topic_category": "Emotional and social support",
       "timestamp": "8/4/2025, 8:56:06 PM",
       "labels": {
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "No, it's not a confession",
         "Level of disclosure": "High"
       }
@@ -175,7 +175,7 @@
       "topic_category": "Emotional and social support",
       "timestamp": "8/4/2025, 8:57:12 PM",
       "labels": {
-        "Depth of disclosure": "Intermediate layer",
+        "Depth of disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -189,7 +189,7 @@
       "timestamp": "8/1/2025, 4:09:51 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
+        "Depth of disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -203,7 +203,7 @@
       "timestamp": "8/1/2025, 4:21:39 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
+        "Depth of disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -217,8 +217,8 @@
       "timestamp": "8/1/2025, 4:31:41 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -231,8 +231,8 @@
       "topic_category": "Philosophical and moral inquiry",
       "timestamp": "8/1/2025, 4:33:18 AM",
       "labels": {
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -246,8 +246,8 @@
       "timestamp": "8/1/2025, 4:34:02 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -260,8 +260,8 @@
       "topic_category": "Philosophical and moral inquiry",
       "timestamp": "8/1/2025, 4:37:39 AM",
       "labels": {
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -274,8 +274,8 @@
       "topic_category": "Philosophical and moral inquiry",
       "timestamp": "8/1/2025, 4:37:39 AM",
       "labels": {
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -289,8 +289,8 @@
       "timestamp": "8/1/2025, 4:41:50 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -304,8 +304,8 @@
       "timestamp": "8/1/2025, 4:44:00 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -319,9 +319,9 @@
       "timestamp": "8/1/2025, 4:52:59 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Peripheral layer",
+        "Depth of disclosure": "Peripheral",
         "Disclosure as confession": "No, it's not a confession",
-        "Intimacy of self-disclosure": "Intermediate level"
+        "Intimacy of self-disclosure": "Intermediate"
       }
     },
     {
@@ -347,8 +347,8 @@
       "timestamp": "8/1/2025, 5:19:21 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -362,8 +362,8 @@
       "timestamp": "8/1/2025, 5:56:07 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -390,8 +390,8 @@
       "timestamp": "8/4/2025, 8:34:03 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -405,8 +405,8 @@
       "timestamp": "8/4/2025, 10:26:16 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -444,7 +444,7 @@
       "topic_category": "Emotional and social support",
       "timestamp": "8/4/2025, 10:42:36 AM",
       "labels": {
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -471,7 +471,7 @@
       "timestamp": "8/4/2025, 10:48:16 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -485,8 +485,8 @@
       "timestamp": "8/4/2025, 10:50:45 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -500,8 +500,8 @@
       "timestamp": "8/4/2025, 10:55:20 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -515,8 +515,8 @@
       "timestamp": "8/4/2025, 11:06:52 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -530,8 +530,8 @@
       "timestamp": "8/4/2025, 11:08:32 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -545,7 +545,7 @@
       "timestamp": "8/4/2025, 7:17:15 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -559,7 +559,7 @@
       "timestamp": "6/7/2025, 10:58:16 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Peripheral layer",
+        "Depth of disclosure": "Peripheral",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -573,8 +573,8 @@
       "timestamp": "6/7/2025, 10:58:28 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Peripheral layer",
-        "Intimacy of self-disclosure": "Peripheral level",
+        "Depth of disclosure": "Peripheral",
+        "Intimacy of self-disclosure": "Peripheral",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -588,8 +588,8 @@
       "timestamp": "6/7/2025, 10:58:28 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -603,7 +603,7 @@
       "timestamp": "7/2/2025, 2:22:31 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -617,9 +617,9 @@
       "timestamp": "7/2/2025, 2:22:51 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession",
-        "Intimacy of self-disclosure": "Core layer"
+        "Intimacy of self-disclosure": "Core"
       }
     },
     {
@@ -632,9 +632,9 @@
       "timestamp": "7/2/2025, 2:23:23 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession",
-        "Intimacy of self-disclosure": "Core layer"
+        "Intimacy of self-disclosure": "Core"
       }
     },
     {
@@ -739,7 +739,7 @@
       "labels": {
         "Level of disclosure": "High",
         "Disclosure as confession": "Yes, it's a confession",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -948,7 +948,7 @@
       "labels": {
         "Disclosure as confession": "No, it's not a confession",
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -1000,7 +1000,7 @@
       "timestamp": "8/6/2025, 9:51:44 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -1053,7 +1053,7 @@
       "timestamp": "4/13/2025, 11:04:31 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -1068,7 +1068,7 @@
       "labels": {
         "Level of disclosure": "High",
         "Disclosure as confession": "No, it's not a confession",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -1082,7 +1082,7 @@
       "labels": {
         "Disclosure as confession": "No, it's not a confession",
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -1095,7 +1095,7 @@
       "timestamp": "4/13/2025, 11:12:33 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -1109,7 +1109,7 @@
       "timestamp": "4/13/2025, 11:16:15 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -1123,7 +1123,7 @@
       "timestamp": "5/5/2025, 9:26:39 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -1228,8 +1228,8 @@
       "timestamp": "6/14/2025, 3:00:11 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -1243,8 +1243,8 @@
       "timestamp": "6/14/2025, 3:00:33 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -1271,7 +1271,7 @@
       "timestamp": "6/14/2025, 3:01:44 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -1351,8 +1351,8 @@
       "labels": {
         "Level of disclosure": "High",
         "Disclosure as confession": "Yes, it's a confession",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer"
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core"
       }
     },
     {
@@ -1404,8 +1404,8 @@
       "timestamp": "7/12/2025, 6:48:24 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -1419,8 +1419,8 @@
       "timestamp": "7/12/2025, 6:50:24 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -1434,8 +1434,8 @@
       "timestamp": "7/12/2025, 6:50:51 A",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -1449,7 +1449,7 @@
       "timestamp": "7/12/2025, 6:50:51 A",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -1463,7 +1463,7 @@
       "timestamp": "7/12/2025, 6:52:21 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -1529,8 +1529,8 @@
       "timestamp": "7/12/2025, 6:58:45 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level"
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate"
       }
     },
     {
@@ -1543,8 +1543,8 @@
       "timestamp": "7/12/2025, 6:59:02 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level"
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate"
       }
     },
     {
@@ -1596,7 +1596,7 @@
       "timestamp": "7/12/2025, 7:01:42 AM",
       "labels": {
         "Disclosure as confession": "No, it's not a confession",
-        "Depth of disclosure": "Intermediate layer"
+        "Depth of disclosure": "Intermediate"
       }
     },
     {
@@ -1636,7 +1636,7 @@
       "labels": {
         "Disclosure as confession": "No, it's not a confession",
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -1701,7 +1701,7 @@
       "timestamp": "7/12/2025, 7:43:50 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -1949,7 +1949,7 @@
       "timestamp": "7/12/2025, 1:19:33 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -2041,7 +2041,7 @@
       "labels": {
         "Level of disclosure": "High",
         "Disclosure as confession": "Yes, it's a confession",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -2120,7 +2120,7 @@
       "labels": {
         "Level of disclosure": "High",
         "Disclosure as confession": "Yes, it's a confession",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -2184,7 +2184,7 @@
       "timestamp": "7/14/2025, 3:35:20 PM",
       "labels": {
         "Level of disclosure": "No",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -2289,8 +2289,8 @@
       "labels": {
         "Disclosure as confession": "No, it's not a confession",
         "Level of disclosure": "High",
-        "Depth of disclosure": "Peripheral layer",
-        "Intimacy of self-disclosure": "Peripheral level"
+        "Depth of disclosure": "Peripheral",
+        "Intimacy of self-disclosure": "Peripheral"
       }
     },
     {
@@ -2395,7 +2395,7 @@
       "labels": {
         "Disclosure as confession": "Yes, it's a confession",
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -2460,9 +2460,9 @@
       "timestamp": "8/5/2025, 2:00:46 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession",
-        "Intimacy of self-disclosure": "Core layer"
+        "Intimacy of self-disclosure": "Core"
       }
     },
     {
@@ -2475,9 +2475,9 @@
       "timestamp": "8/5/2025, 2:02:46 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession",
-        "Intimacy of self-disclosure": "Core layer"
+        "Intimacy of self-disclosure": "Core"
       }
     },
     {
@@ -2490,9 +2490,9 @@
       "timestamp": "8/5/2025, 2:08:07 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession",
-        "Intimacy of self-disclosure": "Core layer"
+        "Intimacy of self-disclosure": "Core"
       }
     },
     {
@@ -2505,9 +2505,9 @@
       "timestamp": "8/5/2025, 2:09:32 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession",
-        "Intimacy of self-disclosure": "Core layer"
+        "Intimacy of self-disclosure": "Core"
       }
     },
     {
@@ -2520,9 +2520,9 @@
       "timestamp": "8/5/2025, 2:11:25 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession",
-        "Intimacy of self-disclosure": "Core layer"
+        "Intimacy of self-disclosure": "Core"
       }
     },
     {
@@ -2535,9 +2535,9 @@
       "timestamp": "8/5/2025, 2:13:26 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession",
-        "Intimacy of self-disclosure": "Core layer"
+        "Intimacy of self-disclosure": "Core"
       }
     },
     {
@@ -2550,9 +2550,9 @@
       "timestamp": "8/5/2025, 2:15:01 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession",
-        "Intimacy of self-disclosure": "Core layer"
+        "Intimacy of self-disclosure": "Core"
       }
     },
     {
@@ -2565,9 +2565,9 @@
       "timestamp": "8/5/2025, 2:16:50 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession",
-        "Intimacy of self-disclosure": "Core layer"
+        "Intimacy of self-disclosure": "Core"
       }
     },
     {
@@ -2580,7 +2580,7 @@
       "timestamp": "8/5/2025, 2:17:32 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -2797,7 +2797,7 @@
       "labels": {
         "Level of disclosure": "Low",
         "Disclosure as confession": "No, it's not a confession",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -2861,7 +2861,7 @@
       "labels": {
         "Level of disclosure": "High",
         "Disclosure as confession": "No, it's not a confession",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -2912,8 +2912,8 @@
       "timestamp": "7/21/2025, 12:40:34 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -2928,8 +2928,8 @@
       "labels": {
         "Level of disclosure": "High",
         "Disclosure as confession": "Yes, it's a confession",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer"
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core"
       }
     },
     {
@@ -2943,8 +2943,8 @@
       "labels": {
         "Level of disclosure": "High",
         "Disclosure as confession": "Yes, it's a confession",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer"
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core"
       }
     },
     {
@@ -2958,7 +2958,7 @@
       "labels": {
         "Level of disclosure": "High",
         "Disclosure as confession": "Yes, it's a confession",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -2971,7 +2971,7 @@
       "timestamp": "7/21/2025, 12:50:37 AM",
       "labels": {
         "Disclosure as confession": "No, it's not a confession",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Level of disclosure": "Low"
       }
     },
@@ -2986,7 +2986,7 @@
       "labels": {
         "Disclosure as confession": "No, it's not a confession",
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -3050,10 +3050,10 @@
       "topic_category": "Emotional and social support",
       "timestamp": "7/21/2025, 1:53:43 AM",
       "labels": {
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Intimacy of self-disclosure": "Intermediate",
         "Level of disclosure": "High",
         "Disclosure as confession": "Yes, it's a confession",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -3065,10 +3065,10 @@
       "topic_category": "Causal exchange",
       "timestamp": "7/21/2025, 1:54:04 AM",
       "labels": {
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Intimacy of self-disclosure": "Intermediate",
         "Level of disclosure": "High",
         "Disclosure as confession": "No, it's not a confession",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -3080,10 +3080,10 @@
       "topic_category": "Emotional and social support",
       "timestamp": "7/21/2025, 1:54:43 AM",
       "labels": {
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Intimacy of self-disclosure": "Intermediate",
         "Level of disclosure": "High",
         "Disclosure as confession": "No, it's not a confession",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -3096,7 +3096,7 @@
       "timestamp": "8/4/2025, 6:15:56 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3202,7 +3202,7 @@
       "labels": {
         "Disclosure as confession": "No, it's not a confession",
         "Level of disclosure": "No",
-        "Depth of disclosure": "Intermediate layer"
+        "Depth of disclosure": "Intermediate"
       }
     },
     {
@@ -3216,7 +3216,7 @@
       "labels": {
         "Level of disclosure": "No",
         "Disclosure as confession": "No, it's not a confession",
-        "Depth of disclosure": "Intermediate layer"
+        "Depth of disclosure": "Intermediate"
       }
     },
     {
@@ -3268,7 +3268,7 @@
       "timestamp": "5/26/2025, 5:07:58 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3282,8 +3282,8 @@
       "timestamp": "5/26/2025, 5:10:52 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3297,8 +3297,8 @@
       "timestamp": "5/26/2025, 5:13:45 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3312,8 +3312,8 @@
       "timestamp": "5/26/2025, 5:14:51 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3327,8 +3327,8 @@
       "timestamp": "5/26/2025, 5:19:50 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3342,8 +3342,8 @@
       "timestamp": "5/26/2025, 5:23:52 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3357,8 +3357,8 @@
       "timestamp": "5/26/2025, 5:31:38 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3372,8 +3372,8 @@
       "timestamp": "5/26/2025, 5:32:38 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3387,8 +3387,8 @@
       "timestamp": "5/26/2025, 5:34:58 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3402,8 +3402,8 @@
       "timestamp": "5/26/2025, 5:37:47 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3417,8 +3417,8 @@
       "timestamp": "5/26/2025, 5:38:46 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3432,8 +3432,8 @@
       "timestamp": "5/26/2025, 5:40:59 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3447,8 +3447,8 @@
       "timestamp": "5/26/2025, 5:43:00 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3462,8 +3462,8 @@
       "timestamp": "5/26/2025, 5:45:28 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3477,8 +3477,8 @@
       "timestamp": "5/26/2025, 5:47:58 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3492,8 +3492,8 @@
       "timestamp": "5/26/2025, 5:54:20 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level"
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate"
       }
     },
     {
@@ -3506,8 +3506,8 @@
       "timestamp": "5/26/2025, 5:56:49 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3521,8 +3521,8 @@
       "timestamp": "5/26/2025, 6:03:44 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3536,8 +3536,8 @@
       "timestamp": "5/26/2025, 6:09:04 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3551,8 +3551,8 @@
       "timestamp": "5/26/2025, 6:17:07 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3566,8 +3566,8 @@
       "timestamp": "5/26/2025, 6:18:37 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3581,8 +3581,8 @@
       "timestamp": "5/26/2025, 6:26:46 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3596,8 +3596,8 @@
       "timestamp": "5/26/2025, 6:27:56 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3611,8 +3611,8 @@
       "timestamp": "5/26/2025, 6:30:27 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3626,8 +3626,8 @@
       "timestamp": "5/26/2025, 6:44:10 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3641,8 +3641,8 @@
       "timestamp": "5/26/2025, 6:49:21 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3656,8 +3656,8 @@
       "timestamp": "5/26/2025, 6:53:22 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3671,8 +3671,8 @@
       "timestamp": "5/26/2025, 6:54:17 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3686,8 +3686,8 @@
       "timestamp": "5/26/2025, 6:56:11 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3701,8 +3701,8 @@
       "timestamp": "5/26/2025, 7:06:08 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3716,8 +3716,8 @@
       "timestamp": "5/26/2025, 7:13:58 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3731,8 +3731,8 @@
       "timestamp": "5/26/2025, 7:17:36 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3746,8 +3746,8 @@
       "timestamp": "5/26/2025, 7:19:54 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3761,8 +3761,8 @@
       "timestamp": "5/26/2025, 7:23:30 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3776,8 +3776,8 @@
       "timestamp": "5/27/2025, 12:58:11 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3791,8 +3791,8 @@
       "timestamp": "5/27/2025, 1:01:39 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3806,8 +3806,8 @@
       "timestamp": "5/27/2025, 1:04:58 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3821,8 +3821,8 @@
       "timestamp": "5/27/2025, 1:08:55 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3836,8 +3836,8 @@
       "timestamp": "5/27/2025, 1:11:52 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3862,8 +3862,8 @@
       "topic_category": "causal exchange",
       "timestamp": "5/27/2025, 1:18:56 PM",
       "labels": {
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3877,8 +3877,8 @@
       "timestamp": "5/27/2025, 1:21:33 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3892,8 +3892,8 @@
       "timestamp": "5/27/2025, 1:24:18 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3907,8 +3907,8 @@
       "timestamp": "5/27/2025, 1:29:08 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3922,8 +3922,8 @@
       "timestamp": "5/27/2025, 1:34:44 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3937,8 +3937,8 @@
       "timestamp": "5/27/2025, 1:39:17 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3952,8 +3952,8 @@
       "timestamp": "5/27/2025, 1:42:15 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3967,8 +3967,8 @@
       "timestamp": "5/27/2025, 1:46:02 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3982,8 +3982,8 @@
       "timestamp": "5/27/2025, 1:48:04 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -3997,8 +3997,8 @@
       "timestamp": "5/27/2025, 1:50:15 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4012,8 +4012,8 @@
       "timestamp": "5/27/2025, 1:57:07 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4027,8 +4027,8 @@
       "timestamp": "5/27/2025, 2:00:26 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4042,8 +4042,8 @@
       "timestamp": "5/27/2025, 2:03:34 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4057,8 +4057,8 @@
       "timestamp": "5/27/2025, 2:05:40 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4072,8 +4072,8 @@
       "timestamp": "5/27/2025, 2:06:55 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4087,8 +4087,8 @@
       "timestamp": "5/27/2025, 2:14:42 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4102,8 +4102,8 @@
       "timestamp": "5/28/2025, 4:53:37 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4130,8 +4130,8 @@
       "timestamp": "5/28/2025, 4:56:10 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4145,8 +4145,8 @@
       "timestamp": "5/28/2025, 4:59:45 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4160,8 +4160,8 @@
       "timestamp": "5/28/2025, 5:01:01 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4175,8 +4175,8 @@
       "timestamp": "5/28/2025, 5:02:12 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4190,8 +4190,8 @@
       "timestamp": "5/28/2025, 5:04:44 PM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4232,7 +4232,7 @@
       "labels": {
         "Level of disclosure": "Low",
         "Disclosure as confession": "No, it's not a confession",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -4246,7 +4246,7 @@
       "labels": {
         "Level of disclosure": "Low",
         "Disclosure as confession": "No, it's not a confession",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -4260,7 +4260,7 @@
       "labels": {
         "Level of disclosure": "Low",
         "Disclosure as confession": "No, it's not a confession",
-        "Depth of disclosure": "Central layer"
+        "Depth of disclosure": "Central"
       }
     },
     {
@@ -4312,8 +4312,8 @@
       "timestamp": "6/14/2025, 10:27:17 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4327,8 +4327,8 @@
       "timestamp": "6/14/2025, 10:27:30 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4342,8 +4342,8 @@
       "timestamp": "6/14/2025, 10:27:46 PM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4357,7 +4357,7 @@
       "timestamp": "8/7/2025, 1:23:00 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
+        "Depth of disclosure": "Central",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -4371,8 +4371,8 @@
       "timestamp": "8/7/2025, 1:23:42 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4386,8 +4386,8 @@
       "timestamp": "8/7/2025, 1:25:12 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -4401,8 +4401,8 @@
       "timestamp": "8/7/2025, 1:25:39 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4416,8 +4416,8 @@
       "timestamp": "8/7/2025, 1:26:12 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -4431,8 +4431,8 @@
       "timestamp": "8/7/2025, 1:29:15 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -4446,8 +4446,8 @@
       "timestamp": "8/7/2025, 1:30:26 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Central layer",
-        "Intimacy of self-disclosure": "Core layer",
+        "Depth of disclosure": "Central",
+        "Intimacy of self-disclosure": "Core",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -4461,8 +4461,8 @@
       "timestamp": "8/7/2025, 1:31:08 AM",
       "labels": {
         "Level of disclosure": "Low",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4476,8 +4476,8 @@
       "timestamp": "8/7/2025, 1:32:51 AM",
       "labels": {
         "Level of disclosure": "No",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4491,8 +4491,8 @@
       "timestamp": "8/7/2025, 1:34:08 AM",
       "labels": {
         "Level of disclosure": "No",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4506,8 +4506,8 @@
       "timestamp": "8/7/2025, 1:34:41 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "Yes, it's a confession"
       }
     },
@@ -4521,8 +4521,8 @@
       "timestamp": "8/7/2025, 1:35:35 AM",
       "labels": {
         "Level of disclosure": "High",
-        "Depth of disclosure": "Intermediate layer",
-        "Intimacy of self-disclosure": "Intermediate level",
+        "Depth of disclosure": "Intermediate",
+        "Intimacy of self-disclosure": "Intermediate",
         "Disclosure as confession": "No, it's not a confession"
       }
     },
@@ -4563,7 +4563,7 @@
       "labels": {
         "Level of disclosure": "Low",
         "Disclosure as confession": "No, it's not a confession",
-        "Depth of disclosure": "Peripheral layer"
+        "Depth of disclosure": "Peripheral"
       }
     },
     {

@@ -92,6 +92,9 @@ class Dimension(Base):
     name = Column(String(255), nullable=False)
     dim_type = Column(Enum(DimensionType), default=DimensionType.SINGLE_LABEL)
     instructions = Column(Text, default="")
+    # Name of the dimension that gates this one's label set (conditional cascade).
+    # Empty for independent dimensions. Each label's path[0] is the gate value.
+    gated_by = Column(String(255), default="")
     sort_order = Column(Integer, default=0)
 
     codebook = relationship("Codebook", back_populates="dimensions")
@@ -106,6 +109,9 @@ class Label(Base):
     name = Column(String(255), nullable=False)
     definition = Column(Text, default="")
     examples = Column(JSON, default=list)
+    # Ancestor chain between the dimension and this leaf (e.g. [Function, Code] for
+    # a Subcode leaf). Empty list for a flat (non-hierarchical) label.
+    path = Column(JSON, default=list)
     sort_order = Column(Integer, default=0)
 
     dimension = relationship("Dimension", back_populates="labels")

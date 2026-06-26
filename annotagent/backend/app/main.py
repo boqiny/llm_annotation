@@ -41,6 +41,20 @@ async def lifespan(app: FastAPI):
         if "source" not in job_cols:
             await conn.execute(_text("ALTER TABLE annotation_jobs ADD COLUMN source VARCHAR(32) DEFAULT 'unknown'"))
 
+        # Add labels.path to existing DBs that predate hierarchical codebooks.
+        label_cols = await conn.run_sync(
+            lambda c: [col["name"] for col in _inspect(c).get_columns("labels")]
+        )
+        if "path" not in label_cols:
+            await conn.execute(_text("ALTER TABLE labels ADD COLUMN path JSON"))
+
+        # Add dimensions.gated_by to existing DBs that predate conditional cascades.
+        dim_cols = await conn.run_sync(
+            lambda c: [col["name"] for col in _inspect(c).get_columns("dimensions")]
+        )
+        if "gated_by" not in dim_cols:
+            await conn.execute(_text("ALTER TABLE dimensions ADD COLUMN gated_by VARCHAR(255) DEFAULT ''"))
+
 
     # Reap stale in-flight rows. The asyncio.Task registry is process-local
     # and doesn't survive restart, so anything still ``running``/``pending``

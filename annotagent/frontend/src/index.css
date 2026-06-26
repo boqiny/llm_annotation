@@ -20,8 +20,9 @@
   .font-mono-editorial {
     font-family: 'Geist Mono', ui-monospace, monospace;
     text-transform: uppercase;
-    letter-spacing: 0.18em;
-    font-size: 11px;
+    letter-spacing: 0.07em;
+    font-size: 0.75rem;   /* 12px — was 11px */
+    font-weight: 500;     /* presence without darkening low-contrast labels */
   }
   .hairline {
     border-color: #E4E4E0;
