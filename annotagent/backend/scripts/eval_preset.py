@@ -80,7 +80,6 @@ async def main() -> int:
         max_concurrency=args.max_concurrency,
     )
 
-    total_cost = sum(r.cost_usd for r in results)
     total_tokens = sum(r.tokens_used for r in results)
 
     report: dict = {
@@ -88,12 +87,11 @@ async def main() -> int:
         "n": len(items),
         "model": args.model,
         "total_tokens": total_tokens,
-        "total_cost_usd": round(total_cost, 6),
         "per_dimension": {},
     }
 
     print(f"\nResults (n={len(items)}):")
-    print(f"  Total tokens: {total_tokens:,}  |  Est. cost: ${total_cost:.4f}")
+    print(f"  Total tokens: {total_tokens:,}")
 
     for dim in codebook.dimensions:
         y_true = [it.get("gold_labels", {}).get(dim.name, "") for it in items]

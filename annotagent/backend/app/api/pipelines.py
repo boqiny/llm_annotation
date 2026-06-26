@@ -10,7 +10,6 @@ from app.models.tables import Pipeline, Codebook, DataItem, Dataset, Dimension, 
 from app.schemas.schemas import PipelineOut, PipelineUpdate
 from app.engine.codebook_parser import parse_codebook
 from app.agents.decomposition import decompose_codebook
-from app.utils.cost_tracker import estimate_cost
 
 router = APIRouter(prefix="/api/projects/{project_id}/pipelines", tags=["pipelines"])
 
@@ -120,7 +119,6 @@ async def estimate_annotation_run(
     # Actual runs are usually far below the 512 max_tokens cap.
     estimated_output_tokens = n_calls * 24
     estimated_total_tokens = estimated_input_tokens + estimated_output_tokens
-    estimated_cost = estimate_cost(project.llm_model, estimated_input_tokens, estimated_output_tokens)
 
     return {
         "dataset_id": dataset.id,
@@ -135,12 +133,10 @@ async def estimate_annotation_run(
         "estimated_input_tokens": estimated_input_tokens,
         "estimated_output_tokens": estimated_output_tokens,
         "estimated_total_tokens": estimated_total_tokens,
-        "estimated_cost": estimated_cost,
         "sample_size": len(sample),
         "assumptions": {
             "tokenizer": "rough character-based estimate",
             "output_tokens_per_call": 24,
-            "pricing": "local approximate model pricing table",
         },
     }
 

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  listPipelines, listDatasets, startJob, uploadDataset, estimateAnnotationRun, listJobs,
+  listPipelines, listDatasets, startJob, uploadDataset, listJobs,
   listSeedDatasets, loadSeedDataset, listCodebooks,
-  type AnnotationCostEstimate, type SeedDatasetInfo,
+  type SeedDatasetInfo,
 } from '../lib/api'
 import type { Pipeline, PipelineStep, Dataset, Codebook, Job } from '../types'
+import { APP_NAME } from '../lib/brand'
 
 function isSelfDisclosure(cb: Codebook | null | undefined): boolean {
   if (!cb) return false
@@ -26,9 +27,6 @@ export default function PipelineView() {
   const [expandedStep, setExpandedStep] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadingSeed, setLoadingSeed] = useState<string | null>(null)
-  const [estimate, setEstimate] = useState<AnnotationCostEstimate | null>(null)
-  const [estimateLoading, setEstimateLoading] = useState(false)
-  const [estimateError, setEstimateError] = useState('')
   const [jobs, setJobs] = useState<Job[]>([])
 
   const reload = () => Promise.all([
@@ -51,27 +49,6 @@ export default function PipelineView() {
   })
 
   useEffect(() => { reload() }, [projectId])
-
-  useEffect(() => {
-    if (!pipeline || !selectedDataset) {
-      setEstimate(null)
-      setEstimateError('')
-      return
-    }
-    let cancelled = false
-    setEstimateLoading(true)
-    setEstimateError('')
-    estimateAnnotationRun(projectId, pipeline.id, selectedDataset)
-      .then(res => { if (!cancelled) setEstimate(res) })
-      .catch(() => {
-        if (!cancelled) {
-          setEstimate(null)
-          setEstimateError('Could not estimate this run yet.')
-        }
-      })
-      .finally(() => { if (!cancelled) setEstimateLoading(false) })
-    return () => { cancelled = true }
-  }, [pipeline, selectedDataset, projectId])
 
   const handleLoadTestSeed = async (seedId: string) => {
     setLoadingSeed(seedId)
@@ -149,7 +126,7 @@ export default function PipelineView() {
         <RunStepNote
           n="3"
           title="Run and review"
-          body="Read the conservative estimate first, then run annotation. Completed jobs stay available in Recent annotation runs."
+          body="Run annotation, then review the results. Completed jobs stay available in Recent annotation runs."
           tone="sky"
         />
       </section>
@@ -238,7 +215,7 @@ export default function PipelineView() {
         <div className="border-l-4 border-ink bg-white px-4 py-3">
           <div className="text-xl font-medium text-ink">Data to label</div>
           <p className="mt-1 text-sm text-stone-600">
-            Select or upload the unlabeled dataset AnnotAgent should annotate with these prompts.
+            Select or upload the unlabeled dataset {APP_NAME} should annotate with these prompts.
           </p>
           <p className="mt-2 text-xs font-medium text-violet-700">
             Best moment to run: after you have accepted the codebook, reviewed prompts, and decided which dataset should receive predicted labels.
@@ -252,14 +229,14 @@ export default function PipelineView() {
             <div className="text-xs text-violet-900/70">Recommended for real annotation runs</div>
           </div>
           <div className="mb-3 border border-violet-200 bg-white/80 px-3 py-2 text-xs leading-relaxed text-violet-900">
-            Use this for the dataset you want AnnotAgent to label now. Labeled/gold examples belong in Setup or Improve; this upload is for annotation inputs.
+            Use this for the dataset you want {APP_NAME} to label now. Labeled/gold examples belong in Setup or Improve; this upload is for annotation inputs.
           </div>
           <label className="block border-2 border-dashed border-violet-300 bg-white px-5 py-6 cursor-pointer hover:border-violet-500 hover:bg-violet-50/50 transition">
             <input type="file" accept=".csv,.json" className="hidden" onChange={handleUpload} />
             <div className="flex items-center justify-between gap-4">
               <div>
                 <div className="text-lg font-medium text-ink">Choose a CSV or JSON file to label</div>
-                <p className="text-sm text-stone-600 mt-1">Each row or item becomes one annotation target. After upload, AnnotAgent selects it and shows the run cost estimate.</p>
+                <p className="text-sm text-stone-600 mt-1">Each row or item becomes one annotation target. After upload, {APP_NAME} selects it so you can start the run.</p>
               </div>
               <span className="shrink-0 px-4 py-2 bg-ink text-cream text-sm font-medium">Choose file →</span>
             </div>
@@ -290,8 +267,7 @@ export default function PipelineView() {
               <div className="col-span-3">Run</div>
               <div className="col-span-2">Created from</div>
               <div className="col-span-2">Status</div>
-              <div className="col-span-2">Items</div>
-              <div className="col-span-1 text-right">Cost</div>
+              <div className="col-span-3">Items</div>
               <div className="col-span-2 text-right">Results</div>
             </div>
             <div className="divide-y divide-seam">
@@ -311,11 +287,8 @@ export default function PipelineView() {
                       </span>
                     </div>
                     <div className="col-span-2 font-mono-editorial text-stone-500">{job.status}</div>
-                    <div className="col-span-2 font-mono text-xs text-stone-500">
+                    <div className="col-span-3 font-mono text-xs text-stone-500">
                       {job.completed_items.toLocaleString()} / {job.total_items.toLocaleString()} items
-                    </div>
-                    <div className="col-span-1 text-right font-mono text-xs text-stone-500">
-                      ${job.total_cost.toFixed(4)}
                     </div>
                     <div className="col-span-2 text-right">
                       <Link
@@ -428,15 +401,8 @@ export default function PipelineView() {
             </div>
             {!selectedDataset && (
               <div className="border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
-                No data is selected, so AnnotAgent will not start an annotation run. Choose a loaded dataset or upload a new one when you are ready.
+                No data is selected, so {APP_NAME} will not start an annotation run. Choose a loaded dataset or upload a new one when you are ready.
               </div>
-            )}
-            {selectedDataset && (
-              <CostEstimatePanel
-                estimate={estimate}
-                loading={estimateLoading}
-                error={estimateError}
-              />
             )}
           </div>
           <div className="flex items-center gap-2">
@@ -504,55 +470,6 @@ function runSourceDisplay(source: string | null | undefined): { label: string; c
   return { label: 'Older run', className: 'border-stone-200 bg-paper text-stone-600' }
 }
 
-function CostEstimatePanel({
-  estimate, loading, error,
-}: {
-  estimate: AnnotationCostEstimate | null
-  loading: boolean
-  error: string
-}) {
-  if (loading) {
-    return (
-      <div className="border border-seam bg-paper/40 px-4 py-3 text-xs text-stone-500">
-        Estimating tokens and cost…
-      </div>
-    )
-  }
-  if (error) {
-    return (
-      <div className="border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-        {error}
-      </div>
-    )
-  }
-  if (!estimate) return null
-
-  return (
-    <div className="border border-violet-200 bg-violet-50/70 px-4 py-3 max-w-3xl">
-      <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2">
-        <div>
-          <div className="font-mono-editorial text-violet-700">Conservative estimated cost</div>
-          <div className="text-xl font-semibold text-violet-950">{formatCost(estimate.estimated_cost)}</div>
-        </div>
-        <EstimateMetric label="LLM calls" value={estimate.n_calls.toLocaleString()} />
-        <EstimateMetric label="Model" value={estimate.model} />
-      </div>
-      <p className="mt-2 text-xs leading-relaxed text-violet-900/75">
-        Conservative pre-run estimate based on {estimate.n_items.toLocaleString()} items × {estimate.n_prompts} prompt{estimate.n_prompts === 1 ? '' : 's'}, prompt length, and a {estimate.sample_size}-item input sample. The final cost shown after annotation is measured from actual model usage.
-      </p>
-    </div>
-  )
-}
-
-function EstimateMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="font-mono-editorial text-violet-700">{label}</div>
-      <div className="text-sm font-medium text-violet-950">{value}</div>
-    </div>
-  )
-}
-
 function FormatNote({
   title, body, sample,
 }: {
@@ -571,10 +488,6 @@ function FormatNote({
   )
 }
 
-function formatCost(cost: number): string {
-  if (cost < 0.01) return `$${cost.toFixed(4)}`
-  return `$${cost.toFixed(2)}`
-}
 
 function formatTokens(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`

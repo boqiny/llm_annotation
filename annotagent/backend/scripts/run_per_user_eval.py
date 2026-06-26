@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import csv
+import hashlib
 import json
 import re
 import sys
@@ -130,7 +131,7 @@ def _build_examples(items: list[dict], dim, limit: int) -> list[Example]:
     return examples
 
 
-async def _run_dimension(dim, items, user, args) -> dict | None:
+async def _run_dimension(dim, items, user, args, seed=None) -> dict | None:
     valid = [l.name for l in dim.labels]
     label_defs = "\n".join(f"- {l.name}: {l.definition}" for l in dim.labels)
     initial_prompt = generate_dimension_prompt(dim)
@@ -140,7 +141,8 @@ async def _run_dimension(dim, items, user, args) -> dict | None:
         print(f"  [skip] {dim.name}: only {len(examples)} usable examples (<15).")
         return None
 
-    seed = hash((user, dim.name)) & 0xFFFF_FFFF
+    if seed is None:
+        seed = int(hashlib.sha256(f"{user}|{dim.name}".encode()).hexdigest()[:8], 16)
     train, val, test, per_class = _stratified_split(
         examples, train_frac=args.train_frac, val_frac=args.val_frac, seed=seed,
     )
@@ -155,7 +157,7 @@ async def _run_dimension(dim, items, user, args) -> dict | None:
     print(f"  {dim.name}: n={len(examples)} -> train={len(train)} val={len(val)} test={len(test)} | classes={[ (c, per_class[c]['n']) for c in per_class ]}")
 
     # Zero-shot baseline on the held-out test.
-    zs_acc, zs_preds, zs_tok, zs_cost = await evaluate_prompt(
+    zs_acc, zs_preds, zs_tok = await evaluate_prompt(
         initial_prompt, test, valid,
         provider=args.provider, model=args.model, api_key=args.api_key,
         max_concurrency=args.concurrency,
@@ -174,7 +176,7 @@ async def _run_dimension(dim, items, user, args) -> dict | None:
     )
 
     # Score the optimized prompt on the SAME held-out test.
-    opt_acc, opt_preds, opt_tok, opt_cost = await evaluate_prompt(
+    opt_acc, opt_preds, opt_tok = await evaluate_prompt(
         result.optimized_prompt, test, valid,
         provider=args.provider, model=args.model, api_key=args.api_key,
         max_concurrency=args.concurrency,
@@ -200,7 +202,6 @@ async def _run_dimension(dim, items, user, args) -> dict | None:
         "val_final": result.final_score,
         "trajectory": result.trajectory or [],
         "tokens": zs_tok + opt_tok + result.total_tokens,
-        "cost_usd": zs_cost + opt_cost + result.total_cost_usd,
     }
 
 
@@ -252,10 +253,9 @@ def _write_report(args, codebook_name: str, results: dict[str, list[dict]], out:
     for user, rows in results.items():
         if rows:
             lines.extend(_user_section(args, user, rows))
-    total_cost = sum(r["cost_usd"] for rows in results.values() for r in rows)
     total_tok = sum(r["tokens"] for rows in results.values() for r in rows)
     lines.append(
-        f"Run cost: {total_tok:,} tokens, ${total_cost:.4f}. "
+        f"Run tokens: {total_tok:,}. "
         f"Reproduce: `./.venv/bin/python scripts/run_per_user_eval.py --user {args.user} "
         f"--train-frac {args.train_frac} --val-frac {args.val_frac} --budget {args.budget}` "
         f"(from annotagent/backend).\n"

@@ -82,7 +82,6 @@ export interface Job {
   completed_items: number
   failed_items: number
   total_tokens: number
-  total_cost: number
   source: string
   created_at: string | null
   updated_at: string | null
@@ -136,7 +135,6 @@ export interface WSProgressMessage {
   completed: number
   total: number
   tokens: number
-  cost: number
   status: string
   failed?: number
 }

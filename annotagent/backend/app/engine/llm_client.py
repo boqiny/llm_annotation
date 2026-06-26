@@ -8,8 +8,6 @@ from dataclasses import dataclass
 import openai
 import anthropic
 
-from app.utils.cost_tracker import estimate_cost
-
 logger = logging.getLogger(__name__)
 
 # Errors worth retrying: transient network / rate limit / 5xx. Auth/400 are not.
@@ -31,7 +29,6 @@ class LLMResponse:
     input_tokens: int = 0
     output_tokens: int = 0
     model: str = ""
-    cost_usd: float = 0.0
 
 
 def _uses_new_params(model: str) -> bool:
@@ -42,18 +39,29 @@ def _uses_new_params(model: str) -> bool:
     return m.startswith(("gpt-5", "o1", "o3", "o4"))
 
 
+def _default_reasoning(model: str) -> str:
+    """Non-mini gpt-5.x models default to low reasoning effort: full effort is slow
+    and these tasks are extraction/classification, not deep reasoning."""
+    return "low" if (model or "").lower() in ("gpt-5.4", "gpt-5.5") else ""
+
+
 async def call_openai(
     messages: list[dict[str, str]],
     model: str = "gpt-5.4-mini",
     api_key: str = "",
     temperature: float = 0.0,
     max_tokens: int = 512,
+    reasoning_effort: str = "",
 ) -> LLMResponse:
     client = openai.AsyncOpenAI(api_key=api_key)
     kwargs: dict = {"model": model, "messages": messages}
     if _uses_new_params(model):
         kwargs["max_completion_tokens"] = max_tokens
         # temperature intentionally omitted — new reasoning models reject non-default values
+        effort = reasoning_effort or _default_reasoning(model)
+        if effort:
+            # cap reasoning so latency stays usable for structured/extraction tasks
+            kwargs["reasoning_effort"] = effort
     else:
         kwargs["max_tokens"] = max_tokens
         kwargs["temperature"] = temperature
@@ -67,7 +75,6 @@ async def call_openai(
         input_tokens=in_tok,
         output_tokens=out_tok,
         model=model,
-        cost_usd=estimate_cost(model, in_tok, out_tok),
     )
 
 
@@ -102,7 +109,6 @@ async def call_anthropic(
         input_tokens=in_tok,
         output_tokens=out_tok,
         model=model,
-        cost_usd=estimate_cost(model, in_tok, out_tok),
     )
 
 
@@ -114,6 +120,7 @@ async def call_llm(
     temperature: float = 0.0,
     max_tokens: int = 512,
     max_retries: int = 3,
+    reasoning_effort: str = "",
 ) -> LLMResponse:
     """Unified LLM call dispatcher with exponential backoff on transient failures."""
     delay = 1.0
@@ -128,6 +135,7 @@ async def call_llm(
             return await call_openai(
                 messages=messages, model=model, api_key=api_key,
                 temperature=temperature, max_tokens=max_tokens,
+                reasoning_effort=reasoning_effort,
             )
         except _RETRYABLE as e:
             last_err = e

@@ -113,13 +113,13 @@ fences, no commentary."""
 
 async def _dedupe_rules_semantic(
     rules: list[dict], *, provider: str, model: str, api_key: str,
-) -> tuple[list[dict], int, float]:
-    """Ask the LLM to merge near-duplicate rules. Returns (deduped, tokens, cost).
+) -> tuple[list[dict], int]:
+    """Ask the LLM to merge near-duplicate rules. Returns (deduped, tokens).
     On any failure (LLM error, JSON parse error, schema mismatch) returns the
     input rules unchanged — never reduces the library by accident.
     """
     if len(rules) <= 1:
-        return rules, 0, 0.0
+        return rules, 0
     try:
         resp = await call_llm(
             messages=[
@@ -130,7 +130,7 @@ async def _dedupe_rules_semantic(
         )
     except Exception as e:
         logger.warning(f"Rule dedup LLM call failed: {e}")
-        return rules, 0, 0.0
+        return rules, 0
 
     text = (resp.text or "").strip()
     if text.startswith("```"):
@@ -139,10 +139,10 @@ async def _dedupe_rules_semantic(
         deduped = json.loads(text)
     except json.JSONDecodeError:
         logger.warning("Rule dedup returned non-JSON; keeping input rules")
-        return rules, resp.input_tokens + resp.output_tokens, resp.cost_usd
+        return rules, resp.input_tokens + resp.output_tokens
 
     if not isinstance(deduped, list):
-        return rules, resp.input_tokens + resp.output_tokens, resp.cost_usd
+        return rules, resp.input_tokens + resp.output_tokens
 
     valid = [
         r for r in deduped
@@ -156,10 +156,10 @@ async def _dedupe_rules_semantic(
             f"Rule dedup produced suspect output ({len(rules)} → {len(valid)}, "
             f"floor={floor}); keeping input rules"
         )
-        return rules, resp.input_tokens + resp.output_tokens, resp.cost_usd
+        return rules, resp.input_tokens + resp.output_tokens
 
     logger.info(f"Rule dedup: {len(rules)} → {len(valid)}")
-    return valid, resp.input_tokens + resp.output_tokens, resp.cost_usd
+    return valid, resp.input_tokens + resp.output_tokens
 
 
 def _merge_rules(existing: list[dict], new: list[dict]) -> list[dict]:
@@ -263,7 +263,6 @@ class ReflectAgent(PromptOptimizer):
         rules: list[dict] = list(self.seed_rules)
         trajectory: list[dict] = []
         total_tokens = 0
-        total_cost = 0.0
         # Cached round-1 predictions on train — used to identify "originally
         # wrong" items, which make the most instructive worked examples.
         initial_train_preds: list[str] | None = None
@@ -274,7 +273,6 @@ class ReflectAgent(PromptOptimizer):
             await _emit(on_progress, {
                 "trajectory": list(trajectory),
                 "total_tokens": total_tokens,
-                "total_cost_usd": total_cost,
                 "current_round": entry.get("round", 0),
                 "total_rounds": self.budget,
                 "artifact": {"rule_library": list(rules), "n_rules": len(rules)},
@@ -287,12 +285,11 @@ class ReflectAgent(PromptOptimizer):
         # is empty this is identical to the previous behavior.
         current_prompt = initial_prompt + _compile_rules(rules)
         val_y_true = [ex.gold for ex in valset]
-        base_acc, base_preds, t, c = await evaluate_prompt(
+        base_acc, base_preds, t = await evaluate_prompt(
             current_prompt, valset, valid_labels,
             provider=self.provider, model=self.model, api_key=self.api_key,
         )
         total_tokens += t
-        total_cost += c
 
         current_val_acc = base_acc
         base_metrics = compute_metrics(val_y_true, base_preds)
@@ -304,12 +301,11 @@ class ReflectAgent(PromptOptimizer):
 
         for r in range(1, self.budget + 1):
             # 1. Annotate the trainset with current prompt to find failures
-            train_acc, preds, t, c = await evaluate_prompt(
+            train_acc, preds, t = await evaluate_prompt(
                 current_prompt, trainset, valid_labels,
                 provider=self.provider, model=self.model, api_key=self.api_key,
             )
             total_tokens += t
-            total_cost += c
 
             if initial_train_preds is None:
                 initial_train_preds = list(preds)
@@ -347,23 +343,21 @@ class ReflectAgent(PromptOptimizer):
             # boundaries into one rule early on.
             merged = _merge_rules(rules, new_rules)
             if len(merged) >= 10:
-                candidate_rules, dedup_tok, dedup_cost = await _dedupe_rules_semantic(
+                candidate_rules, dedup_tok = await _dedupe_rules_semantic(
                     merged,
                     provider=self.provider, model=self.model, api_key=self.api_key,
                 )
                 total_tokens += dedup_tok
-                total_cost += dedup_cost
             else:
                 candidate_rules = merged
             candidate_prompt = initial_prompt + _compile_rules(candidate_rules)
 
             # 4. Governor: evaluate on val
-            val_acc, val_preds, t, c = await evaluate_prompt(
+            val_acc, val_preds, t = await evaluate_prompt(
                 candidate_prompt, valset, valid_labels,
                 provider=self.provider, model=self.model, api_key=self.api_key,
             )
             total_tokens += t
-            total_cost += c
             val_metrics = compute_metrics(val_y_true, val_preds)
             val_f1 = round(val_metrics.get("macro_f1", 0.0), 4)
 
@@ -396,12 +390,11 @@ class ReflectAgent(PromptOptimizer):
         n_val_rules = 0
         consolidation_round = self.budget + 1
         if self.use_val_consolidation and valset:
-            val_acc_pre, val_preds_pre, t, c = await evaluate_prompt(
+            val_acc_pre, val_preds_pre, t = await evaluate_prompt(
                 current_prompt, valset, valid_labels,
                 provider=self.provider, model=self.model, api_key=self.api_key,
             )
             total_tokens += t
-            total_cost += c
             val_failures = [
                 {"sentence": ex.sentence, "gold": ex.gold, "pred": p}
                 for ex, p in zip(valset, val_preds_pre) if p != ex.gold
@@ -418,12 +411,11 @@ class ReflectAgent(PromptOptimizer):
                 if val_new_rules:
                     merged = _merge_rules(rules, val_new_rules)
                     if len(merged) >= 10:
-                        merged, dt, dc = await _dedupe_rules_semantic(
+                        merged, dt = await _dedupe_rules_semantic(
                             merged,
                             provider=self.provider, model=self.model, api_key=self.api_key,
                         )
                         total_tokens += dt
-                        total_cost += dc
                     rules = merged
                     current_prompt = initial_prompt + _compile_rules(rules)
 
@@ -458,12 +450,11 @@ class ReflectAgent(PromptOptimizer):
                 current_prompt = current_prompt + demos_block
                 n_demos = len(picked)
 
-                val_acc, val_preds, t, c = await evaluate_prompt(
+                val_acc, val_preds, t = await evaluate_prompt(
                     current_prompt, valset, valid_labels,
                     provider=self.provider, model=self.model, api_key=self.api_key,
                 )
                 total_tokens += t
-                total_cost += c
                 final_metrics = compute_metrics(val_y_true, val_preds)
                 current_val_acc = val_acc
                 await record({
@@ -485,12 +476,11 @@ class ReflectAgent(PromptOptimizer):
         )
 
         if final_prompt != current_prompt:
-            val_acc, val_preds, t, c = await evaluate_prompt(
+            val_acc, val_preds, t = await evaluate_prompt(
                 final_prompt, valset, valid_labels,
                 provider=self.provider, model=self.model, api_key=self.api_key,
             )
             total_tokens += t
-            total_cost += c
             final_metrics = compute_metrics(val_y_true, val_preds)
             current_val_acc = val_acc
             await record({
@@ -512,7 +502,6 @@ class ReflectAgent(PromptOptimizer):
             trajectory=trajectory,
             artifact={"rule_library": rules, "n_rules": len(rules), "n_demos": n_demos},
             total_tokens=total_tokens,
-            total_cost_usd=total_cost,
         )
 
 

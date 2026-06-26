@@ -50,14 +50,13 @@ class GEPAOptimizer(PromptOptimizer):
         on_progress: Optional[ProgressCB] = None,
     ) -> OptimizationResult:
         # Baseline score with the given initial prompt (pre-optimization)
-        base_acc, _, base_tokens, base_cost = await evaluate_prompt(
+        base_acc, _, base_tokens = await evaluate_prompt(
             initial_prompt, valset, valid_labels,
             provider=self.provider, model=self.model, api_key=self.api_key,
         )
         await _emit(on_progress, {
             "trajectory": [{"round": 0, "val_acc": base_acc, "action": "baseline"}],
             "total_tokens": base_tokens,
-            "total_cost_usd": base_cost,
             "current_round": 0,
             "total_rounds": 2,
             "initial_score": base_acc,
@@ -94,7 +93,7 @@ class GEPAOptimizer(PromptOptimizer):
             logger.warning(f"GEPA compile failed: {e}")
             optimized_prompt = initial_prompt
 
-        final_acc, _, extra_tokens, extra_cost = await evaluate_prompt(
+        final_acc, _, extra_tokens = await evaluate_prompt(
             optimized_prompt, valset, valid_labels,
             provider=self.provider, model=self.model, api_key=self.api_key,
         )
@@ -113,5 +112,4 @@ class GEPAOptimizer(PromptOptimizer):
             ],
             artifact={"auto_budget": self.auto_budget},
             total_tokens=base_tokens + extra_tokens,
-            total_cost_usd=base_cost + extra_cost,
         )

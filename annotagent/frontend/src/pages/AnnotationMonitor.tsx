@@ -60,7 +60,6 @@ export default function AnnotationMonitor() {
   const pct = total > 0 ? (completed / total) * 100 : 0
   const status = progress?.status ?? job?.status ?? 'pending'
   const tokens = progress?.tokens ?? job?.total_tokens ?? 0
-  const cost = progress?.cost ?? job?.total_cost ?? 0
   const isRunning = status === 'running'
   const isPaused = status === 'paused'
 
@@ -128,7 +127,6 @@ export default function AnnotationMonitor() {
           </div>
           <div className="flex gap-8 text-sm">
             <Metric label="Tokens" value={formatTokens(tokens)} />
-            <Metric label="Cost (USD)" value={`$${cost.toFixed(4)}`} />
             <Metric label="Progress" value={`${pct.toFixed(1)}%`} />
           </div>
         </div>

@@ -16,7 +16,6 @@ class AnnotationItemResult:
     labels: dict[str, str] = field(default_factory=dict)
     reasoning: dict[str, str] = field(default_factory=dict)
     tokens_used: int = 0
-    cost_usd: float = 0.0
     skipped_steps: list[str] = field(default_factory=list)
 
 
@@ -33,7 +32,6 @@ async def annotate_item(
     """Annotate a single item through all pipeline steps."""
     result = AnnotationItemResult(item_index=item_index, content=content)
     total_tokens = 0
-    total_cost = 0.0
     gated_out = False
 
     for step in steps:
@@ -60,7 +58,6 @@ async def annotate_item(
         )
 
         total_tokens += resp.input_tokens + resp.output_tokens
-        total_cost += resp.cost_usd
 
         for dim_name in step.get("dimensions", []):
             valid_labels = codebook_dims.get(dim_name, [])
@@ -76,7 +73,6 @@ async def annotate_item(
                 gated_out = True
 
     result.tokens_used = total_tokens
-    result.cost_usd = total_cost
     return result
 
 

@@ -49,6 +49,49 @@ export const uploadDataset = (projectId: number, file: File, isGold: boolean = f
 }
 export const listDatasets = (projectId: number) =>
   api.get<Dataset[]>(`/projects/${projectId}/datasets`).then(r => r.data)
+
+// Labeled-data schema validation + LLM auto-fix
+export interface GoldSchema {
+  name: string
+  dimensions: { name: string; type: string; labels: string[] }[]
+}
+export interface GoldReport {
+  ok: boolean
+  n_items: number
+  n_error_items: number
+  summary: Record<string, number>
+  issues: { row: number; severity: string; kind: string; dimension: string; value: any; message: string }[]
+  unknown_label_values: Record<string, Record<string, number>>
+  unknown_dimensions: Record<string, number>
+}
+export interface GoldValidation {
+  filename: string
+  file_type: string
+  is_gold: boolean
+  items: any[]
+  report: GoldReport
+  schema: GoldSchema
+}
+export interface GoldAutofix { items: any[]; trace: any[]; report: GoldReport }
+
+export const getExpectedSchema = (projectId: number) =>
+  api.get<GoldSchema>(`/projects/${projectId}/datasets/schema`).then(r => r.data)
+
+export const validateLabeledUpload = (projectId: number, file: File, isGold: boolean = true) => {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('is_gold', String(isGold))
+  return api.post<GoldValidation>(`/projects/${projectId}/datasets/validate`, form).then(r => r.data)
+}
+
+export const autofixLabeledData = (projectId: number, items: any[]) =>
+  api.post<GoldAutofix>(`/projects/${projectId}/datasets/autofix`, { items }, { timeout: 180_000 })
+    .then(r => r.data)
+
+export const commitLabeledData = (
+  projectId: number,
+  payload: { name: string; is_gold: boolean; file_type: string; items: any[] },
+) => api.post<Dataset>(`/projects/${projectId}/datasets/commit`, payload).then(r => r.data)
 export const previewDataset = (projectId: number, datasetId: number) =>
   api.get<DatasetPreview>(`/projects/${projectId}/datasets/${datasetId}`).then(r => r.data)
 export const deleteDataset = (projectId: number, datasetId: number) =>
@@ -61,25 +104,6 @@ export const listPipelines = (projectId: number) =>
   api.get<Pipeline[]>(`/projects/${projectId}/pipelines`).then(r => r.data)
 export const getPipeline = (projectId: number, pipelineId: number) =>
   api.get<Pipeline>(`/projects/${projectId}/pipelines/${pipelineId}`).then(r => r.data)
-export interface AnnotationCostEstimate {
-  dataset_id: number
-  dataset_name: string
-  model: string
-  provider: string
-  n_items: number
-  n_prompts: number
-  n_calls: number
-  prompt_tokens_per_item: number
-  avg_user_tokens_per_step: number
-  estimated_input_tokens: number
-  estimated_output_tokens: number
-  estimated_total_tokens: number
-  estimated_cost: number
-  sample_size: number
-  assumptions: Record<string, string | number>
-}
-export const estimateAnnotationRun = (projectId: number, pipelineId: number, datasetId: number) =>
-  api.get<AnnotationCostEstimate>(`/projects/${projectId}/pipelines/${pipelineId}/estimate`, { params: { dataset_id: datasetId } }).then(r => r.data)
 export const updatePipeline = (projectId: number, pipelineId: number, steps: object[]) =>
   api.put<Pipeline>(`/projects/${projectId}/pipelines/${pipelineId}`, { steps }).then(r => r.data)
 
@@ -176,13 +200,13 @@ export const uploadCodebookDraft = async (projectId: number, file: File): Promis
   form.append('project_id', String(projectId))
   const r = await api.post<CodebookDraft>('/codebook-drafts/upload', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 120_000,
+    timeout: 240_000,
   })
   return r.data
 }
 
 export const pasteCodebookDraft = (projectId: number, text: string) =>
-  api.post<CodebookDraft>('/codebook-drafts', { source: 'paste', project_id: projectId, text }, { timeout: 120_000 })
+  api.post<CodebookDraft>('/codebook-drafts', { source: 'paste', project_id: projectId, text }, { timeout: 240_000 })
      .then(r => r.data)
 
 export const presetCodebookDraft = (preset_name: string) =>
@@ -228,7 +252,6 @@ export interface OptimizerRun {
   artifact: Record<string, any>
   optimized_prompt: string
   total_tokens: number
-  total_cost: number
   error: string
   created_at: string | null
   updated_at: string | null
