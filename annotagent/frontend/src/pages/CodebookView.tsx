@@ -3,9 +3,10 @@ import { useParams, Link } from 'react-router-dom'
 import { getProject, listCodebooks } from '../lib/api'
 import type { Codebook, Dimension, Label, Project } from '../types'
 
+type RawDim = { name: string; type?: string; instructions?: string; category_dimension?: string }
 type RawCodebook = {
   mode?: 'single_label' | 'multi_label' | 'mixed'
-  dimensions?: Array<{ name: string; type?: string; instructions?: string }>
+  dimensions?: RawDim[]
 }
 
 export default function CodebookView() {
@@ -195,12 +196,16 @@ function DimensionCard({
 }: {
   dim: Dimension
   index: number
-  rawDim?: { name: string; type?: string; instructions?: string }
+  rawDim?: RawDim
   isOpen: boolean
   onToggle: () => void
 }) {
   const isMulti = (dim.dim_type || '').toLowerCase() === 'multi_label'
   const accentColor = isMulti ? 'bg-violet-500' : 'bg-indigo-500'
+  const hierarchical = dim.labels.some(l => l.path && l.path.length > 0)
+  // Names for each path level: depth 0 = the gating dimension (if gated),
+  // depth 1 = the parent-category dimension. Derived, never hardcoded.
+  const levelKinds: string[] = [dim.gated_by || '', rawDim?.category_dimension || '']
 
   return (
     <article className="relative bg-white border border-seam">
@@ -244,64 +249,139 @@ function DimensionCard({
             </div>
           )}
 
-          {/* Labels — grouped tree when hierarchical, flat grid otherwise */}
-          <div>
-            <div className="font-mono-editorial text-stone-500 mb-3">
-              Labels
+          {/* Labels — nested groups + dependency tree when hierarchical */}
+          {hierarchical ? (
+            <div className="grid lg:grid-cols-[1fr_300px] gap-6 items-start">
+              <div>
+                <div className="font-mono-editorial text-stone-500 mb-3">Labels</div>
+                <NestedGroups node={buildTree(dim.labels)} depth={0} isMulti={isMulti} levelKinds={levelKinds} />
+              </div>
+              <DependencyTree dim={dim} levelKinds={levelKinds} />
             </div>
-            {dim.labels.some(l => l.path && l.path.length > 0)
-              ? <HierarchicalLabels labels={dim.labels} isMulti={isMulti} />
-              : (
-                <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {dim.labels.map(lbl => (
-                    <LabelCard key={lbl.id} label={lbl} isMulti={isMulti} />
-                  ))}
-                </ul>
-              )}
-          </div>
+          ) : (
+            <div>
+              <div className="font-mono-editorial text-stone-500 mb-3">Labels</div>
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {dim.labels.map(lbl => (
+                  <LabelCard key={lbl.id} label={lbl} isMulti={isMulti} />
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </article>
   )
 }
 
-/* ─── Hierarchical labels (leaves grouped under their path) ── */
+/* ─── Hierarchy tree (built from label paths, works for any depth) ── */
 
-function HierarchicalLabels({ labels, isMulti }: { labels: Label[]; isMulti: boolean }) {
-  // Group leaves by their full path (breadcrumb), preserving order.
-  const groups: { key: string; path: string[]; labels: Label[] }[] = []
+type TreeNode = { name: string; children: Map<string, TreeNode>; leaves: Label[] }
+
+function buildTree(labels: Label[]): TreeNode {
+  const root: TreeNode = { name: '', children: new Map(), leaves: [] }
   for (const lbl of labels) {
-    const path = lbl.path ?? []
-    const key = path.join(' › ')
-    const last = groups[groups.length - 1]
-    if (last && last.key === key) last.labels.push(lbl)
-    else groups.push({ key, path, labels: [lbl] })
+    let node = root
+    for (const seg of (lbl.path ?? [])) {
+      let child = node.children.get(seg)
+      if (!child) { child = { name: seg, children: new Map(), leaves: [] }; node.children.set(seg, child) }
+      node = child
+    }
+    node.leaves.push(lbl)
   }
+  return root
+}
 
+function countLeaves(node: TreeNode): number {
+  let n = node.leaves.length
+  for (const c of node.children.values()) n += countLeaves(c)
+  return n
+}
+
+/* Left column: each path level becomes its OWN labeled grouping (gate value,
+ * then category, …), with the leaf labels as cards under the deepest group. */
+function NestedGroups({ node, depth, isMulti, levelKinds }: {
+  node: TreeNode; depth: number; isMulti: boolean; levelKinds: string[]
+}) {
+  const isGate = depth === 0 && !!levelKinds[0]
   return (
-    <div className="space-y-5">
-      {groups.map((g, gi) => (
-        <div key={gi} className="border-l-2 border-stone-200 pl-4">
-          {g.path.length > 0 && (
-            <div className="mb-2 flex flex-wrap items-center gap-1.5 font-mono-editorial text-stone-500">
-              {g.path.map((node, i) => (
-                <span key={i} className="inline-flex items-center gap-1.5">
-                  {i > 0 && <span className="text-stone-300" aria-hidden="true">›</span>}
-                  <span className={i === g.path.length - 1 ? 'text-stone-700' : 'text-stone-400'}>
-                    {node}
-                  </span>
-                </span>
-              ))}
+    <div className="space-y-4">
+      {node.leaves.length > 0 && (
+        <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {node.leaves.map(l => <LabelCard key={l.id} label={l} isMulti={isMulti} />)}
+        </ul>
+      )}
+      {[...node.children.values()].map((child, i) => (
+        <section key={i} className={`border-l-2 pl-4 ${isGate ? 'border-indigo-300' : 'border-stone-200'}`}>
+          <header className="mb-2">
+            {levelKinds[depth] && (
+              <div className="font-mono-editorial text-[10.5px] uppercase tracking-wider text-stone-400">
+                {levelKinds[depth]}
+              </div>
+            )}
+            <div className={`font-medium ${isGate ? 'text-indigo-800' : 'text-stone-700'}`}>
+              {isGate && <span className="font-normal text-stone-400">when = </span>}
+              {child.name}
+              <span className="ml-2 font-mono text-xs text-stone-400">{countLeaves(child)}</span>
             </div>
-          )}
-          <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {g.labels.map(lbl => (
-              <LabelCard key={lbl.id} label={lbl} isMulti={isMulti} />
-            ))}
-          </ul>
-        </div>
+          </header>
+          <NestedGroups node={child} depth={depth + 1} isMulti={isMulti} levelKinds={levelKinds} />
+        </section>
       ))}
     </div>
+  )
+}
+
+/* Right column: a compact, scrollable map of the dependency tree so the user
+ * sees the structure at a glance. Leaves are de-emphasized; gate/category nodes
+ * carry their level name. */
+function DependencyTree({ dim, levelKinds }: { dim: Dimension; levelKinds: string[] }) {
+  const root = buildTree(dim.labels)
+  return (
+    <aside className="lg:sticky lg:top-4 border border-seam bg-paper/40 p-4">
+      <div className="font-mono-editorial text-stone-500 mb-2">Structure</div>
+      {dim.gated_by ? (
+        <p className="text-[11px] leading-relaxed text-stone-500 mb-3">
+          Predicted after{' '}
+          <span className="font-medium text-indigo-700">{dim.gated_by}</span>; the
+          available labels depend on its value.
+        </p>
+      ) : (
+        <p className="text-[11px] leading-relaxed text-stone-500 mb-3">
+          Pick one leaf; the grouping above it is context.
+        </p>
+      )}
+      <div className="max-h-[460px] overflow-auto pr-1">
+        <TreeLines node={root} depth={0} levelKinds={levelKinds} />
+      </div>
+    </aside>
+  )
+}
+
+function TreeLines({ node, depth, levelKinds }: {
+  node: TreeNode; depth: number; levelKinds: string[]
+}) {
+  const isGate = depth === 0 && !!levelKinds[0]
+  return (
+    <ul className="space-y-0.5">
+      {[...node.children.values()].map((c, i) => (
+        <li key={`n${i}`}>
+          <div className="flex items-baseline gap-1.5 text-xs" style={{ paddingLeft: depth * 12 }}>
+            <span className={`truncate ${isGate ? 'text-indigo-700 font-medium' : 'text-stone-700'}`}>{c.name}</span>
+            <span className="font-mono text-[10px] text-stone-400 shrink-0">{countLeaves(c)}</span>
+          </div>
+          {(c.children.size > 0 || c.leaves.length > 0) &&
+            <TreeLines node={c} depth={depth + 1} levelKinds={levelKinds} />}
+        </li>
+      ))}
+      {node.leaves.map((l, i) => (
+        <li key={`l${i}`} className="flex items-baseline gap-1.5 text-[11px] text-stone-500"
+            style={{ paddingLeft: depth * 12 + 8 }}>
+          <span className="text-stone-300" aria-hidden="true">·</span>
+          <span className="truncate">{l.name}</span>
+        </li>
+      ))}
+    </ul>
   )
 }
 
