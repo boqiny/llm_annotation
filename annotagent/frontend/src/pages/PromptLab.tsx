@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, Legend,
 } from 'recharts'
@@ -930,6 +930,10 @@ function ImproveTab({
   const selectedLabelKey = Object.keys(classCounts).find(k => normDimensionName(k) === normDimensionName(selectedDim)) ?? selectedDim
   const classes = classCounts[selectedLabelKey] ?? {}
   const total = Object.values(classes).reduce((a, b) => a + b, 0)
+  const goldForDim = (name: string): number => {
+    const key = Object.keys(classCounts).find(k => normDimensionName(k) === normDimensionName(name))
+    return key ? Object.values(classCounts[key]).reduce((a, b) => a + b, 0) : 0
+  }
   const selectedDimension = activeCb?.dimensions.find(d => normDimensionName(d.name) === normDimensionName(selectedDim))
   const expectedLabels = useMemo(() => selectedDimension?.labels.map(l => l.name) ?? [], [selectedDimension])
   const displayedClasses = useMemo(() => {
@@ -954,6 +958,15 @@ function ImproveTab({
   })
   const tooFew = total > 0 && total < 15
   const noLabels = total === 0
+  // Imbalance: classes under this share of the data get too few val/test items to
+  // estimate reliably (stratified split can't make a single-item class meaningful).
+  const RARE_PCT = 5
+  const rareClasses = total > 0
+    ? sorted.filter(c => {
+        const n = split.perClass[c]?.n ?? 0
+        return n > 0 && (n / total) * 100 < RARE_PCT
+      })
+    : []
 
   const handleLaunch = async () => {
     if (!selectedGold || noLabels || tooFew) return
@@ -980,11 +993,17 @@ function ImproveTab({
           <Label>Dimension</Label>
           <select value={selectedDim} onChange={e => setSelectedDim(e.target.value)}
                   className="w-full px-0 py-1.5 bg-transparent border-0 border-b border-seam focus:border-ink focus:outline-none font-medium">
-            {activeCb?.dimensions.map(d => (
-              <option key={d.id} value={d.name}>
-                {d.name} ({d.labels.length} label{d.labels.length === 1 ? '' : 's'})
-              </option>
-            ))}
+            {[...(activeCb?.dimensions ?? [])]
+              .sort((a, b) => goldForDim(b.name) - goldForDim(a.name))
+              .map(d => {
+                const g = goldForDim(d.name)
+                const note = g === 0 ? 'no labeled data' : g < 15 ? `only ${g} · need 15+` : `${g} gold`
+                return (
+                  <option key={d.id} value={d.name}>
+                    {d.name} · {note}
+                  </option>
+                )
+              })}
           </select>
         </div>
         <div>
@@ -1096,12 +1115,13 @@ function ImproveTab({
           </div>
         ) : noLabels ? (
           <div className="border border-amber-200 bg-amber-50/50 p-4 text-sm text-amber-800">
-            <div className="font-mono-editorial text-amber-700 mb-1">No labels for "{selectedDim}"</div>
-            Available: {Object.keys(classCounts).filter(k => Object.keys(classCounts[k]).length > 0).join(', ') || '—'}.
+            <div className="font-mono-editorial text-amber-700 mb-1">No labeled data for "{selectedDim}"</div>
+            Your uploaded file has no labels for this dimension. Dimensions you can improve: {Object.keys(classCounts).filter(k => Object.keys(classCounts[k]).length > 0).join(', ') || '—'}.
           </div>
         ) : tooFew ? (
           <div className="border border-amber-200 bg-amber-50/50 p-4 text-sm text-amber-800">
-            Need ≥15 labeled items; gold has {total}.
+            <div className="font-mono-editorial text-amber-700 mb-1">Not enough labeled data for "{selectedDim}"</div>
+            Your uploaded file has only {total} labeled item{total === 1 ? '' : 's'} here; improvement needs at least 15.
           </div>
         ) : (
           <div className="border border-seam bg-paper/40 p-4">
@@ -1118,6 +1138,14 @@ function ImproveTab({
                 No labeled examples for: <span className="font-semibold">{missingLabels.join(', ')}</span>. Improvement can still run, but it cannot learn or validate those labels from this dataset.
               </div>
             )}
+            {rareClasses.length > 0 && (
+              <div className="mb-3 border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Imbalanced (under {RARE_PCT}% of the data):{' '}
+                <span className="font-semibold">
+                  {rareClasses.map(c => `${c} (${((split.perClass[c].n / total) * 100).toFixed(1)}%, ${split.perClass[c].n})`).join(', ')}
+                </span>. These labels get very few val/test items, so their scores will be noisy.
+              </div>
+            )}
             <table className="w-full text-xs font-mono">
               <thead>
                 <tr className="border-b border-seam font-mono-editorial text-stone-500">
@@ -1132,10 +1160,13 @@ function ImproveTab({
                 {sorted.map(c => {
                   const s = split.perClass[c]
                   const tiny = (s?.n ?? 0) < 3
+                  const rare = rareClasses.includes(c)
                   return (
-                    <tr key={c}>
-                      <td className="py-1.5 truncate max-w-[260px]" title={c}>{c}</td>
-                      <td className="py-1.5 text-right text-stone-700">{s?.n ?? 0}</td>
+                    <tr key={c} className={rare ? 'bg-amber-50/40' : ''}>
+                      <td className="py-1.5 truncate max-w-[260px]" title={c}>
+                        {rare && <span className="text-amber-600 mr-1" title={`under ${RARE_PCT}% of the data`}>⚠</span>}{c}
+                      </td>
+                      <td className={`py-1.5 text-right ${rare ? 'text-amber-700' : 'text-stone-700'}`}>{s?.n ?? 0}</td>
                       <td className="py-1.5 text-right text-stone-700">{s?.train ?? 0}</td>
                       <td className={`py-1.5 text-right ${tiny ? 'text-amber-700' : 'text-stone-700'}`}>{s?.val ?? 0}</td>
                       <td className={`py-1.5 text-right ${tiny ? 'text-amber-700' : 'text-stone-700'}`}>{s?.test ?? 0}</td>
@@ -1886,13 +1917,17 @@ function AuditBadge({ run }: { run: OptimizerRun }) {
 }
 
 function PerClassMini({ initial, final }: { initial: any; final: any }) {
-  const labels: string[] = (final?.classes ?? Object.keys(final?.per_class || {})).slice().sort()
+  const labels: string[] = (final?.classes ?? Object.keys(final?.per_class || {})).slice()
+    .sort((a: string, b: string) => (final?.per_class?.[b]?.support ?? 0) - (final?.per_class?.[a]?.support ?? 0))
+  const [open, setOpen] = useState<string | null>(null)
+  const pct = (x: any) => `${((x ?? 0) * 100).toFixed(0)}`
   return (
     <div className="text-xs font-mono">
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-2">
-        <Stat label="Macro F1" value={`${(initial.macro_f1 * 100).toFixed(0)}% → ${(final.macro_f1 * 100).toFixed(0)}%`} />
-        <Stat label="Weighted F1" value={`${(initial.weighted_f1 * 100).toFixed(0)}% → ${(final.weighted_f1 * 100).toFixed(0)}%`} />
+        <Stat label="Macro F1" value={`${pct(initial.macro_f1)}% → ${pct(final.macro_f1)}%`} />
+        <Stat label="Weighted F1" value={`${pct(initial.weighted_f1)}% → ${pct(final.weighted_f1)}%`} />
       </div>
+      <div className="font-mono-editorial text-stone-400 text-[10px] mb-1">click a label for its precision / recall / errors</div>
       <table className="w-full">
         <thead><tr className="border-b border-seam text-stone-500 font-mono-editorial">
           <th className="text-left py-1">label</th>
@@ -1903,22 +1938,56 @@ function PerClassMini({ initial, final }: { initial: any; final: any }) {
           {labels.map(l => {
             const i = initial?.per_class?.[l], f = final?.per_class?.[l]
             const d = (f?.f1 ?? 0) - (i?.f1 ?? 0)
+            const isOpen = open === l
             return (
-              <tr key={l}>
-                <td className="py-1 truncate max-w-[140px]" title={l}>{l}</td>
-                <td className="py-1 text-right text-stone-600">{f?.support ?? 0}</td>
-                <td className="py-1 text-right">
-                  <span className="text-stone-600">{((i?.f1 ?? 0) * 100).toFixed(0)}</span>
-                  <span className="text-stone-300 mx-1">→</span>
-                  <span className={d > 0 ? 'text-emerald-700' : d < 0 ? 'text-red-600' : 'text-stone-700'}>
-                    {((f?.f1 ?? 0) * 100).toFixed(0)}
-                  </span>
-                </td>
-              </tr>
+              <Fragment key={l}>
+                <tr className="cursor-pointer hover:bg-paper/60" onClick={() => setOpen(isOpen ? null : l)}>
+                  <td className="py-1 truncate max-w-[150px]" title={l}>
+                    <span className="text-stone-400 mr-1">{isOpen ? '▾' : '▸'}</span>{l}
+                  </td>
+                  <td className="py-1 text-right text-stone-600">{f?.support ?? 0}</td>
+                  <td className="py-1 text-right">
+                    <span className="text-stone-500">{pct(i?.f1)}</span>
+                    <span className="text-stone-300 mx-1">→</span>
+                    <span className={d > 0 ? 'text-emerald-700' : d < 0 ? 'text-red-600' : 'text-stone-700'}>{pct(f?.f1)}</span>
+                  </td>
+                </tr>
+                {isOpen && (
+                  <tr className="bg-paper/40">
+                    <td colSpan={3} className="px-2 py-2">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-stone-600 mb-1.5">
+                        <span>Precision {pct(i?.precision)}% → <span className="text-stone-800">{pct(f?.precision)}%</span></span>
+                        <span>Recall {pct(i?.recall)}% → <span className="text-stone-800">{pct(f?.recall)}%</span></span>
+                        <span>F1 Δ <span className={d >= 0 ? 'text-emerald-700' : 'text-red-600'}>{d >= 0 ? '+' : ''}{(d * 100).toFixed(0)}pp</span></span>
+                        <span className="text-stone-500">final: tp {f?.tp ?? 0} · fp {f?.fp ?? 0} · fn {f?.fn ?? 0}</span>
+                      </div>
+                      <BeforeAfterBar before={i?.f1 ?? 0} after={f?.f1 ?? 0} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             )
           })}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+function BeforeAfterBar({ before, after }: { before: number; after: number }) {
+  const w = (x: number) => `${Math.round(Math.max(0, Math.min(1, x)) * 100)}%`
+  return (
+    <div className="space-y-0.5">
+      <div className="flex items-center gap-1.5">
+        <span className="w-9 text-[10px] text-stone-400 shrink-0">before</span>
+        <div className="flex-1 h-1.5 bg-stone-200"><div className="h-full bg-stone-400" style={{ width: w(before) }} /></div>
+        <span className="w-8 text-[10px] text-stone-500 text-right shrink-0">{Math.round(before * 100)}%</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="w-9 text-[10px] text-stone-400 shrink-0">after</span>
+        <div className="flex-1 h-1.5 bg-stone-200"><div className={`h-full ${after >= before ? 'bg-emerald-500' : 'bg-red-400'}`} style={{ width: w(after) }} /></div>
+        <span className="w-8 text-[10px] text-stone-500 text-right shrink-0">{Math.round(after * 100)}%</span>
+      </div>
     </div>
   )
 }
@@ -2037,17 +2106,38 @@ function UseImprovedPromptCard({
             <button
               onClick={handleCommit}
               disabled={!canCommit}
-              className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition"
+              className={`px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition ${
+                canCommit ? 'ring-2 ring-amber-400/70 ring-offset-1' : ''
+              }`}
             >
-              {saving ? 'Applying…' : alreadyApplied ? 'Applied' : 'Apply'}
+              {saving ? 'Applying…' : alreadyApplied ? 'Applied ✓' : 'Apply →'}
             </button>
           </div>
         }
       >
         <div className="space-y-2">
+          {/* Dynamic next-step guidance: users were missing the Apply click. */}
+          {!loading && !err && foundCurrentPrompt && (
+            alreadyApplied ? (
+              <div className="border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 flex items-center justify-between gap-3 flex-wrap">
+                <span>
+                  <span className="font-semibold">Applied.</span> “{run.dimension_name}” now uses this improved prompt for annotation. Apply other dimensions too, then run.
+                </span>
+                <Link to={`/projects/${projectId}/pipeline`} className="shrink-0 font-medium underline hover:no-underline">
+                  Go to Annotate →
+                </Link>
+              </div>
+            ) : (
+              <div className="border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <span className="font-semibold">Not applied yet.</span> This improved prompt is not live — click{' '}
+                <span className="font-semibold">Apply →</span> (top right) to replace the active prompt for “{run.dimension_name}”.
+                Until you do, annotation keeps using the current prompt.
+              </div>
+            )
+          )}
           <div className="flex items-baseline justify-between gap-3 text-xs">
             <p className="text-stone-600 leading-relaxed">
-              Replace the active pipeline prompt for this dimension with the improved prompt.
+              {draftDirty ? 'Apply will save your edit and replace the active pipeline prompt.' : 'Replace the active pipeline prompt for this dimension with the improved prompt.'}
             </p>
             {pipelineId ? <span className="font-mono-editorial text-stone-400 shrink-0">Pipeline {pipelineId}</span> : null}
           </div>
@@ -2265,7 +2355,13 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
   onJobsRefresh: () => void
   onDatasetsRefresh: () => void
 }) {
-  const completedJobs = jobs.filter(j => normStatus(j.status) === 'completed' && j.source === 'human_feedback')
+  // Any completed annotation job is reviewable — its per-item outputs are already
+  // in the DB and the /evidence endpoint serves them. Don't restrict to
+  // source='human_feedback'; that forced a redundant re-run of work already done.
+  const completedJobs = jobs
+    .filter(j => normStatus(j.status) === 'completed')
+    .slice()
+    .sort((a, b) => b.id - a.id)
   const [jobId, setJobId] = useState<number | ''>('')
   const [runDatasetId, setRunDatasetId] = useState<number | ''>('')
   const [rows, setRows] = useState<FeedbackEvidence[]>([])
@@ -2378,7 +2474,7 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
 
   return (
     <div className="border border-seam bg-paper/20">
-      <div className="grid gap-0 border-b border-seam lg:grid-cols-[220px_minmax(0,1fr)_minmax(280px,420px)]">
+      <div className="grid gap-0 border-b border-seam lg:grid-cols-[220px_minmax(260px,360px)_minmax(0,1fr)]">
         <div className="border-b border-seam px-3 py-3 lg:border-b-0 lg:border-r">
           <div className="font-mono-editorial text-xs text-stone-500 mb-1.5">1. Dimension</div>
           <select
@@ -2392,10 +2488,46 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
           </select>
         </div>
 
+        {/* 2. Review an existing run — primary path; results are already in the DB */}
         <div className="border-b border-seam px-3 py-3 lg:border-b-0 lg:border-r">
-          <div className="font-mono-editorial text-xs text-stone-500 mb-1.5">2. Create feedback examples</div>
+          <div className="font-mono-editorial text-xs text-stone-500 mb-1.5">2. Review a run</div>
           <p className="mb-2 text-xs text-stone-500 leading-relaxed">
-            Upload/select unlabeled data, then run annotation with the latest prompt to create examples for review.
+            Pick a completed run; its per-item outputs are already saved and load below.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={jobId}
+              onChange={e => setJobId(e.target.value ? Number(e.target.value) : '')}
+              className="max-w-full bg-white border border-seam px-2 py-1.5 text-xs focus:outline-none focus:border-ink"
+            >
+              {completedJobs.length === 0 && <option value="">No runs yet</option>}
+              {completedJobs.map(j => {
+                const dataset = datasets.find(d => d.id === j.dataset_id)
+                const src = j.source === 'human_feedback' ? 'feedback' : (j.source || 'annotation')
+                return (
+                  <option key={j.id} value={j.id}>
+                    job {String(j.id).padStart(4, '0')} · {src} · {dataset?.name ?? `dataset ${j.dataset_id}`} · {j.completed_items}/{j.total_items}
+                  </option>
+                )
+              })}
+            </select>
+            <label className="inline-flex items-center gap-1.5 font-mono-editorial text-xs text-stone-500">
+              <input
+                type="checkbox"
+                checked={mismatchesOnly}
+                onChange={e => setMismatchesOnly(e.target.checked)}
+                className="accent-ink"
+              />
+              Only items needing review
+            </label>
+          </div>
+        </div>
+
+        {/* 3. Optional: annotate fresh data to create new examples */}
+        <div className="px-3 py-3">
+          <div className="font-mono-editorial text-xs text-stone-500 mb-1.5">3. Or annotate new data</div>
+          <p className="mb-2 text-xs text-stone-500 leading-relaxed">
+            Only if you need outputs on data you have not run yet.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {datasets.length > 0 && (
@@ -2411,47 +2543,17 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
                 ))}
               </select>
             )}
-            <label className="inline-flex items-center gap-2 px-3 py-1.5 border border-ink bg-white text-ink text-xs font-medium hover:bg-paper cursor-pointer">
+            <label className="inline-flex items-center gap-2 px-3 py-1.5 border border-seam bg-white text-stone-700 text-xs font-medium hover:bg-paper cursor-pointer">
               <input type="file" accept=".csv,.json" className="hidden" onChange={handleUploadRunDataset} />
               {uploadingDataset ? 'Uploading…' : datasets.length > 0 ? 'Upload different data' : 'Upload data'}
             </label>
             <button
               onClick={handleRunLatestPrompt}
               disabled={launchingJob || !runDatasetId}
-              className="px-3 py-1.5 bg-ink text-cream text-xs font-medium hover:bg-stone-800 disabled:opacity-40 transition"
+              className="px-3 py-1.5 border border-ink bg-white text-ink text-xs font-medium hover:bg-paper disabled:opacity-40 transition"
             >
               {launchingJob ? 'Running…' : 'Run latest prompt'}
             </button>
-          </div>
-        </div>
-
-        <div className="px-3 py-3">
-          <div className="font-mono-editorial text-xs text-stone-500 mb-1.5">3. Review feedback run</div>
-          <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={jobId}
-            onChange={e => setJobId(e.target.value ? Number(e.target.value) : '')}
-            className="max-w-full bg-white border border-seam px-2 py-1 text-xs focus:outline-none focus:border-ink"
-          >
-            {completedJobs.length === 0 && <option value="">No feedback runs</option>}
-            {completedJobs.map(j => {
-              const dataset = datasets.find(d => d.id === j.dataset_id)
-              return (
-                <option key={j.id} value={j.id}>
-                  job {String(j.id).padStart(4, '0')} · {dataset?.name ?? `dataset ${j.dataset_id}`} · {j.completed_items}/{j.total_items}
-                </option>
-              )
-            })}
-          </select>
-            <label className="inline-flex items-center gap-1.5 font-mono-editorial text-xs text-stone-500">
-              <input
-                type="checkbox"
-                checked={mismatchesOnly}
-                onChange={e => setMismatchesOnly(e.target.checked)}
-                className="accent-ink"
-              />
-              Only items needing review
-            </label>
           </div>
         </div>
       </div>
@@ -2460,9 +2562,9 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
           {launchStatus}
         </div>
       )}
-      {datasets.length === 0 && (
+      {datasets.length === 0 && completedJobs.length === 0 && (
         <div className="border-b border-seam px-3 py-2 text-xs text-stone-600 bg-white">
-          Cold start: upload unlabeled data above to create examples for feedback review.
+          Cold start: no runs yet. Annotate data in the Annotate tab, or run on new data above.
         </div>
       )}
       {loading ? (
@@ -2472,8 +2574,8 @@ function EvidencePanel({ projectId, jobs, datasets, dimensions, dimensionName, o
       ) : rows.length === 0 ? (
         <div className="px-3 py-3 text-xs text-stone-500 leading-relaxed">
           {completedJobs.length === 0
-            ? 'No human-feedback evidence runs yet. Create one above, then reviewed examples will appear here.'
-            : 'No annotated examples found for this dimension in the selected job. Try another completed job, or run annotation again after applying the prompt.'
+            ? 'No completed runs yet. Annotate data in the Annotate tab (or run on new data above), then its outputs appear here for review.'
+            : 'No saved outputs for this dimension in the selected run. Try another run.'
           }
         </div>
       ) : (

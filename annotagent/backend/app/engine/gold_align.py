@@ -25,10 +25,22 @@ AUTOFIX_MAX_TOKENS = 2000
 
 # ─── normalization ──────────────────────────────────────────────────────────
 
+def _stem(tok: str) -> str:
+    """Light singular/plural fold so "Topic" matches "Topics" and "category" matches
+    "categories". Conservative: only touches longer tokens."""
+    if len(tok) > 4 and tok.endswith("ies"):
+        return tok[:-3] + "y"
+    if len(tok) > 3 and tok.endswith("s") and not tok.endswith("ss"):
+        return tok[:-1]
+    return tok
+
+
 def _norm(value: Any) -> str:
-    """Case/space/punctuation-insensitive key for matching dimension & label names."""
+    """Case/space/punctuation/plural-insensitive key for matching dimension & label
+    names, so a gold dimension that already corresponds to a codebook dimension is
+    matched (and preserved) rather than dropped."""
     text = re.sub(r"[^0-9a-zA-Z]+", " ", str(value or "").casefold())
-    return " ".join(text.split())
+    return " ".join(_stem(t) for t in text.split())
 
 
 # ─── schema ─────────────────────────────────────────────────────────────────
@@ -86,6 +98,10 @@ def validate_items(items: list[dict[str, Any]], schema: dict[str, Any]) -> dict[
     issues: list[dict[str, Any]] = []
     unknown_label_values: dict[str, dict[str, int]] = {}
     unknown_dimensions: dict[str, int] = {}
+    # Per-value example content so EVERY mismatch can show "where?" (not just the
+    # first N captured in the capped issues list).
+    label_value_samples: dict[str, dict[str, list[str]]] = {}
+    dimension_samples: dict[str, list[str]] = {}
     summary = {"missing_content": 0, "unknown_dimension": 0, "unknown_label": 0,
                "cardinality": 0, "missing_dimension": 0, "unmatched_row": 0}
     n_error_items = 0
@@ -95,11 +111,17 @@ def validate_items(items: list[dict[str, Any]], schema: dict[str, Any]) -> dict[
             issues.append({"row": row, "severity": severity, "kind": kind,
                            "dimension": dimension, "value": value, "message": message})
 
+    def sample(store: list[str], content: str):
+        content = str(content or "").strip()
+        if content and len(store) < 3 and content not in store:
+            store.append(content[:120])
+
     for it in items:
         row = it.get("index", 0)
+        content = str(it.get("content") or "")
         row_has_error = False
 
-        if not str(it.get("content") or "").strip():
+        if not content.strip():
             summary["missing_content"] += 1
             add(row, "error", "missing_content", "Row has no content/text.")
             row_has_error = True
@@ -111,6 +133,7 @@ def validate_items(items: list[dict[str, Any]], schema: dict[str, Any]) -> dict[
             if canonical is None:
                 summary["unknown_dimension"] += 1
                 unknown_dimensions[dim_name] = unknown_dimensions.get(dim_name, 0) + 1
+                sample(dimension_samples.setdefault(dim_name, []), content)
                 add(row, "warn", "unknown_dimension",
                     f"Dimension {dim_name!r} is not in the codebook (will be dropped).",
                     dimension=dim_name)
@@ -131,6 +154,7 @@ def validate_items(items: list[dict[str, Any]], schema: dict[str, Any]) -> dict[
                     summary["unknown_label"] += 1
                     bucket = unknown_label_values.setdefault(canonical, {})
                     bucket[str(v)] = bucket.get(str(v), 0) + 1
+                    sample(label_value_samples.setdefault(canonical, {}).setdefault(str(v), []), content)
                     add(row, "error", "unknown_label",
                         f"{str(v)!r} is not a label of {canonical!r}.",
                         dimension=canonical, value=v)
@@ -163,6 +187,8 @@ def validate_items(items: list[dict[str, Any]], schema: dict[str, Any]) -> dict[
         "issues": issues,
         "unknown_label_values": unknown_label_values,
         "unknown_dimensions": unknown_dimensions,
+        "label_value_samples": label_value_samples,
+        "dimension_samples": dimension_samples,
     }
 
 

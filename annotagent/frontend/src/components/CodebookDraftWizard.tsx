@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Pencil } from 'lucide-react'
+import { Pencil, Loader2, Check } from 'lucide-react'
 import {
   uploadCodebookDraft, pasteCodebookDraft, presetCodebookDraft,
   acceptCodebookDraft, deleteCodebookDraft, patchCodebookDraft,
@@ -8,7 +8,7 @@ import {
 } from '../lib/api'
 import type { PresetInfo } from '../types'
 
-type Door = 'upload' | 'paste' | 'preset' | 'scratch'
+type Door = 'upload' | 'paste' | 'preset'
 
 export default function CodebookDraftWizard({
   projectId,
@@ -128,8 +128,8 @@ export default function CodebookDraftWizard({
               door="paste"
               active={door === 'paste'}
               onClick={() => setDoor('paste')}
-              title="B. Paste text"
-              hint="Annotator notes, instructions, or an old draft — anything in text"
+              title="B. Text"
+              hint="Paste codebook text — annotator notes, instructions, spreadsheet contents, or an old draft"
             />
             <DoorCard
               door="preset"
@@ -138,14 +138,6 @@ export default function CodebookDraftWizard({
               title="C. Use a preset"
               hint={`Self-disclosure · AI behavior · ${presets.length} available`}
               emphasized
-            />
-            <DoorCard
-              door="scratch"
-              active={door === 'scratch'}
-              onClick={() => setDoor('scratch')}
-              title="D. Describe it to me"
-              hint="Conversational elicitor (Phase 3 — not yet available)"
-              disabled
             />
           </div>
         </div>
@@ -174,22 +166,11 @@ export default function CodebookDraftWizard({
               busy={inFlight}
             />
           )}
-          {door === 'scratch' && (
-            <p className="font-mono-editorial text-stone-400 text-center py-8">
-              Coming in Phase 3 — use doors A, B, or C for now.
-            </p>
-          )}
         </div>
       )}
 
-      {/* Status strip */}
-      {inFlight && (
-        <div className="flex items-center gap-3 text-sm text-stone-600 border-l-2 border-ink pl-4">
-          <span className="inline-block w-2 h-2 rounded-full bg-ink animate-pulse" />
-          <span>{loading}</span>
-          <span className="font-mono-editorial text-stone-400 ml-auto">CodebookAgent</span>
-        </div>
-      )}
+      {/* Processing panel */}
+      {inFlight && <ProcessingPanel door={door} caption={loading} />}
 
       {error && (
         <div className="border border-red-200 bg-red-50/60 text-red-800 p-4 text-sm">
@@ -242,6 +223,86 @@ function DoorCard({
       </div>
       <p className="text-sm text-stone-600 leading-relaxed">{hint}</p>
     </button>
+  )
+}
+
+/* ─── Processing panel ─────────────────────────────────────── */
+
+const STAGE_SETS: Record<Door, string[]> = {
+  upload: ['Ingesting file', 'Reading sheet structure', 'Drafting label schema', 'Reviewing for overlaps'],
+  paste: ['Reading your text', 'Drafting label schema', 'Reviewing for overlaps'],
+  preset: ['Loading preset'],
+}
+
+function ProcessingPanel({ door, caption }: { door: Door; caption: string }) {
+  const stages = STAGE_SETS[door] ?? ['Working']
+  const animated = door !== 'preset'
+  const [active, setActive] = useState(0)
+
+  // Advance through the agent's stages on a timer. The backend runs synchronously
+  // (no progress events), so we pace the stages and HOLD on the last one until the
+  // real response lands and this panel unmounts. Never claims a precise percentage.
+  useEffect(() => {
+    if (stages.length <= 1) return
+    const id = setInterval(
+      () => setActive(a => (a < stages.length - 1 ? a + 1 : a)),
+      2600,
+    )
+    return () => clearInterval(id)
+  }, [stages.length])
+
+  return (
+    <div className="border border-seam bg-paper/60 p-4 space-y-3">
+      <style>{`
+        @keyframes clairSweep { from { transform: translateX(-110%) } to { transform: translateX(360%) } }
+        @keyframes clairBreathe { 0%,100% { opacity: .3 } 50% { opacity: 1 } }
+        @media (prefers-reduced-motion: reduce) {
+          .clair-sweep { animation: none !important; transform: none !important; width: 100% !important; opacity: .5 }
+          .clair-breathe { animation: none !important; opacity: 1 }
+        }
+      `}</style>
+
+      <div className="flex items-center gap-2">
+        <Loader2 className="h-4 w-4 text-ink animate-spin motion-reduce:animate-none" aria-hidden="true" />
+        <span className="text-sm font-medium text-ink">CodebookAgent</span>
+        <span className="font-mono-editorial text-stone-400 text-[11px] ml-auto">working…</span>
+      </div>
+
+      {/* indeterminate sweep */}
+      <div className="relative h-1 w-full overflow-hidden bg-stone-200" role="progressbar" aria-label="Processing">
+        <div className="clair-sweep absolute inset-y-0 w-1/3 bg-ink"
+             style={{ animation: 'clairSweep 1.25s linear infinite' }} />
+      </div>
+
+      <ul className="space-y-1.5">
+        {stages.map((s, i) => {
+          const done = i < active
+          const current = i === active && animated
+          return (
+            <li key={s} className="flex items-center gap-2.5 text-sm">
+              <span className="w-4 h-4 shrink-0 flex items-center justify-center">
+                {done ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                ) : current ? (
+                  <span className="clair-breathe w-2 h-2 rounded-full bg-violet-600"
+                        style={{ animation: 'clairBreathe 1.1s ease-in-out infinite' }} />
+                ) : (
+                  <span className="w-1.5 h-1.5 rounded-full border border-stone-300" />
+                )}
+              </span>
+              <span className={done ? 'text-stone-400' : current ? 'text-ink font-medium' : 'text-stone-400'}>
+                {s}
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+
+      {caption && <div className="font-mono-editorial text-stone-400 text-[11px] truncate">{caption}</div>}
+      {animated && (
+        <div className="text-xs text-stone-500">A strong model reads the whole codebook, so this usually takes ~30-60s.</div>
+      )}
+    </div>
   )
 }
 
@@ -507,8 +568,8 @@ function DraftPreview({
                 {(i + 1).toString().padStart(2, '0')}
               </div>
               <div className="flex-1 min-w-0 space-y-2.5">
-                <div className="flex items-baseline gap-3 flex-wrap">
-                  <div className="relative min-w-0 flex-1">
+                <div className="space-y-2">
+                  <div className="relative">
                     <Pencil className="absolute left-0 top-2 h-3.5 w-3.5 text-stone-400" aria-hidden="true" />
                     <input
                       value={dim.name || ''}
@@ -518,25 +579,27 @@ function DraftPreview({
                       aria-label="Edit dimension name"
                     />
                   </div>
-                  <select
-                    value={dim.type || 'single_label'}
-                    onChange={e => updateDim(i, { type: e.target.value })}
-                    className={`font-mono-editorial bg-transparent border-0 border-b border-transparent hover:border-seam focus:border-ink focus:outline-none ${
-                      (dim.type || '').includes('multi') ? 'text-violet-700' : 'text-indigo-700'
-                    }`}
-                  >
-                    <option value="single_label">Single-label (one per item)</option>
-                    <option value="multi_label">Multi-label (a set per item)</option>
-                  </select>
-                  <span className="font-mono-editorial text-stone-400">
-                    {(dim.labels || []).length} labels
-                  </span>
-	                  <button
-	                    onClick={() => removeDim(i)}
-	                    className="ml-auto px-2.5 py-1 bg-red-50 border border-red-200 text-xs font-medium text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors"
-	                  >
-	                    Remove dimension
-	                  </button>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <select
+                      value={dim.type || 'single_label'}
+                      onChange={e => updateDim(i, { type: e.target.value })}
+                      className={`font-mono-editorial bg-transparent border-0 border-b border-transparent hover:border-seam focus:border-ink focus:outline-none ${
+                        (dim.type || '').includes('multi') ? 'text-violet-700' : 'text-indigo-700'
+                      }`}
+                    >
+                      <option value="single_label">Single-label (one per item)</option>
+                      <option value="multi_label">Multi-label (a set per item)</option>
+                    </select>
+                    <span className="font-mono-editorial text-stone-400">
+                      {(dim.labels || []).length} labels
+                    </span>
+                    <button
+                      onClick={() => removeDim(i)}
+                      className="ml-auto px-2.5 py-1 bg-red-50 border border-red-200 text-xs font-medium text-red-600 hover:bg-red-100 hover:border-red-300 transition-colors"
+                    >
+                      Remove dimension
+                    </button>
+                  </div>
                 </div>
                 <div className="relative">
                   <Pencil className="absolute left-2 top-2 h-3.5 w-3.5 text-stone-400" aria-hidden="true" />

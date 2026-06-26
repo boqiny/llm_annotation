@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
-  listPipelines, listDatasets, startJob, uploadDataset, listJobs,
+  listPipelines, listDatasets, startJob, listJobs,
   listSeedDatasets, loadSeedDataset, listCodebooks,
-  type SeedDatasetInfo,
+  extractInputPreview, extractInputCommit,
+  type SeedDatasetInfo, type ExtractPreview,
 } from '../lib/api'
 import type { Pipeline, PipelineStep, Dataset, Codebook, Job } from '../types'
 import { APP_NAME } from '../lib/brand'
@@ -25,6 +26,14 @@ export default function PipelineView() {
   const [activeCb, setActiveCb] = useState<Codebook | null>(null)
   const [selectedDataset, setSelectedDataset] = useState<number | null>(null)
   const [expandedStep, setExpandedStep] = useState<number | null>(null)
+  const previewRef = useRef<HTMLElement | null>(null)
+  // When a prompt card is opened, scroll its preview into view so it's obvious
+  // something happened (the preview renders below the card grid).
+  useEffect(() => {
+    if (expandedStep !== null) {
+      previewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [expandedStep])
   const [loading, setLoading] = useState(false)
   const [loadingSeed, setLoadingSeed] = useState<string | null>(null)
   const [jobs, setJobs] = useState<Job[]>([])
@@ -62,14 +71,43 @@ export default function PipelineView() {
     }
   }
 
+  const [inputPreview, setInputPreview] = useState<ExtractPreview | null>(null)
+  const [contentCol, setContentCol] = useState('')
+  const [extracting, setExtracting] = useState(false)
+  const [committing, setCommitting] = useState(false)
+  const [extractErr, setExtractErr] = useState('')
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+    const file = e.target.files?.[0]; e.target.value = ''
     if (!file) return
-    const newDs = await uploadDataset(projectId, file, false)
-    const ds = await listDatasets(projectId)
-    setDatasets(ds)
-    setSelectedDataset(newDs.id)
-    e.target.value = ''
+    setExtracting(true); setExtractErr(''); setInputPreview(null)
+    try {
+      const p = await extractInputPreview(projectId, file)
+      setInputPreview(p)
+      setContentCol(p.suggested_content_column || p.columns[0] || '')
+    } catch (err: any) {
+      setExtractErr(err?.response?.data?.detail || err?.message || 'Could not read the file')
+    } finally {
+      setExtracting(false)
+    }
+  }
+
+  const handleConfirmInput = async () => {
+    if (!inputPreview || !contentCol) return
+    setCommitting(true); setExtractErr('')
+    try {
+      const ds = await extractInputCommit(projectId, {
+        filename: inputPreview.filename, file_type: inputPreview.file_type,
+        rows: inputPreview.rows, content_column: contentCol,
+      })
+      setDatasets(await listDatasets(projectId))
+      setSelectedDataset(ds.id)
+      setInputPreview(null)
+    } catch (err: any) {
+      setExtractErr(err?.response?.data?.detail || err?.message || 'Could not load the data')
+    } finally {
+      setCommitting(false)
+    }
   }
 
   const handleRunAnnotation = async () => {
@@ -189,7 +227,7 @@ export default function PipelineView() {
 
       {/* Prompt preview */}
       {expandedStep !== null && steps[expandedStep] && (
-        <section className="border border-seam bg-white">
+        <section ref={previewRef} className="border border-seam bg-white scroll-mt-4">
           <div className="flex items-center justify-between p-5 border-b border-seam">
             <div>
               <div className="font-mono-editorial text-stone-500 mb-1">
@@ -231,16 +269,73 @@ export default function PipelineView() {
           <div className="mb-3 border border-violet-200 bg-white/80 px-3 py-2 text-xs leading-relaxed text-violet-900">
             Use this for the dataset you want {APP_NAME} to label now. Labeled/gold examples belong in Setup or Improve; this upload is for annotation inputs.
           </div>
-          <label className="block border-2 border-dashed border-violet-300 bg-white px-5 py-6 cursor-pointer hover:border-violet-500 hover:bg-violet-50/50 transition">
-            <input type="file" accept=".csv,.json" className="hidden" onChange={handleUpload} />
+          <label className={`block border-2 border-dashed border-violet-300 bg-white px-5 py-6 cursor-pointer hover:border-violet-500 hover:bg-violet-50/50 transition ${extracting ? 'opacity-60 pointer-events-none' : ''}`}>
+            <input type="file" accept=".csv,.json" className="hidden" onChange={handleUpload} disabled={extracting} />
             <div className="flex items-center justify-between gap-4">
               <div>
-                <div className="text-lg font-medium text-ink">Choose a CSV or JSON file to label</div>
-                <p className="text-sm text-stone-600 mt-1">Each row or item becomes one annotation target. After upload, {APP_NAME} selects it so you can start the run.</p>
+                <div className="text-lg font-medium text-ink">{extracting ? 'Reading your file…' : 'Choose a CSV or JSON file to label'}</div>
+                <p className="text-sm text-stone-600 mt-1">Messy spreadsheet is fine — {APP_NAME} finds the text column, you confirm it, then it loads.</p>
               </div>
-              <span className="shrink-0 px-4 py-2 bg-ink text-cream text-sm font-medium">Choose file →</span>
+              <span className="shrink-0 px-4 py-2 bg-ink text-cream text-sm font-medium">{extracting ? '…' : 'Choose file →'}</span>
             </div>
           </label>
+
+          {extractErr && <div className="mt-3 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{extractErr}</div>}
+
+          {inputPreview && (
+            <div className="mt-3 border border-seam bg-white p-4 space-y-3">
+              <div className="flex items-baseline justify-between gap-3 flex-wrap">
+                <div className="text-sm font-medium text-ink">Confirm the text column to annotate</div>
+                <span className="font-mono-editorial text-stone-400 text-[11px]">{inputPreview.filename} · {inputPreview.n_rows.toLocaleString()} rows</span>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap text-sm">
+                <span className="text-stone-600">Text to label:</span>
+                <select
+                  value={contentCol}
+                  onChange={e => setContentCol(e.target.value)}
+                  className="bg-paper border border-seam px-2 py-1 text-sm focus:outline-none focus:border-ink"
+                >
+                  {inputPreview.columns.map(c => (
+                    <option key={c} value={c}>{c}{c === inputPreview.suggested_content_column ? '  (suggested)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="overflow-auto border border-seam">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-paper/70 font-mono-editorial text-stone-500">
+                      {inputPreview.columns.map(c => (
+                        <th key={c} className={`px-2 py-1.5 text-left whitespace-nowrap ${c === contentCol ? 'bg-violet-100 text-violet-900' : ''}`}>
+                          {c}{c === contentCol ? ' ←' : ''}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-seam">
+                    {inputPreview.sample_rows.map((r, i) => (
+                      <tr key={i}>
+                        {inputPreview.columns.map(c => (
+                          <td key={c} className={`px-2 py-1.5 align-top max-w-[260px] truncate ${c === contentCol ? 'bg-violet-50 text-stone-900 font-medium' : 'text-stone-500'}`} title={String(r[c] ?? '')}>
+                            {String(r[c] ?? '')}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={handleConfirmInput} disabled={committing || !contentCol}
+                  className="px-3 py-1.5 text-sm font-medium border border-ink bg-ink text-cream hover:opacity-90 disabled:opacity-50">
+                  {committing ? 'Loading…' : 'Use this column & load →'}
+                </button>
+                <button onClick={() => { setInputPreview(null); setExtractErr('') }} disabled={committing}
+                  className="px-3 py-1.5 text-sm font-medium border border-seam text-stone-600 hover:bg-paper disabled:opacity-50">
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
           <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
             <FormatNote
               title="Input format"
