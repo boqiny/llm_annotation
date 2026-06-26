@@ -96,7 +96,7 @@ async def main() -> int:
     print(f"Initial val acc:  {result.initial_score*100:.1f}%")
     print(f"Final   val acc:  {result.final_score*100:.1f}%  "
           f"(Δ {100*(result.final_score - result.initial_score):+.1f} pp)")
-    print(f"Tokens: {result.total_tokens:,}  Cost: ${result.total_cost_usd:.4f}")
+    print(f"Tokens: {result.total_tokens:,}")
     if result.artifact:
         print(f"\nArtifact keys: {list(result.artifact.keys())}")
         if "rule_library" in result.artifact:
@@ -113,7 +113,6 @@ async def main() -> int:
                 "artifact": result.artifact,
                 "optimized_prompt": result.optimized_prompt,
                 "total_tokens": result.total_tokens,
-                "total_cost_usd": result.total_cost_usd,
             }, f, indent=2)
         print(f"\nReport written to {args.out}")
     return 0

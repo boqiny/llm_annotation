@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listProjects, createProject, deleteProject } from '../lib/api'
+import {
+  listProjects, createProject, deleteProject,
+  listPresets, uploadCodebook, listSeedDatasets, loadSeedDataset, decomposePipeline,
+} from '../lib/api'
 import { useTour } from '../components/tour/TourProvider'
 import type { Project } from '../types'
+import { APP_NAME } from '../lib/brand'
 
 export default function ProjectList() {
   const [projects, setProjects] = useState<Project[]>([])
   const [showCreate, setShowCreate] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [demoBusy, setDemoBusy] = useState(false)
+  const [demoError, setDemoError] = useState<string | null>(null)
   const navigate = useNavigate()
   const { start } = useTour()
 
@@ -37,6 +43,38 @@ export default function ProjectList() {
     setProjects(projects.filter(p => p.id !== id))
   }
 
+  // One-click demo: build a ready-to-run project (preset self-disclosure codebook
+  // + coder Fiona's labels as the gold target, Chang as reference, + generated
+  // prompts) and land on the Improve page, so a first-time visitor reaches a working
+  // golden path with no setup. Preset prompts are deterministic, so this needs no
+  // API key; running the loop later does.
+  const startDemo = async () => {
+    setDemoBusy(true); setDemoError(null)
+    try {
+      const project = await createProject({
+        name: 'Demo · Align to coder Fiona',
+        description: 'One-click demo: calibrate the annotator to coder Fiona on a self-disclosure codebook.',
+      })
+      const preset = (await listPresets(project.id)).find(p => p.name === 'self_disclosure')
+      if (preset) await uploadCodebook(project.id, { preset_name: preset.name })
+      const seeds = await listSeedDatasets(project.id)
+      // The wedge is per-coder alignment, so the gold target is one chosen coder
+      // (Fiona), with the second coder (Chang) loaded as reference for contrast.
+      const target = seeds.find(s => s.id === 'sd_fiona' && s.available)
+        ?? seeds.find(s => s.role === 'reference' && s.available)
+        ?? seeds.find(s => s.available)
+      if (target) await loadSeedDataset(project.id, target.id, true)
+      const other = seeds.find(s => s.id === 'sd_chang' && s.available)
+      if (other) await loadSeedDataset(project.id, other.id, false)
+      await decomposePipeline(project.id)
+      navigate(`/projects/${project.id}/prompt-lab?tab=prompts`)
+    } catch {
+      setDemoError('Could not finish building the demo. Open the project from the list to complete setup.')
+      setDemoBusy(false)
+      listProjects().then(setProjects)
+    }
+  }
+
   return (
     <div className="space-y-16">
       {/* Hero — split: the statement on the left, the workflow visual on the
@@ -51,14 +89,21 @@ export default function ProjectList() {
             <span className="italic font-display font-normal">you</span> would.
           </h1>
           <p className="mt-7 text-xl leading-relaxed text-stone-600 max-w-md">
-            You set the labels. AnnotAgent writes the prompts and labels the rest.
+            You set the labels. {APP_NAME} writes the prompts and labels the rest.
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-5">
             <button
-              onClick={openCreate}
-              className="px-6 py-3 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition-colors"
+              onClick={startDemo}
+              disabled={demoBusy}
+              className="px-6 py-3 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition-colors disabled:opacity-50"
             >
-              Start a project →
+              {demoBusy ? 'Building demo…' : 'Try the live demo →'}
+            </button>
+            <button
+              onClick={openCreate}
+              className="px-6 py-3 border border-ink/30 text-ink text-sm font-medium hover:border-ink transition-colors"
+            >
+              Start your own project
             </button>
             <button
               onClick={start}
@@ -67,11 +112,14 @@ export default function ProjectList() {
               or take the 60-second tour
             </button>
           </div>
+          {demoError && (
+            <p className="mt-4 text-sm text-red-700">{demoError}</p>
+          )}
         </div>
         <figure className="lg:col-span-7">
           <img
             src="/workflow_0517.png"
-            alt="AnnotAgent workflow: set up, generate, refine, then get results"
+            alt={`${APP_NAME} workflow: set up, generate, refine, then get results`}
             className="w-full h-auto block"
             onError={(e) => { (e.currentTarget.style.display = 'none') }}
           />
@@ -92,7 +140,7 @@ export default function ProjectList() {
           <Step
             n="02"
             title="It writes the prompts"
-            body="AnnotAgent turns each label into LLM instructions. You write nothing."
+            body={`${APP_NAME} turns each label into LLM instructions. You write nothing.`}
           />
           <Step
             n="03"

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import random
 import re
@@ -918,7 +919,7 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
             return
 
         # Deterministic seed — same (gold_dataset_id, dim) always produces the same split.
-        rng_seed = hash((run.gold_dataset_id, run.dimension_name)) & 0xFFFF_FFFF
+        rng_seed = int(hashlib.sha256(f"{run.gold_dataset_id}|{run.dimension_name}".encode()).hexdigest()[:8], 16)
 
         # Read requested splits from artifact (set at create time); fall back to defaults.
         splits = (run.artifact or {}).get("requested_splits", {})
@@ -1000,8 +1001,6 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
                         r2.trajectory = payload["trajectory"]
                     if "total_tokens" in payload:
                         r2.total_tokens = payload["total_tokens"]
-                    if "total_cost_usd" in payload:
-                        r2.total_cost = round(float(payload["total_cost_usd"]), 6)
                     if "initial_score" in payload:
                         r2.initial_score = float(payload["initial_score"])
                     if "final_score" in payload:
@@ -1030,17 +1029,16 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
         test_initial_acc = 0.0
         test_final_acc = 0.0
         test_tokens = 0
-        test_cost = 0.0
         test_initial_metrics: dict | None = None
         test_final_metrics: dict | None = None
         if testset:
             # Score the initial (unoptimized) prompt on test, so the user can see
             # the lift attributable to optimization, not just prompt quality.
-            test_initial_acc, ti_preds, ti_tok, ti_cost = await evaluate_prompt(
+            test_initial_acc, ti_preds, ti_tok = await evaluate_prompt(
                 initial_prompt, testset, valid_labels,
                 provider=provider, model=model, api_key=api_key,
             )
-            test_final_acc, tf_preds, tf_tok, tf_cost = await evaluate_prompt(
+            test_final_acc, tf_preds, tf_tok = await evaluate_prompt(
                 result.optimized_prompt, testset, valid_labels,
                 provider=provider, model=model, api_key=api_key,
             )
@@ -1049,7 +1047,6 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
             test_initial_metrics = compute_metrics(y_true, ti_preds)
             test_final_metrics   = compute_metrics(y_true, tf_preds)
             test_tokens = ti_tok + tf_tok
-            test_cost = ti_cost + tf_cost
             logger.info(
                 f"Run {run_id} held-out test: initial={test_initial_acc:.3f} "
                 f"final={test_final_acc:.3f} n={len(testset)}"
@@ -1074,7 +1071,6 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
             "delta":         round(test_final_acc - test_initial_acc, 4),
             "n":             n_test,
             "tokens":        test_tokens,
-            "cost_usd":      round(test_cost, 6),
             "leakage_guard": "test examples were never passed to the optimizer",
             # Full metrics: macro / weighted P/R/F1 + per-class breakdown.
             "initial_metrics": test_initial_metrics,
@@ -1103,7 +1099,6 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
             run.artifact      = enriched_artifact
             run.optimized_prompt = result.optimized_prompt
             run.total_tokens  = result.total_tokens + test_tokens
-            run.total_cost    = round(result.total_cost_usd + test_cost, 6)
             await session.commit()
 
         # Filesystem audit trail: write the optimized prompt as a versioned
@@ -1126,7 +1121,6 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
                 "test_final_score": enriched_artifact.get("test", {}).get("final_score"),
                 "n_rules": len((enriched_artifact or {}).get("rule_library") or []),
                 "total_tokens": result.total_tokens + test_tokens,
-                "total_cost_usd": round(result.total_cost_usd + test_cost, 6),
                 "llm_provider": provider,
                 "llm_model": model,
                 "created_at": utc_now_iso(),

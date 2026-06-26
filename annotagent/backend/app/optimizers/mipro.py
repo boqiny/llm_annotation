@@ -50,7 +50,7 @@ class MIPROOptimizer(PromptOptimizer):
         valset: list[Example],
         on_progress: Optional[ProgressCB] = None,
     ) -> OptimizationResult:
-        base_acc, _, base_tokens, base_cost = await evaluate_prompt(
+        base_acc, _, base_tokens = await evaluate_prompt(
             initial_prompt, valset, valid_labels,
             provider=self.provider, model=self.model, api_key=self.api_key,
         )
@@ -59,7 +59,7 @@ class MIPROOptimizer(PromptOptimizer):
                 {"round": 0, "val_acc": base_acc, "action": "baseline"},
                 {"round": 1, "action": "mipro_compiling"},
             ],
-            "total_tokens": base_tokens, "total_cost_usd": base_cost,
+            "total_tokens": base_tokens,
             "current_round": 1, "total_rounds": 2,
             "initial_score": base_acc, "final_score": base_acc,
         })
@@ -88,7 +88,7 @@ class MIPROOptimizer(PromptOptimizer):
             optimized_prompt = initial_prompt
             n_demos = 0
 
-        final_acc, _, extra_tokens, extra_cost = await evaluate_prompt(
+        final_acc, _, extra_tokens = await evaluate_prompt(
             optimized_prompt, valset, valid_labels,
             provider=self.provider, model=self.model, api_key=self.api_key,
         )
@@ -107,5 +107,4 @@ class MIPROOptimizer(PromptOptimizer):
             ],
             artifact={"auto_budget": self.auto_budget, "n_demos_bootstrapped": n_demos},
             total_tokens=base_tokens + extra_tokens,
-            total_cost_usd=base_cost + extra_cost,
         )

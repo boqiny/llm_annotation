@@ -162,7 +162,6 @@ class AnnotationJob(Base):
     completed_items = Column(Integer, default=0)
     failed_items = Column(Integer, default=0)
     total_tokens = Column(Integer, default=0)
-    total_cost = Column(Float, default=0.0)
     source = Column(String(32), default="unknown")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -228,7 +227,6 @@ class OptimizerRun(Base):
     artifact = Column(JSON, default=dict)                 # rule_library for ReflectAgent
     optimized_prompt = Column(Text, default="")
     total_tokens = Column(Integer, default=0)
-    total_cost = Column(Float, default=0.0)
     error = Column(Text, default="")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

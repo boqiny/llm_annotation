@@ -100,10 +100,9 @@ class PipelineRunner:
         completed = 0
         failed = 0
         total_tokens = 0
-        total_cost = 0.0
 
         async def process_item(item: DataItem) -> None:
-            nonlocal completed, failed, total_tokens, total_cost
+            nonlocal completed, failed, total_tokens
             # Wait here if paused (released on resume/cancel)
             await self._pause.wait()
             if self._cancel:
@@ -139,7 +138,6 @@ class PipelineRunner:
 
                     completed += 1
                     total_tokens += ann_result.tokens_used
-                    total_cost += ann_result.cost_usd
 
                 except Exception as e:
                     logger.error(f"Error annotating item {item.index}: {e}")
@@ -152,7 +150,6 @@ class PipelineRunner:
                         "total": len(items),
                         "failed": failed,
                         "tokens": total_tokens,
-                        "cost": round(total_cost, 6),
                         "status": "paused" if not self._pause.is_set() else "running",
                     })
 
@@ -165,7 +162,6 @@ class PipelineRunner:
                 job.completed_items = completed
                 job.failed_items = failed
                 job.total_tokens = total_tokens
-                job.total_cost = round(total_cost, 6)
                 job.status = JobStatus.CANCELLED if self._cancel else (
                     JobStatus.COMPLETED if failed == 0 else JobStatus.FAILED
                 )
@@ -178,6 +174,5 @@ class PipelineRunner:
                 "total": len(items),
                 "failed": failed,
                 "tokens": total_tokens,
-                "cost": round(total_cost, 6),
                 "status": "completed" if not self._cancel else "cancelled",
             })

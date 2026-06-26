@@ -257,6 +257,7 @@ async def _parse_xlsx(data: bytes, filename: str) -> IngestResult:
         ):
             header = r2
             data_start = 2
+            is_annotator = True
             annotator_name = r1[2] if len(r1) >= 3 else ""
             warnings.append(
                 f"Sheet '{sheet_name}' detected as annotator sheet "
@@ -265,21 +266,31 @@ async def _parse_xlsx(data: bytes, filename: str) -> IngestResult:
         else:
             header = r1
             data_start = 1
+            is_annotator = False
 
-        # Forward-fill continuation rows + canonicalize
-        last = {h: None for h in header}
+        # Forward-fill continuation rows + canonicalize.
+        # Annotator sheets fill each column independently (a single Coding-theme
+        # column legitimately spans many level rows). Taxonomy sheets are nested
+        # (Type -> Function -> Code -> Subcode, left-to-right): when a parent
+        # column gets a new value, deeper (right-of) columns must reset, else a
+        # stale child cell attaches to the wrong parent.
+        last: list[Any] = [None] * len(header)
         rows: list[dict[str, Any]] = []
         for row_tuple in raw_rows[data_start:]:
             if not any(v is not None for v in row_tuple):
                 continue
-            row_dict = {}
-            for h, v in zip(header, row_tuple):
+            row_dict: dict[str, Any] = {}
+            for i, h in enumerate(header):
+                v = row_tuple[i] if i < len(row_tuple) else None
                 if v is None or (isinstance(v, str) and not v.strip()):
-                    row_dict[h] = last.get(h)
+                    row_dict[h] = last[i]
                 else:
                     val = v.strip() if isinstance(v, str) else v
                     row_dict[h] = val
-                    last[h] = val
+                    last[i] = val
+                    if not is_annotator:
+                        for j in range(i + 1, len(header)):
+                            last[j] = None
             rows.append(row_dict)
 
         tables.append(Table(name=sheet_name, header=header, rows=rows))
