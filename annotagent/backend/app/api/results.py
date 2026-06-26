@@ -8,6 +8,7 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -324,15 +325,33 @@ async def export_results(
             item = item_map.get(ann.data_item_id)
             rows[ann.data_item_id] = {
                 "item_id": ann.data_item_id,
-                "content": item.content if item else "",
+                "content": _display_content(item) if item else "",
             }
         rows[ann.data_item_id][ann.dimension_name] = ann.predicted_label
+
+    all_dims = sorted({ann.dimension_name for ann in annotations})
 
     if format == "json":
         return list(rows.values())
 
+    if format == "xlsx":
+        import openpyxl
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "results"
+        ws.append(["item_id", "content"] + all_dims)
+        for row in rows.values():
+            ws.append([row.get("item_id", ""), row.get("content", "")] + [row.get(d, "") for d in all_dims])
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return StreamingResponse(
+            buf,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename=job_{job_id}_results.xlsx"},
+        )
+
     # CSV
-    all_dims = sorted({ann.dimension_name for ann in annotations})
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["item_id", "content"] + all_dims)
@@ -345,3 +364,38 @@ async def export_results(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=job_{job_id}_results.csv"},
     )
+
+
+class _ResultEdit(BaseModel):
+    item_id: int
+    dimension: str
+    label: str
+
+
+@router.patch("/edit")
+async def edit_result(
+    project_id: int,
+    job_id: int,
+    body: _ResultEdit,
+    db: AsyncSession = Depends(get_db),
+):
+    """In-place correction of a single predicted label in the results table."""
+    job = await db.get(AnnotationJob, job_id)
+    if not job or job.project_id != project_id:
+        raise HTTPException(404, "Job not found")
+    res = await db.execute(
+        select(AnnotationResult).where(
+            AnnotationResult.job_id == job_id,
+            AnnotationResult.data_item_id == body.item_id,
+        )
+    )
+    target = next(
+        (a for a in res.scalars().all()
+         if _norm_dimension_name(a.dimension_name) == _norm_dimension_name(body.dimension)),
+        None,
+    )
+    if target is None:
+        raise HTTPException(404, f"No result for item {body.item_id} / dimension {body.dimension!r}")
+    target.predicted_label = body.label
+    await db.commit()
+    return {"ok": True}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { getJob, getMetrics, getConfusionMatrix, exportResults } from '../lib/api'
+import { getJob, getMetrics, getConfusionMatrix, exportResults, editResult, listCodebooks } from '../lib/api'
 import { formatTokens, formatPercent } from '../lib/utils'
 import type { Job, DimensionMetrics } from '../types'
 
@@ -18,6 +18,8 @@ export default function ResultsDashboard() {
   const [confusionData, setConfusionData] = useState<{ classes: string[]; matrix: Record<string, Record<string, number>> } | null>(null)
   const [resultsOpen, setResultsOpen] = useState(true)
   const [outputRows, setOutputRows] = useState<OutputRow[]>([])
+  const [labelsByDim, setLabelsByDim] = useState<Record<string, string[]>>({})
+  const [savingCell, setSavingCell] = useState<string>('')
 
   useEffect(() => {
     getJob(projectId, jid).then(setJob)
@@ -26,7 +28,26 @@ export default function ResultsDashboard() {
       if (m.length > 0) setConfusionDim(m[0].dimension)
     })
     exportResults(projectId, jid, 'json').then(resp => setOutputRows(Array.isArray(resp.data) ? resp.data : []))
+    listCodebooks(projectId).then(cbs => {
+      const cb = cbs[cbs.length - 1]
+      const map: Record<string, string[]> = {}
+      for (const d of cb?.dimensions ?? []) map[d.name] = d.labels.map(l => l.name)
+      setLabelsByDim(map)
+    }).catch(() => setLabelsByDim({}))
   }, [projectId, jid])
+
+  const onEditCell = async (rowIdx: number, item_id: number, dimension: string, label: string) => {
+    const cellKey = `${item_id}:${dimension}`
+    setSavingCell(cellKey)
+    setOutputRows(prev => prev.map((r, i) => (i === rowIdx ? { ...r, [dimension]: label } : r)))
+    try {
+      await editResult(projectId, jid, item_id, dimension, label)
+    } catch (e: any) {
+      window.alert('Could not save edit: ' + (e?.response?.data?.detail || e?.message || 'unknown error'))
+    } finally {
+      setSavingCell('')
+    }
+  }
 
   useEffect(() => {
     if (confusionDim) {
@@ -34,22 +55,17 @@ export default function ResultsDashboard() {
     }
   }, [confusionDim, projectId, jid])
 
-  const handleExport = async (format: 'csv' | 'json') => {
+  const handleExport = async (format: 'csv' | 'json' | 'xlsx') => {
     const resp = await exportResults(projectId, jid, format)
-    if (format === 'csv') {
-      const url = URL.createObjectURL(resp.data)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `job_${jid}_results.csv`
-      a.click()
-    } else {
-      const blob = new Blob([JSON.stringify(resp.data, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `job_${jid}_results.json`
-      a.click()
-    }
+    const blob = format === 'json'
+      ? new Blob([JSON.stringify(resp.data, null, 2)], { type: 'application/json' })
+      : resp.data  // csv + xlsx come back as blobs
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `job_${jid}_results.${format}`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   const chartData = metrics.map(m => ({
@@ -81,6 +97,9 @@ export default function ResultsDashboard() {
           </Link>
           <button onClick={() => handleExport('csv')} className="px-4 py-2 text-sm font-medium text-ink border border-seam hover:border-ink transition-colors">
             Export · CSV
+          </button>
+          <button onClick={() => handleExport('xlsx')} className="px-4 py-2 text-sm font-medium text-ink border border-seam hover:border-ink transition-colors">
+            Export · XLSX
           </button>
           <button onClick={() => handleExport('json')} className="px-4 py-2 text-sm font-medium text-ink border border-seam hover:border-ink transition-colors">
             Export · JSON
@@ -115,7 +134,7 @@ export default function ResultsDashboard() {
           <div>
             <div className="font-mono-editorial text-stone-500">Annotated results</div>
             <p className="mt-1 text-xs text-stone-500">
-              Output preview in the same shape as the exported CSV: sentence plus predicted labels. Showing {previewRows.length.toLocaleString()} of {outputRows.length.toLocaleString()} rows.
+              Predicted labels — click any to correct it; edits save automatically and are included in CSV/XLSX exports. Showing {previewRows.length.toLocaleString()} of {outputRows.length.toLocaleString()} rows.
             </p>
           </div>
           <span className="font-mono-editorial text-violet-700">{resultsOpen ? 'Hide' : 'Show'}</span>
@@ -139,13 +158,29 @@ export default function ResultsDashboard() {
                     <td className="px-3 py-3 text-stone-700 max-w-[520px]">
                       <div className="line-clamp-3">{String(row.content ?? '')}</div>
                     </td>
-                    {outputColumns.map(col => (
-                      <td key={col} className="px-3 py-3">
-                        <span className="px-2 py-0.5 bg-paper border border-seam text-stone-700 text-xs">
-                          {String(row[col] ?? '—')}
-                        </span>
-                      </td>
-                    ))}
+                    {outputColumns.map(col => {
+                      const val = String(row[col] ?? '')
+                      const opts = labelsByDim[col] ?? []
+                      const options = (!val || opts.includes(val)) ? opts : [val, ...opts]
+                      const cellKey = `${row.item_id}:${col}`
+                      return (
+                        <td key={col} className="px-3 py-2">
+                          {options.length > 0 ? (
+                            <select
+                              value={val}
+                              disabled={savingCell === cellKey}
+                              onChange={e => onEditCell(idx, Number(row.item_id), col, e.target.value)}
+                              className="bg-paper border border-seam text-stone-700 text-xs px-1.5 py-1 max-w-[200px] focus:outline-none focus:border-ink hover:border-stone-400 disabled:opacity-50"
+                            >
+                              {!val && <option value="">—</option>}
+                              {options.map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-paper border border-seam text-stone-700 text-xs">{val || '—'}</span>
+                          )}
+                        </td>
+                      )
+                    })}
                   </tr>
                 ))}
                 {previewRows.length === 0 && (

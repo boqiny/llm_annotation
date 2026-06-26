@@ -20,6 +20,8 @@ export const listPresets = (projectId: number) =>
   api.get<PresetInfo[]>(`/projects/${projectId}/codebooks/presets`).then(r => r.data)
 export const uploadCodebook = (projectId: number, data: { preset_name?: string; raw_json?: object }) =>
   api.post<Codebook>(`/projects/${projectId}/codebooks`, data).then(r => r.data)
+export const addCodebookLabel = (projectId: number, dimension: string, label: string, definition = '') =>
+  api.post<Codebook>(`/projects/${projectId}/codebooks/add-label`, { dimension, label, definition }).then(r => r.data)
 export const listCodebooks = (projectId: number) =>
   api.get<Codebook[]>(`/projects/${projectId}/codebooks`).then(r => r.data)
 
@@ -59,10 +61,13 @@ export interface GoldReport {
   ok: boolean
   n_items: number
   n_error_items: number
+  n_errors_shown: number
   summary: Record<string, number>
   issues: { row: number; severity: string; kind: string; dimension: string; value: any; message: string }[]
   unknown_label_values: Record<string, Record<string, number>>
   unknown_dimensions: Record<string, number>
+  label_value_samples?: Record<string, Record<string, string[]>>
+  dimension_samples?: Record<string, string[]>
 }
 export interface GoldValidation {
   filename: string
@@ -88,10 +93,42 @@ export const autofixLabeledData = (projectId: number, items: any[]) =>
   api.post<GoldAutofix>(`/projects/${projectId}/datasets/autofix`, { items }, { timeout: 180_000 })
     .then(r => r.data)
 
+export interface GoldFixSpec {
+  dimension_map?: Record<string, string>
+  label_map?: Record<string, Record<string, string>>
+  multi_split?: string[]
+  drop_dimensions?: string[]
+}
+export const applyLabeledFix = (projectId: number, items: any[], spec: GoldFixSpec) =>
+  api.post<{ items: any[]; report: GoldReport }>(
+    `/projects/${projectId}/datasets/apply-fix`, { items, spec },
+  ).then(r => r.data)
+
 export const commitLabeledData = (
   projectId: number,
   payload: { name: string; is_gold: boolean; file_type: string; items: any[] },
 ) => api.post<Dataset>(`/projects/${projectId}/datasets/commit`, payload).then(r => r.data)
+
+// Messy unlabeled input: LLM picks the text column, user confirms
+export interface ExtractPreview {
+  filename: string
+  file_type: string
+  columns: string[]
+  n_rows: number
+  sample_rows: any[]
+  suggested_content_column: string
+  rows: any[]
+}
+export const extractInputPreview = (projectId: number, file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post<ExtractPreview>(`/projects/${projectId}/datasets/extract-preview`, form, { timeout: 120_000 })
+    .then(r => r.data)
+}
+export const extractInputCommit = (
+  projectId: number,
+  payload: { filename: string; file_type: string; rows: any[]; content_column: string; context_column?: string | null },
+) => api.post<Dataset>(`/projects/${projectId}/datasets/extract-commit`, payload).then(r => r.data)
 export const previewDataset = (projectId: number, datasetId: number) =>
   api.get<DatasetPreview>(`/projects/${projectId}/datasets/${datasetId}`).then(r => r.data)
 export const deleteDataset = (projectId: number, datasetId: number) =>
@@ -150,8 +187,11 @@ export const getFeedbackEvidence = (
   api.get<FeedbackEvidence[]>(`/projects/${projectId}/jobs/${jobId}/results/evidence`, {
     params: { dimension, ...(params || {}) },
   }).then(r => r.data)
-export const exportResults = (projectId: number, jobId: number, format: 'csv' | 'json' = 'csv') =>
-  api.get(`/projects/${projectId}/jobs/${jobId}/results/export`, { params: { format }, responseType: format === 'csv' ? 'blob' : 'json' })
+export const exportResults = (projectId: number, jobId: number, format: 'csv' | 'json' | 'xlsx' = 'csv') =>
+  api.get(`/projects/${projectId}/jobs/${jobId}/results/export`, { params: { format }, responseType: format === 'json' ? 'json' : 'blob' })
+
+export const editResult = (projectId: number, jobId: number, item_id: number, dimension: string, label: string) =>
+  api.patch(`/projects/${projectId}/jobs/${jobId}/results/edit`, { item_id, dimension, label }).then(r => r.data)
 
 // Seeds + backend config
 export interface SeedDatasetInfo {

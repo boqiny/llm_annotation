@@ -6,18 +6,23 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import resolve_api_key, settings
 from app.database import get_db
 from app.engine.codebook_parser import parse_codebook
+from app.engine.llm_client import call_llm
 from app.engine.gold_align import (
-    autofix_items, build_gold_schema, canonicalize_items, schema_for_ui, validate_items,
+    apply_transform, autofix_items, build_gold_schema, canonicalize_items,
+    schema_for_ui, validate_items,
 )
-from app.models.tables import Codebook, Dataset, DataItem, Project
+from app.models.tables import (
+    AnnotationJob, AnnotationResult, CalibrationRun, Codebook, Dataset, DataItem,
+    OptimizerRun, Project,
+)
 from app.schemas.schemas import DatasetOut, DatasetPreview, DataItemOut
-from app.utils.file_parsers import parse_json_dataset, parse_csv_dataset
+from app.utils.file_parsers import _csv_rows_with_header, parse_json_dataset, parse_csv_dataset
 
 router = APIRouter(prefix="/api/projects/{project_id}/datasets", tags=["datasets"])
 
@@ -262,6 +267,27 @@ async def autofix_labeled_upload(
     return await autofix_items(body.items, schema, provider=provider, model=model, api_key=api_key)
 
 
+class _ApplyFixBody(BaseModel):
+    items: list[dict]
+    spec: dict   # {dimension_map, label_map, multi_split, drop_dimensions, content_from}
+
+
+@router.post("/apply-fix")
+async def apply_fix_labeled_upload(
+    project_id: int,
+    body: _ApplyFixBody,
+    db: AsyncSession = Depends(get_db),
+):
+    """Apply a user-built transform spec (manual mismatch fixes) deterministically
+    and re-validate. Same spec shape the LLM auto-fix produces — no LLM here."""
+    raw = await _active_codebook_raw(db, project_id)
+    if raw is None:
+        raise HTTPException(400, "Accept a codebook before fixing labeled data.")
+    schema = build_gold_schema(raw)
+    fixed = apply_transform(body.items, body.spec or {}, schema)
+    return {"items": fixed, "report": validate_items(fixed, schema)}
+
+
 class _CommitBody(BaseModel):
     name: str = "labeled_data"
     is_gold: bool = True
@@ -286,6 +312,128 @@ async def commit_labeled_dataset(
         if raw is not None:
             items = canonicalize_items(items, build_gold_schema(raw))
     return await _persist_items(db, project_id, body.name, body.file_type, body.is_gold, items)
+
+
+# ─── messy unlabeled input: LLM picks the text column, user confirms ─────────
+
+def _heuristic_content_column(columns: list[str], sample: list[dict]) -> str:
+    for cand in ("relevant quote", "sentence", "text", "content", "message",
+                 "utterance", "response", "quote", "turn", "prompt"):
+        for c in columns:
+            if cand in c.lower():
+                return c
+    best, best_len = (columns[0] if columns else ""), 0.0
+    for c in columns:
+        vals = [str(r.get(c, "") or "") for r in sample]
+        avg = sum(len(v) for v in vals) / max(len(vals), 1)
+        if avg > best_len:
+            best_len, best = avg, c
+    return best
+
+
+async def _suggest_content_column(columns, sample, provider, model, api_key) -> str:
+    if not api_key or not columns:
+        return _heuristic_content_column(columns, sample)
+    lines = [f"- {c!r}: {[str(r.get(c, '') or '')[:60] for r in sample[:4]]}" for c in columns]
+    try:
+        resp = await call_llm(
+            messages=[
+                {"role": "system", "content":
+                    "You identify which spreadsheet column holds the free-text items a human "
+                    "would annotate (a chat turn, sentence, quote, or message), NOT ids, "
+                    "timestamps, labels, users, or metadata. Reply with ONLY the exact column name."},
+                {"role": "user", "content":
+                    "Columns and sample values:\n" + "\n".join(lines) +
+                    "\n\nWhich column holds the text to annotate? Return only the column name."},
+            ],
+            provider=provider, model=model, api_key=api_key, max_tokens=40,
+        )
+        ans = resp.text.strip().strip('"').strip()
+        for c in columns:
+            if c.lower() == ans.lower():
+                return c
+        for c in columns:
+            if ans and (ans.lower() in c.lower() or c.lower() in ans.lower()):
+                return c
+    except Exception as e:
+        logger.warning(f"content-column suggestion failed: {e}")
+    return _heuristic_content_column(columns, sample)
+
+
+@router.post("/extract-preview")
+async def extract_preview(
+    project_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Parse a messy unlabeled file into columns + sample rows, and let an LLM
+    suggest which column holds the text to annotate. Persists nothing."""
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    raw = (await file.read()).decode("utf-8", errors="replace")
+    filename = file.filename or "input"
+    if filename.endswith(".csv"):
+        rows = _csv_rows_with_header(raw)
+        file_type = "csv"
+    else:
+        import json as _json
+        data = _json.loads(raw)
+        rows = data if isinstance(data, list) else (data.get("items") or data.get("data") or [data])
+        rows = [r for r in rows if isinstance(r, dict)]
+        file_type = "json"
+    if not rows:
+        raise HTTPException(400, "No rows found in the file.")
+
+    columns: list[str] = []
+    seen = set()
+    for r in rows:
+        for k in r.keys():
+            if k not in seen:
+                seen.add(k)
+                columns.append(k)
+
+    try:
+        provider, model, api_key = await _project_llm(db, project)
+    except HTTPException:
+        provider, model, api_key = "openai", "", ""
+    suggested = await _suggest_content_column(columns, rows[:8], provider, model, api_key)
+    return {
+        "filename": filename, "file_type": file_type, "columns": columns,
+        "n_rows": len(rows), "sample_rows": rows[:5],
+        "suggested_content_column": suggested, "rows": rows,
+    }
+
+
+class _ExtractCommitBody(BaseModel):
+    filename: str = "input"
+    file_type: str = "csv"
+    rows: list[dict]
+    content_column: str
+    context_column: str | None = None
+
+
+@router.post("/extract-commit", response_model=DatasetOut, status_code=201)
+async def extract_commit(
+    project_id: int,
+    body: _ExtractCommitBody,
+    db: AsyncSession = Depends(get_db),
+):
+    """Persist a messy file as an unlabeled dataset using the confirmed text column."""
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    items = []
+    for i, r in enumerate(body.rows):
+        content = str(r.get(body.content_column, "") or "").strip()
+        items.append({
+            "index": i,
+            "content": content,
+            "context": str(r.get(body.context_column, "") or "") if body.context_column else "",
+            "metadata": {k: v for k, v in r.items() if k != body.content_column},
+            "gold_labels": {},
+        })
+    return await _persist_items(db, project_id, body.filename, body.file_type, False, items)
 
 
 @router.get("", response_model=list[DatasetOut])
@@ -328,7 +476,22 @@ async def delete_dataset(
     dataset = await db.get(Dataset, dataset_id)
     if not dataset or dataset.project_id != project_id:
         raise HTTPException(404, "Dataset not found")
-    await db.delete(dataset)
+
+    # Walk the subtree explicitly: the live SQLite FKs predate the ondelete=CASCADE
+    # migration, so a bare delete on a dataset with data_items / jobs / runs fails.
+    job_ids = select(AnnotationJob.id).where(AnnotationJob.dataset_id == dataset_id)
+    di_ids = select(DataItem.id).where(DataItem.dataset_id == dataset_id)
+
+    await db.execute(delete(AnnotationResult).where(AnnotationResult.job_id.in_(job_ids)))
+    await db.execute(delete(AnnotationResult).where(AnnotationResult.data_item_id.in_(di_ids)))
+    await db.execute(delete(CalibrationRun).where(CalibrationRun.job_id.in_(job_ids)))
+    await db.execute(delete(CalibrationRun).where(CalibrationRun.gold_dataset_id == dataset_id))
+    await db.execute(delete(AnnotationJob).where(AnnotationJob.dataset_id == dataset_id))
+    # Optimizer runs keep their history; just drop the gold link (model: SET NULL).
+    await db.execute(update(OptimizerRun).where(OptimizerRun.gold_dataset_id == dataset_id)
+                     .values(gold_dataset_id=None))
+    await db.execute(delete(DataItem).where(DataItem.dataset_id == dataset_id))
+    await db.execute(delete(Dataset).where(Dataset.id == dataset_id))
     await db.commit()
 
 

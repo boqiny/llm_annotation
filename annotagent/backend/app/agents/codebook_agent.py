@@ -100,6 +100,14 @@ DIMENSIONS vs LABELS — get this right, it is the crux:
   genuinely independent axes — never split one axis's labels into many thin
   dimensions.
 
+  COVERAGE CHECK (do this before finishing — it is the most common mistake):
+  Walk EVERY column of EVERY sheet. Any column whose cells are categorical
+  annotation values (e.g. "Topics", "Topic thematic categories", "Temporality")
+  MUST become its own dimension. Do NOT omit a dedicated categorical column just
+  because a sheet has lots of other content or other sheets. Missing the Topic
+  columns is a failure. Conversely, free-text columns (definitions, quotes,
+  notes, timestamps, IDs) are NOT dimensions.
+
 RULES:
   1. If the input text already contains a codebook JSON block, extract it faithfully.
   2. If the input is annotator data (spreadsheet dumps with Coding theme / Level
