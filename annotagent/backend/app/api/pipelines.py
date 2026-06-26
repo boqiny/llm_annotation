@@ -30,9 +30,14 @@ def _annotation_user_message(content: str, context: str) -> str:
 @router.post("/decompose", response_model=PipelineOut, status_code=201)
 async def decompose(
     project_id: int,
+    few_shot: bool = False,
     db: AsyncSession = Depends(get_db),
 ):
-    """Generate the active pipeline: one prompt per codebook dimension."""
+    """Generate the active pipeline: one prompt per codebook dimension.
+
+    ``few_shot=true`` appends each label's captured examples as a few-shot block in
+    the generated prompts (opt-in).
+    """
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
@@ -47,7 +52,7 @@ async def decompose(
         raise HTTPException(400, "No codebook uploaded for this project")
 
     parsed = parse_codebook(codebook.raw_json)
-    steps = await decompose_codebook(codebook=parsed)
+    steps = await decompose_codebook(codebook=parsed, few_shot=few_shot)
 
     pipeline = Pipeline(
         project_id=project_id,

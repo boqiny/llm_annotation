@@ -73,24 +73,24 @@ def _filter_gold_labels(labels: dict, dim_map: dict[str, str] | None) -> dict:
 SEED_FILES = [
     {
         "id": "sd_agreed",
-        "label": "Self-disclosure · Agreed (Fiona ∩ Chang)",
+        "label": "Self-disclosure · Agreed (Coder A ∩ Coder B)",
         "relpath": "cleaned/agreed_self_disclosure_ground_truth.json",
         "role": "gold",
-        "description": "169 items on which both annotators agreed on at least one dimension.",
+        "description": "169 items on which both coders agreed on at least one dimension.",
     },
     {
-        "id": "sd_fiona",
-        "label": "Self-disclosure · Fiona",
+        "id": "sd_coder_a",
+        "label": "Self-disclosure · Coder A",
         "relpath": "cleaned/fiona_self_disclosure_ground_truth.json",
         "role": "reference",
-        "description": "Annotator 1 (Fiona) full set, 333 unique quotes.",
+        "description": "Coder A's full set, 333 unique quotes.",
     },
     {
-        "id": "sd_chang",
-        "label": "Self-disclosure · Chang",
+        "id": "sd_coder_b",
+        "label": "Self-disclosure · Coder B",
         "relpath": "cleaned/chang_self_disclosure_ground_truth.json",
         "role": "reference",
-        "description": "Annotator 2 (Chang) full set, 331 unique quotes.",
+        "description": "Coder B's full set, 331 unique quotes.",
     },
     {
         "id": "test_v1",

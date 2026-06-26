@@ -47,7 +47,12 @@ def _norm(value: Any) -> str:
 
 def build_gold_schema(codebook_raw: dict[str, Any]) -> dict[str, Any]:
     """{dim_name: {type, labels:[...], norm_dim, norm_labels:{norm->canonical}}} plus
-    a top-level norm_dims map for matching incoming dimension names."""
+    a top-level norm_dims map for matching incoming dimension names.
+
+    A gated dimension's derived parent-category output (``category_dimension``,
+    e.g. "Topic thematic categories") is included as a first-class dimension so a
+    gold column for it validates instead of being flagged as unknown.
+    """
     parsed = parse_codebook(codebook_raw)
     dims: dict[str, Any] = {}
     for d in parsed.dimensions:
@@ -57,23 +62,54 @@ def build_gold_schema(codebook_raw: dict[str, Any]) -> dict[str, Any]:
             "labels": label_names,
             "norm_labels": {_norm(l): l for l in label_names},
         }
+        # Derived thematic-category dimension: labels are the distinct categories
+        # (path[-1]) of this gated dimension's leaves.
+        if d.category_dimension and d.category_dimension not in dims:
+            cats: list[str] = []
+            for l in d.labels:
+                if len(l.path) > 1 and l.path[-1] and l.path[-1] not in cats:
+                    cats.append(l.path[-1])
+            if cats:
+                dims[d.category_dimension] = {
+                    "type": d.dim_type or "single_label",
+                    "labels": cats,
+                    "norm_labels": {_norm(c): c for c in cats},
+                }
     return {
         "dimensions": dims,
         "norm_dims": {_norm(name): name for name in dims},
     }
 
 
+# Names that mark a "no label applies here" option for a dimension.
+_NO_LABEL_NORMS = {_norm(n) for n in ("-", "no label", "none", "n/a", "not applicable")}
+
+
+def _no_label_of(spec_dim: dict[str, Any]) -> str | None:
+    """Return the dimension's no-label option (canonical spelling) if it has one."""
+    for norm_name, canonical in spec_dim.get("norm_labels", {}).items():
+        if norm_name in _NO_LABEL_NORMS:
+            return canonical
+    return None
+
+
 def schema_for_ui(codebook_raw: dict[str, Any]) -> dict[str, Any]:
     """Compact, display-friendly view of the expected schema for the frontend."""
     parsed = parse_codebook(codebook_raw)
-    return {
-        "name": parsed.name,
-        "dimensions": [
-            {"name": d.name, "type": d.dim_type or "single_label",
-             "labels": [l.name for l in d.labels]}
-            for d in parsed.dimensions
-        ],
-    }
+    out: list[dict[str, Any]] = []
+    for d in parsed.dimensions:
+        out.append({"name": d.name, "type": d.dim_type or "single_label",
+                    "labels": [l.name for l in d.labels]})
+        if d.category_dimension:
+            cats: list[str] = []
+            for l in d.labels:
+                if len(l.path) > 1 and l.path[-1] and l.path[-1] not in cats:
+                    cats.append(l.path[-1])
+            if cats:
+                out.append({"name": d.category_dimension,
+                            "type": d.dim_type or "single_label", "labels": cats,
+                            "derived_from": d.name})
+    return {"name": parsed.name, "dimensions": out}
 
 
 # ─── validation ─────────────────────────────────────────────────────────────
@@ -102,6 +138,9 @@ def validate_items(items: list[dict[str, Any]], schema: dict[str, Any]) -> dict[
     # first N captured in the capped issues list).
     label_value_samples: dict[str, dict[str, list[str]]] = {}
     dimension_samples: dict[str, list[str]] = {}
+    # Per codebook dimension: how many rows leave it blank/absent, with sample text.
+    empty_dim_counts: dict[str, int] = {}
+    empty_dim_samples: dict[str, list[str]] = {}
     summary = {"missing_content": 0, "unknown_dimension": 0, "unknown_label": 0,
                "cardinality": 0, "missing_dimension": 0, "unmatched_row": 0}
     n_error_items = 0
@@ -128,6 +167,7 @@ def validate_items(items: list[dict[str, Any]], schema: dict[str, Any]) -> dict[
 
         gold = it.get("gold_labels") or {}
         present_norm = set()
+        nonblank_norm = set()  # dims this row gives a real (non-blank) value for
         for dim_name, value in gold.items():
             canonical = dims.get(dim_name) and dim_name or norm_dims.get(_norm(dim_name))
             if canonical is None:
@@ -141,6 +181,8 @@ def validate_items(items: list[dict[str, Any]], schema: dict[str, Any]) -> dict[
             present_norm.add(_norm(canonical))
             spec = dims[canonical]
             values = _as_list(value)
+            if any(str(v).strip() for v in values):
+                nonblank_norm.add(_norm(canonical))
 
             if spec["type"] in ("single_label", "binary") and len(values) > 1:
                 summary["cardinality"] += 1
@@ -170,8 +212,10 @@ def validate_items(items: list[dict[str, Any]], schema: dict[str, Any]) -> dict[
             row_has_error = True
 
         for norm_dim, canonical in norm_dims.items():
-            if norm_dim not in present_norm:
+            if norm_dim not in nonblank_norm:  # absent OR present-but-blank
                 summary["missing_dimension"] += 1  # warn-level, no per-row issue spam
+                empty_dim_counts[canonical] = empty_dim_counts.get(canonical, 0) + 1
+                sample(empty_dim_samples.setdefault(canonical, []), content)
 
         if row_has_error:
             n_error_items += 1
@@ -189,6 +233,14 @@ def validate_items(items: list[dict[str, Any]], schema: dict[str, Any]) -> dict[
         "unknown_dimensions": unknown_dimensions,
         "label_value_samples": label_value_samples,
         "dimension_samples": dimension_samples,
+        "empty_dimensions": {
+            canonical: {
+                "count": empty_dim_counts[canonical],
+                "samples": empty_dim_samples.get(canonical, []),
+                "has_no_label": _no_label_of(dims[canonical]) is not None,
+            }
+            for canonical in empty_dim_counts
+        },
     }
 
 
@@ -204,6 +256,8 @@ def apply_transform(items: list[dict[str, Any]], spec: dict[str, Any],
       label_map: {canonical_dim: {src_label: canonical_label}},  # matched by norm
       multi_split: [str, ...],                # split a string value into multi labels
       drop_dimensions: [src_dim, ...],
+      item_overrides: {row_index: {dimension: value}},  # per-row override; value ""
+                                                        # drops that dim for that row
     }
     """
     dims = schema["dimensions"]
@@ -212,6 +266,8 @@ def apply_transform(items: list[dict[str, Any]], spec: dict[str, Any],
     dim_map = {_norm(k): v for k, v in (spec.get("dimension_map") or {}).items()}
     drop = {_norm(d) for d in (spec.get("drop_dimensions") or [])}
     splits = [s for s in (spec.get("multi_split") or []) if s]
+    # per-row overrides, keyed by row index as a string
+    item_overrides = {str(k): v for k, v in (spec.get("item_overrides") or {}).items()}
     # normalize label_map keys for lookup: {canonical_dim: {norm_src: canonical_label}}
     label_map: dict[str, dict[str, str]] = {}
     for dim_key, mapping in (spec.get("label_map") or {}).items():
@@ -265,6 +321,35 @@ def apply_transform(items: list[dict[str, Any]], spec: dict[str, Any],
                 new_gold[canonical_dim] = canon_values[0] if canon_values else None
             else:
                 new_gold[canonical_dim] = canon_values
+
+        # Fill blanks with the dimension's no-label option, if it has one, so a
+        # row that leaves a dimension empty becomes an explicit "-" gold value the
+        # model is scored on (rather than a silently-absent label).
+        for canonical_dim, spec_dim in dims.items():
+            no_label = _no_label_of(spec_dim)
+            if no_label is None:
+                continue
+            cur = new_gold.get(canonical_dim)
+            cur_values = [v for v in _as_list(cur) if str(v).strip()]
+            if not cur_values:
+                new_gold[canonical_dim] = (
+                    no_label if spec_dim["type"] in ("single_label", "binary") else [no_label]
+                )
+
+        # Per-row overrides win over the global mapping: the user fixed this exact row.
+        override = item_overrides.get(str(it.get("index")))
+        if override:
+            for dim_name, value in override.items():
+                canonical_dim = dims.get(dim_name) and dim_name or norm_dims.get(_norm(dim_name))
+                if canonical_dim is None:
+                    continue
+                if value in (None, ""):
+                    new_gold.pop(canonical_dim, None)
+                else:
+                    snapped = dims[canonical_dim]["norm_labels"].get(_norm(value), value)
+                    new_gold[canonical_dim] = (
+                        snapped if dims[canonical_dim]["type"] in ("single_label", "binary") else [snapped]
+                    )
 
         new["gold_labels"] = new_gold
         out.append(new)

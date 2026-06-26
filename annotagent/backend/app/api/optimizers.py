@@ -731,7 +731,7 @@ async def start_run(
 
     # Validate labeled-examples dataset (any annotated set is acceptable —
     # is_gold just flags the canonical "ground truth" for the demo's split,
-    # but Fiona/Chang per-annotator labels are equally valid as a learning
+    # but per-coder labels (Coder A / Coder B) are equally valid as a learning
     # source for the rule library).
     gold_dataset = await db.get(Dataset, body.gold_dataset_id)
     if not gold_dataset or gold_dataset.project_id != project_id:

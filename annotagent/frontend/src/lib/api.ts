@@ -68,6 +68,8 @@ export interface GoldReport {
   unknown_dimensions: Record<string, number>
   label_value_samples?: Record<string, Record<string, string[]>>
   dimension_samples?: Record<string, string[]>
+  // Codebook dimensions left blank in some rows: offer a "-" no-label option.
+  empty_dimensions?: Record<string, { count: number; samples: string[]; has_no_label: boolean }>
 }
 export interface GoldValidation {
   filename: string
@@ -98,6 +100,8 @@ export interface GoldFixSpec {
   label_map?: Record<string, Record<string, string>>
   multi_split?: string[]
   drop_dimensions?: string[]
+  // Per-row overrides: { rowIndex: { dimension: value } }. value "" drops the dim.
+  item_overrides?: Record<string, Record<string, string>>
 }
 export const applyLabeledFix = (projectId: number, items: any[], spec: GoldFixSpec) =>
   api.post<{ items: any[]; report: GoldReport }>(
@@ -135,8 +139,9 @@ export const deleteDataset = (projectId: number, datasetId: number) =>
   api.delete(`/projects/${projectId}/datasets/${datasetId}`)
 
 // Pipelines
-export const decomposePipeline = (projectId: number) =>
-  api.post<Pipeline>(`/projects/${projectId}/pipelines/decompose`).then(r => r.data)
+export const decomposePipeline = (projectId: number, fewShot = false) =>
+  api.post<Pipeline>(`/projects/${projectId}/pipelines/decompose`, null,
+    { params: { few_shot: fewShot } }).then(r => r.data)
 export const listPipelines = (projectId: number) =>
   api.get<Pipeline[]>(`/projects/${projectId}/pipelines`).then(r => r.data)
 export const getPipeline = (projectId: number, pipelineId: number) =>
@@ -240,7 +245,7 @@ export const uploadCodebookDraft = async (projectId: number, file: File): Promis
   form.append('project_id', String(projectId))
   const r = await api.post<CodebookDraft>('/codebook-drafts/upload', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 240_000,
+    timeout: 120_000,  // one strong-model pass over the parsed CSV (~20s + retries)
   })
   return r.data
 }

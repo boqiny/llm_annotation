@@ -2,11 +2,27 @@
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from app.engine.llm_client import call_llm
 from app.engine.label_parser import parse_answer
+
+
+def _norm(s: str) -> str:
+    """Casefold + de-plural for matching a predicted gate value to a gate key."""
+    t = re.sub(r"[^0-9a-z]+", " ", str(s or "").casefold()).strip()
+    return " ".join(re.sub(r"s\b", "", w) or w for w in t.split())
+
+
+def _match_gate_key(value: str, keys: dict[str, Any]) -> Optional[str]:
+    """Find the conditional key matching a predicted gate value (case/plural-insensitive)."""
+    nv = _norm(value)
+    for k in keys:
+        if _norm(k) == nv:
+            return k
+    return None
 
 
 @dataclass
@@ -40,6 +56,19 @@ async def annotate_item(
             continue
 
         prompt = step.get("prompt", "")
+        # Conditional cascade: if this step is gated by an already-predicted
+        # dimension, swap in the gate-value-specific prompt and narrow the valid
+        # label set so only that gate value's labels can be chosen.
+        narrowed_labels: Optional[list[str]] = None
+        gate_by = step.get("gate_by")
+        if gate_by and gate_by in result.labels:
+            gate_val = result.labels[gate_by]
+            cond_prompts = step.get("conditional_prompts") or {}
+            key = _match_gate_key(gate_val, cond_prompts)
+            if key is not None:
+                prompt = cond_prompts[key]
+                narrowed_labels = (step.get("conditional_labels") or {}).get(key)
+
         user_msg = f"Sentence: {content}"
         if context:
             user_msg = f"Context: {context}\n\n{user_msg}"
@@ -60,11 +89,22 @@ async def annotate_item(
         total_tokens += resp.input_tokens + resp.output_tokens
 
         for dim_name in step.get("dimensions", []):
-            valid_labels = codebook_dims.get(dim_name, [])
+            valid_labels = narrowed_labels if narrowed_labels is not None else codebook_dims.get(dim_name, [])
             is_binary = len(valid_labels) == 2 and any("yes" in l.lower() for l in valid_labels)
             label = parse_answer(resp.text, valid_labels, is_binary=is_binary)
             result.labels[dim_name] = label
             result.reasoning[dim_name] = resp.text
+
+        # Derived outputs: a value computed from another dimension's prediction
+        # (e.g. the topic's parent thematic category), not a separate LLM call.
+        for derived in step.get("derived_dimensions", []):
+            src = result.labels.get(derived.get("from", ""), "")
+            mapping = derived.get("map") or {}
+            value = mapping.get(src, "")
+            if not value:  # tolerate case/spacing drift in the predicted leaf
+                value = next((v for k, v in mapping.items() if k.lower() == src.lower()), "")
+            result.labels[derived["name"]] = value
+            result.reasoning[derived["name"]] = f"Derived from {derived.get('from','')} = {src!r}"
 
         gate_dim = step.get("gate")
         if gate_dim and gate_dim in result.labels:
