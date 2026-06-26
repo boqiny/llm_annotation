@@ -1,9 +1,9 @@
-"""Multi-model sweep — per coworker's C3: "benchmark a few other models' performance and cost".
+"""Multi-model sweep — per coworker's C3: "benchmark a few other models' performance".
 
 Runs the same optimizer configuration across several models on the same
 (codebook, dimension, gold) and writes one CSV row per model:
     model, n_train, n_val, n_test, zero_shot_test_acc, reflected_test_acc, delta_pp,
-    total_tokens, total_cost_usd, wall_seconds
+    total_tokens, wall_seconds
 
 Example:
     python -m scripts.sweep_models \\
@@ -83,7 +83,7 @@ async def _run_one_model(
     t0 = time.perf_counter()
 
     # Zero-shot test (no optimization) — the honest before-number on held-out
-    zs_acc, _, zs_tok, zs_cost = await evaluate_prompt(
+    zs_acc, _, zs_tok = await evaluate_prompt(
         initial_prompt, testset, valid_labels,
         provider=provider, model=model, api_key=api_key,
     )
@@ -102,7 +102,7 @@ async def _run_one_model(
         valset=valset,
     )
     # Held-out test on optimized prompt (leakage guard: testset never saw the optimizer)
-    opt_acc, _, t_tok, t_cost = await evaluate_prompt(
+    opt_acc, _, t_tok = await evaluate_prompt(
         result.optimized_prompt, testset, valid_labels,
         provider=provider, model=model, api_key=api_key,
     )
@@ -119,7 +119,6 @@ async def _run_one_model(
         "val_initial": round(result.initial_score, 4),
         "val_final": round(result.final_score, 4),
         "total_tokens": result.total_tokens + zs_tok + t_tok,
-        "total_cost_usd": round(result.total_cost_usd + zs_cost + t_cost, 6),
         "wall_seconds": round(wall, 1),
     }
 
@@ -217,7 +216,7 @@ async def main() -> int:
                 "n_train": n_train, "n_val": n_val, "n_test": n_test,
                 "zero_shot_test_acc": "", "reflected_test_acc": "", "delta_pp": "",
                 "val_initial": "", "val_final": "",
-                "total_tokens": "", "total_cost_usd": "", "wall_seconds": "",
+                "total_tokens": "", "wall_seconds": "",
                 "error": str(e)[:200],
             })
             continue
@@ -227,7 +226,6 @@ async def main() -> int:
             f"ZS {row['zero_shot_test_acc']*100:5.1f}% → "
             f"OPT {row['reflected_test_acc']*100:5.1f}%  "
             f"(Δ {row['delta_pp']:+.1f} pp)  "
-            f"${row['total_cost_usd']:.4f}  "
             f"{row['wall_seconds']}s"
         )
 

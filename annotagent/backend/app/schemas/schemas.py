@@ -160,7 +160,6 @@ class JobOut(BaseModel):
     completed_items: int
     failed_items: int
     total_tokens: int
-    total_cost: float
     source: str = "unknown"
     created_at: Optional[datetime.datetime] = None
     updated_at: Optional[datetime.datetime] = None
@@ -303,7 +302,6 @@ class OptimizerRunOut(BaseModel):
     artifact: dict[str, Any] = {}
     optimized_prompt: str = ""
     total_tokens: int = 0
-    total_cost: float = 0.0
     error: str = ""
     created_at: Optional[datetime.datetime] = None
     updated_at: Optional[datetime.datetime] = None

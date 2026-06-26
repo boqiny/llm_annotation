@@ -163,8 +163,8 @@ async def create_draft_from_json(
     body: CodebookDraftCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    """Doors B (paste) and C (preset). JSON-only; no multipart."""
-    if body.source not in ("paste", "preset", "scratch"):
+    """Doors B (text) and C (preset). JSON-only; no multipart."""
+    if body.source not in ("paste", "preset"):
         raise HTTPException(400, f"Invalid source: {body.source!r}")
 
     draft = CodebookDraft(
@@ -243,8 +243,8 @@ async def create_draft_from_json(
         await db.refresh(draft)
         return _draft_to_out(draft)
 
-    # ─── Door D: scratch (Phase 3 — not yet implemented) ───
-    raise HTTPException(501, "Door D (cold-start chat) is not yet implemented.")
+    # Unreachable — source is validated to ("paste", "preset") at the top.
+    raise HTTPException(400, f"Invalid source: {body.source!r}")
 
 
 @router.get("/{draft_id}", response_model=CodebookDraftOut)

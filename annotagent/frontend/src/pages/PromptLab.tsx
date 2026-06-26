@@ -12,6 +12,7 @@ import api, {
   type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion, type MemoryRule, type FeedbackEvidence,
 } from '../lib/api'
 import type { Codebook, Dataset, Job, Pipeline } from '../types'
+import { APP_NAME } from '../lib/brand'
 
 type Tab = 'prompts' | 'improve' | 'runs' | 'memory'
 const TABS: Tab[] = ['prompts', 'improve', 'runs', 'memory']
@@ -68,15 +69,36 @@ export default function PromptLabV2() {
   const [launching, setLaunching] = useState(false)
   const [launchError, setLaunchError] = useState('')
 
-  // Runs master-detail
-  const [selectedRunId, setSelectedRunId] = useState<number | null>(null)
+  // Runs master-detail. A `?run=<id>` param deep-links a run so it can be
+  // bookmarked or shared (and opens it directly on load).
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(() => {
+    const r = searchParams.get('run')
+    return r ? Number(r) : null
+  })
   const [selectedRun, setSelectedRun] = useState<OptimizerRun | null>(null)
 
   const activeCb = codebooks[codebooks.length - 1]
 
   const handleTabChange = (next: Tab) => {
     setTab(next)
-    setSearchParams({ tab: next }, { replace: true })
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev)
+      p.set('tab', next)
+      return p
+    }, { replace: true })
+  }
+
+  // Select a run and reflect it in the URL (?tab=runs&run=<id>) so the view is
+  // shareable and survives a reload.
+  const selectRun = (id: number | null) => {
+    setSelectedRunId(id)
+    setTab('runs')
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev)
+      p.set('tab', 'runs')
+      if (id == null) p.delete('run'); else p.set('run', String(id))
+      return p
+    }, { replace: true })
   }
 
   const latestPipeline = pipelines.slice().sort((a, b) => b.id - a.id)[0] ?? null
@@ -281,7 +303,7 @@ export default function PromptLabV2() {
             } catch (e: any) { setAutoPromptError(fmtError(e)) }
             finally { setAutoPromptLoading(false) }
           }}
-          onJumpToRun={(id) => { setSelectedRunId(id); handleTabChange('runs') }}
+          onJumpToRun={(id) => selectRun(id)}
           onContinue={() => handleTabChange('improve')}
           onHumanFeedback={() => handleTabChange('memory')}
           onAnnotate={handleAnnotateWithBestPrompts}
@@ -303,8 +325,7 @@ export default function PromptLabV2() {
           projectId={projectId}
           onLaunched={(run) => {
             setRuns([run, ...runs])
-            setSelectedRunId(run.id)
-            handleTabChange('runs')
+            selectRun(run.id)
           }}
           setLaunching={setLaunching} setLaunchError={setLaunchError}
         />
@@ -315,7 +336,7 @@ export default function PromptLabV2() {
           runs={runs}
           selectedRunId={selectedRunId}
           selectedRun={selectedRun}
-          onSelect={setSelectedRunId}
+          onSelect={selectRun}
           onUpdate={(r) => {
             setSelectedRun(r)
             setRuns(prev => prev.map(x => x.id === r.id ? r : x))
@@ -371,13 +392,13 @@ function DemoWorkflowGuide() {
     <section className="border border-violet-200 bg-violet-50/70 px-4 py-3">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <div className="font-medium text-violet-950">Suggested demo workflow</div>
+          <div className="font-medium text-violet-950">Suggested workflow</div>
           <p className="mt-1 max-w-4xl text-xs leading-relaxed text-violet-900/85">
             Treat <span className="font-medium">Prompts</span> as the hub. After Setup generates the pipeline, review the prompts here,
             then choose a next step based on what evidence you have.
           </p>
         </div>
-        <div className="font-mono-editorial text-xs text-violet-700">researcher route map</div>
+        <div className="font-mono-editorial text-xs text-violet-700">route map</div>
       </div>
       <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-4">
         <WorkflowMiniStep
@@ -485,7 +506,7 @@ function PromptsTab({
         </div>
         <h3 className="text-lg font-medium tracking-tight">Generating your starting prompts…</h3>
         <p className="mt-2 text-sm text-stone-600 max-w-md mx-auto leading-relaxed">
-          AnnotAgent is writing one prompt for each of your {activeCb.dimensions.length} codebook
+          {APP_NAME} is writing one prompt for each of your {activeCb.dimensions.length} codebook
           dimensions. This runs once and takes a few seconds.
         </p>
         <div className="mt-5 mx-auto max-w-xs h-1 overflow-hidden bg-paper">
@@ -1047,7 +1068,7 @@ function ImproveTab({
           )}
         </div>
         <div className="border border-amber-200 bg-amber-50/70 px-3 py-3">
-          <div className="font-mono-editorial text-amber-800 mb-2">Cost awareness</div>
+          <div className="font-mono-editorial text-amber-800 mb-2">Before you run</div>
           <div className="flex flex-wrap gap-2">
             <RunInputLabel label="Optimizer" value={optimizerCopy(selectedOptimizer).title} />
             <RunInputLabel label="Rounds" value={budget.toLocaleString()} />
@@ -1055,7 +1076,7 @@ function ImproveTab({
             <RunInputLabel label="Dimension" value={selectedDim || '—'} />
           </div>
           <p className="mt-2 text-xs leading-relaxed text-amber-900/80">
-            Improvement can make many LLM calls. Actual tokens and cost depend on optimizer behavior, prompt/output length, retries, and provider pricing. AnnotAgent tracks measured tokens and cost in the run summary.
+            Improvement can make many LLM calls; the number scales with the rounds, the examples, and retries. {APP_NAME} tracks measured token usage in the run summary.
           </p>
         </div>
         <button onClick={handleLaunch} disabled={launching || noLabels || tooFew}
@@ -1561,7 +1582,7 @@ function LiveStrip({
         <Spinner />
         <PhaseLine text={phases[phaseIdx]} />
         <span className="ml-auto font-mono-editorial text-stone-500 text-xs">
-          {elapsedStr} elapsed · {(run.total_tokens || 0).toLocaleString()} tokens · ${(run.total_cost || 0).toFixed(4)}
+          {elapsedStr} elapsed · {(run.total_tokens || 0).toLocaleString()} tokens
         </span>
       </div>
 

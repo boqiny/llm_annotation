@@ -3,6 +3,7 @@ import {
 } from 'react'
 import { useLocation } from 'react-router-dom'
 import { TOUR_STEPS, type TourStep, pageOf, stepForPage } from './steps'
+import { APP_NAME } from '../../lib/brand'
 
 const DONE_KEY = 'annotagent.tour.v1.done'
 const ACTIVE_KEY = 'annotagent.tour.v1.active'
@@ -264,7 +265,7 @@ function Welcome({ onStart, onSkip }: { onStart: () => void; onSkip: () => void 
           A short tour of the golden path
         </h2>
         <p className="mt-3 text-sm leading-relaxed text-stone-600">
-          AnnotAgent turns a codebook into LLM annotations. The guide follows along as you work, one section at a time:
+          {APP_NAME} turns a codebook into LLM annotations. The guide follows along as you work, one section at a time:
         </p>
         <ol className="mt-5 space-y-3">
           <WelcomeRow n="01" title="Create a project" body="Name your task and open Setup." />

@@ -15,6 +15,8 @@
 // data-tour-done="false", the tour shows `need` so the user knows what is still
 // missing. The app sets data-tour-done from its own completion state.
 
+import { APP_NAME } from '../../lib/brand'
+
 export type TourPage = 'home' | 'setup' | 'lab'
 
 export type TourStep = {
@@ -79,7 +81,7 @@ export const TOUR_STEPS: TourStep[] = [
     selector: '[data-tour="first-prompt"]',
     page: 'lab',
     title: 'Your starting prompts',
-    body: 'AnnotAgent drafts one prompt per dimension from your codebook; the first appears here. Read or edit it, then open the Improve tab to optimize a prompt against your labeled examples.',
+    body: `${APP_NAME} drafts one prompt per dimension from your codebook; the first appears here. Read or edit it, then open the Improve tab to optimize a prompt against your labeled examples.`,
   },
   {
     id: 'run-improvement',

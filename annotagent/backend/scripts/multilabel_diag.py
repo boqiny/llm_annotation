@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import random
 import re
@@ -112,24 +113,24 @@ async def predict_sets(prompt, items, dim, valid, args):
                               {"role": "user", "content": f"Sentence: {it['sentence']}"}],
                     provider=args.provider, model=args.model, api_key=args.api_key, max_tokens=200,
                 )
-                return parse_set(resp.text, valid), resp.input_tokens + resp.output_tokens, resp.cost_usd
+                return parse_set(resp.text, valid), resp.input_tokens + resp.output_tokens
             except Exception:
-                return set(), 0, 0.0
+                return set(), 0
 
     res = await asyncio.gather(*(one(it) for it in items))
     preds = [r[0] for r in res]
-    return preds, sum(r[1] for r in res), sum(r[2] for r in res)
+    return preds, sum(r[1] for r in res)
 
 
 async def score(prompt, items, dim, valid, args):
     golds = [gold_set(it, dim, valid) for it in items]
-    preds, tok, cost = await predict_sets(prompt, items, dim, valid, args)
+    preds, tok = await predict_sets(prompt, items, dim, valid, args)
     m = compute_metrics_multilabel([sorted(g) for g in golds], [sorted(p) for p in preds])
     preds_dump = [
         {"sentence": it["sentence"][:300], "gold": sorted(g), "pred": sorted(p)}
         for it, g, p in zip(items, golds, preds)
     ]
-    return m, preds_dump, tok, cost
+    return m, preds_dump, tok
 
 
 def _explode(items, dim, valid) -> list[Example]:
@@ -164,22 +165,22 @@ async def _mine_rules(dim, valid, failures, existing, args):
             provider=args.provider, model=args.model, api_key=args.api_key, max_tokens=400,
         )
         rules = [ln.strip()[1:].strip() for ln in resp.text.splitlines() if ln.strip().startswith("-")]
-        return rules[:4], resp.input_tokens + resp.output_tokens, resp.cost_usd
+        return rules[:4], resp.input_tokens + resp.output_tokens
     except Exception:
-        return [], 0, 0.0
+        return [], 0
 
 
 async def approach_B(dim, valid, train, val, args):
     rules: list[str] = []
     prompt = build_ml_prompt(dim, rules)
-    tok = cost = 0
-    m, _, t, c = await score(prompt, val, dim, valid, args)
-    tok += t; cost += c
+    tok = 0
+    m, _, t = await score(prompt, val, dim, valid, args)
+    tok += t
     best = m["macro_f1"]
     traj = [{"round": 0, "val_macro_f1": m["macro_f1"], "val_micro_f1": m["micro_f1"], "action": "baseline"}]
 
     for r in range(1, args.budget + 1):
-        preds, t, c = await predict_sets(prompt, train, dim, valid, args); tok += t; cost += c
+        preds, t = await predict_sets(prompt, train, dim, valid, args); tok += t
         golds = [gold_set(it, dim, valid) for it in train]
         failures = [(it, g, p) for it, g, p in zip(train, golds, preds) if g != p]
         if not failures:
@@ -187,12 +188,12 @@ async def approach_B(dim, valid, train, val, args):
             break
         rng = random.Random(r)
         sample = rng.sample(failures, min(12, len(failures)))
-        new_rules, t, c = await _mine_rules(dim, valid, sample, rules, args); tok += t; cost += c
+        new_rules, t = await _mine_rules(dim, valid, sample, rules, args); tok += t
         if not new_rules:
             traj.append({"round": r, "action": "no_rules", "val_macro_f1": best})
             continue
         cand = build_ml_prompt(dim, rules + new_rules)
-        cm, _, t, c = await score(cand, val, dim, valid, args); tok += t; cost += c
+        cm, _, t = await score(cand, val, dim, valid, args); tok += t
         if cm["macro_f1"] > best + 1e-9:
             rules = rules + new_rules; prompt = cand; best = cm["macro_f1"]
             action = "accept"
@@ -200,7 +201,7 @@ async def approach_B(dim, valid, train, val, args):
             action = "rollback"
         traj.append({"round": r, "val_macro_f1": cm["macro_f1"], "val_micro_f1": cm["micro_f1"],
                      "action": action, "n_rules": len(rules)})
-    return prompt, rules, traj, tok, cost
+    return prompt, rules, traj, tok
 
 
 # ── driver ───────────────────────────────────────────────────────────────────
@@ -224,6 +225,7 @@ async def main():
     ap.add_argument("--model", default="gpt-5.4-mini")
     ap.add_argument("--concurrency", type=int, default=8)
     ap.add_argument("--out", default="/tmp/ml_diag.json")
+    ap.add_argument("--seed", type=int, default=0, help="split seed index; 0 reproduces the original single-seed run")
     ap.add_argument("--skip-a", action="store_true", help="skip approach A (stock ReflectAgent)")
     args = ap.parse_args()
     args.api_key = resolve_api_key(args.provider)
@@ -238,7 +240,8 @@ async def main():
     items = [it for it in items if gold_set(it, dim, valid)]
     if args.limit:  # 0 = use all items
         items = items[: args.limit]
-    seed = hash((args.user, args.dim)) & 0xFFFF_FFFF
+    seed_key = f"{args.user}|{args.dim}" + (f"|{args.seed}" if args.seed else "")
+    seed = int(hashlib.sha256(seed_key.encode()).hexdigest()[:8], 16)
     train, val, test = _split_items(items, seed)
     print(f"{args.user}/{args.dim}: {len(items)} items -> train {len(train)} / val {len(val)} / test {len(test)}")
 
@@ -252,9 +255,9 @@ async def main():
 
     # zero-shot
     zs_prompt = build_ml_prompt(dim, [])
-    m, preds, tok, cost = await score(zs_prompt, test, dim, valid, args)
+    m, preds, tok = await score(zs_prompt, test, dim, valid, args)
     out["conditions"]["zero_shot"] = {"prompt": zs_prompt, "rules": [], "test_metrics": m,
-                                      "test_predictions": preds, "tokens": tok, "cost_usd": cost}
+                                      "test_predictions": preds, "tokens": tok}
     print(f"  zero-shot   micro-F1 {m['micro_f1']:.3f}  macro-F1 {m['macro_f1']:.3f}  exact {m['accuracy']:.3f}")
 
     # approach A: stock ReflectAgent rules injected into the set-prompt
@@ -268,19 +271,19 @@ async def main():
                                  valid_labels=valid, trainset=tr_ex, valset=va_ex)
         a_rules = list((res.artifact or {}).get("rule_library") or [])
         a_prompt = build_ml_prompt(dim, a_rules)
-        m, preds, tok, cost = await score(a_prompt, test, dim, valid, args)
+        m, preds, tok = await score(a_prompt, test, dim, valid, args)
         out["conditions"]["approach_A"] = {"prompt": a_prompt, "rules": a_rules,
                                            "val_trajectory_singlelabel": res.trajectory,
                                            "test_metrics": m, "test_predictions": preds,
-                                           "tokens": tok + res.total_tokens, "cost_usd": cost + res.total_cost_usd}
+                                           "tokens": tok + res.total_tokens}
         print(f"  approach_A  micro-F1 {m['micro_f1']:.3f}  macro-F1 {m['macro_f1']:.3f}  exact {m['accuracy']:.3f}  ({len(a_rules)} rules)")
 
     # approach B: multi-label optimizer
-    b_prompt, b_rules, b_traj, b_tok, b_cost = await approach_B(dim, valid, train, val, args)
-    m, preds, tok, cost = await score(b_prompt, test, dim, valid, args)
+    b_prompt, b_rules, b_traj, b_tok = await approach_B(dim, valid, train, val, args)
+    m, preds, tok = await score(b_prompt, test, dim, valid, args)
     out["conditions"]["approach_B"] = {"prompt": b_prompt, "rules": b_rules, "val_trajectory": b_traj,
                                        "test_metrics": m, "test_predictions": preds,
-                                       "tokens": tok + b_tok, "cost_usd": cost + b_cost}
+                                       "tokens": tok + b_tok}
     print(f"  approach_B  micro-F1 {m['micro_f1']:.3f}  macro-F1 {m['macro_f1']:.3f}  exact {m['accuracy']:.3f}  ({len(b_rules)} rules)")
 
     Path(args.out).write_text(json.dumps(out, indent=2))

@@ -96,7 +96,6 @@ export default function ResultsDashboard() {
           value={metrics.length > 0 ? formatPercent(metrics.reduce((s, m) => s + m.metrics.accuracy, 0) / metrics.length) : '—'}
         />
         <StatBlock label="Tokens" value={formatTokens(job?.total_tokens ?? 0)} />
-        <StatBlock label="Cost (USD)" value={`$${(job?.total_cost ?? 0).toFixed(4)}`} />
         <StatBlock
           label="Status"
           value={job?.status ?? '—'}
@@ -104,7 +103,7 @@ export default function ResultsDashboard() {
         />
       </section>
       <p className="-mt-8 text-xs text-stone-500">
-        Tokens and cost are persisted from actual model usage for this job. Input/output token split is not stored separately yet.
+        Token counts are persisted from actual model usage for this job. Input/output token split is not stored separately yet.
       </p>
 
       <section className="border border-seam bg-white">
