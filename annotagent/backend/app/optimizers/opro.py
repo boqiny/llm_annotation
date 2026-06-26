@@ -81,7 +81,7 @@ Return ONLY the prompt text."""
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0]
         tokens = resp.input_tokens + resp.output_tokens
-        return text.strip(), tokens, resp.cost_usd
+        return text.strip(), tokens
 
     async def optimize(
         self,
@@ -93,7 +93,6 @@ Return ONLY the prompt text."""
         on_progress: Optional[ProgressCB] = None,
     ) -> OptimizationResult:
         total_tokens = 0
-        total_cost = 0.0
         trajectory_trace: list[dict] = []
         candidates: list[tuple[str, float]] = []
 
@@ -101,7 +100,6 @@ Return ONLY the prompt text."""
             await _emit(on_progress, {
                 "trajectory": list(trajectory_trace),
                 "total_tokens": total_tokens,
-                "total_cost_usd": total_cost,
                 "current_round": trajectory_trace[-1].get("round", 0) if trajectory_trace else 0,
                 "total_rounds": self.budget,
                 "optimized_prompt": current_best,
@@ -110,12 +108,11 @@ Return ONLY the prompt text."""
             })
 
         # Seed the trajectory with the initial prompt
-        acc, _, t, c = await evaluate_prompt(
+        acc, _, t = await evaluate_prompt(
             initial_prompt, valset, valid_labels,
             provider=self.provider, model=self.model, api_key=self.api_key,
         )
         total_tokens += t
-        total_cost += c
         candidates.append((initial_prompt, acc))
         trajectory_trace.append({"round": 0, "val_acc": acc, "action": "baseline"})
         best_prompt, best_acc = initial_prompt, acc
@@ -128,9 +125,8 @@ Return ONLY the prompt text."""
 
         for r in range(1, self.budget + 1):
             try:
-                new_prompt, t, c = await self._propose(candidates, task_description)
+                new_prompt, t = await self._propose(candidates, task_description)
                 total_tokens += t
-                total_cost += c
             except Exception as e:
                 logger.warning(f"OPRO proposal failed round {r}: {e}")
                 trajectory_trace.append({"round": r, "action": "proposal_failed"})
@@ -142,12 +138,11 @@ Return ONLY the prompt text."""
                 await report(best_prompt, best_acc)
                 continue
 
-            acc, _, t, c = await evaluate_prompt(
+            acc, _, t = await evaluate_prompt(
                 new_prompt, valset, valid_labels,
                 provider=self.provider, model=self.model, api_key=self.api_key,
             )
             total_tokens += t
-            total_cost += c
             candidates.append((new_prompt, acc))
 
             if acc > best_acc:
@@ -168,5 +163,4 @@ Return ONLY the prompt text."""
             trajectory=trajectory_trace,
             artifact={"n_candidates": len(candidates)},
             total_tokens=total_tokens,
-            total_cost_usd=total_cost,
         )

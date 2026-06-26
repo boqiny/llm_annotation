@@ -9,9 +9,12 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
+from app.config import resolve_api_key, settings
 from app.database import get_db
 from app.engine.codebook_parser import parse_codebook
+from app.engine.gold_align import (
+    autofix_items, build_gold_schema, canonicalize_items, schema_for_ui, validate_items,
+)
 from app.models.tables import Codebook, Dataset, DataItem, Project
 from app.schemas.schemas import DatasetOut, DatasetPreview, DataItemOut
 from app.utils.file_parsers import parse_json_dataset, parse_csv_dataset
@@ -155,6 +158,134 @@ async def upload_dataset(
     await db.commit()
     await db.refresh(dataset)
     return dataset
+
+
+# ─── schema-aware validation + LLM auto-fix for labeled (gold) uploads ───────
+
+async def _active_codebook_raw(db: AsyncSession, project_id: int) -> dict | None:
+    codebook = (await db.execute(
+        select(Codebook).where(Codebook.project_id == project_id)
+        .order_by(Codebook.id.desc()).limit(1)
+    )).scalars().first()
+    return codebook.raw_json if codebook else None
+
+
+async def _project_llm(db: AsyncSession, project: Project) -> tuple[str, str, str]:
+    provider = project.llm_provider or "openai"
+    model = project.llm_model or ("claude-sonnet-4-5-20250929" if provider == "anthropic" else "gpt-5.4-mini")
+    api_key = resolve_api_key(provider, project.api_key_encrypted)
+    if not api_key:
+        raise HTTPException(400, f"No {provider} API key available for the auto-fix LLM.")
+    return provider, model, api_key
+
+
+def _parse_upload(content: str, filename: str) -> tuple[list[dict], str]:
+    if filename.endswith(".csv"):
+        return parse_csv_dataset(content), "csv"
+    return parse_json_dataset(content), "json"
+
+
+async def _persist_items(db: AsyncSession, project_id: int, name: str, file_type: str,
+                         is_gold: bool, items: list[dict]) -> Dataset:
+    dataset = Dataset(project_id=project_id, name=name, file_type=file_type,
+                      total_items=len(items), is_gold=is_gold)
+    db.add(dataset)
+    await db.flush()
+    for i, item in enumerate(items):
+        db.add(DataItem(
+            dataset_id=dataset.id,
+            index=item.get("index", i),
+            content=item.get("content", ""),
+            context=item.get("context", ""),
+            metadata_=item.get("metadata", {}),
+            gold_labels=item.get("gold_labels", {}),
+        ))
+    await db.commit()
+    await db.refresh(dataset)
+    return dataset
+
+
+@router.get("/schema")
+async def get_expected_schema(project_id: int, db: AsyncSession = Depends(get_db)):
+    """The codebook schema labeled data must match (for the UI to display)."""
+    raw = await _active_codebook_raw(db, project_id)
+    if raw is None:
+        raise HTTPException(400, "No codebook yet — accept a codebook before uploading labeled data.")
+    return schema_for_ui(raw)
+
+
+@router.post("/validate")
+async def validate_labeled_upload(
+    project_id: int,
+    file: UploadFile = File(...),
+    is_gold: bool = Form(True),
+    db: AsyncSession = Depends(get_db),
+):
+    """Dry run: parse + validate labeled data against the codebook. Persists nothing.
+    Returns the parsed items (echoed back for the auto-fix / commit steps) and a report."""
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    raw = await _active_codebook_raw(db, project_id)
+    if raw is None:
+        raise HTTPException(400, "Accept a codebook before uploading labeled data.")
+
+    content = (await file.read()).decode("utf-8")
+    filename = file.filename or "dataset"
+    items, file_type = _parse_upload(content, filename)
+    schema = build_gold_schema(raw)
+    report = validate_items(items, schema)
+    return {"filename": filename, "file_type": file_type, "is_gold": is_gold,
+            "items": items, "report": report, "schema": schema_for_ui(raw)}
+
+
+class _ItemsBody(BaseModel):
+    items: list[dict]
+
+
+@router.post("/autofix")
+async def autofix_labeled_upload(
+    project_id: int,
+    body: _ItemsBody,
+    db: AsyncSession = Depends(get_db),
+):
+    """Run the structured-mapping ReAct loop to align items to the codebook.
+    Returns {items, trace, report} — still persists nothing."""
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    raw = await _active_codebook_raw(db, project_id)
+    if raw is None:
+        raise HTTPException(400, "Accept a codebook before auto-fixing labeled data.")
+    provider, model, api_key = await _project_llm(db, project)
+    schema = build_gold_schema(raw)
+    return await autofix_items(body.items, schema, provider=provider, model=model, api_key=api_key)
+
+
+class _CommitBody(BaseModel):
+    name: str = "labeled_data"
+    is_gold: bool = True
+    file_type: str = "json"
+    items: list[dict]
+
+
+@router.post("/commit", response_model=DatasetOut, status_code=201)
+async def commit_labeled_dataset(
+    project_id: int,
+    body: _CommitBody,
+    db: AsyncSession = Depends(get_db),
+):
+    """Persist already-validated items. Gold labels are snapped to the codebook's
+    canonical spelling (and unknown dimensions dropped) before storing."""
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    items = body.items
+    if body.is_gold:
+        raw = await _active_codebook_raw(db, project_id)
+        if raw is not None:
+            items = canonicalize_items(items, build_gold_schema(raw))
+    return await _persist_items(db, project_id, body.name, body.file_type, body.is_gold, items)
 
 
 @router.get("", response_model=list[DatasetOut])

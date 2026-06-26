@@ -14,21 +14,31 @@ as warnings or critic flags with `severity: "error"`.
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
 import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.agents.codebook_orchestrator import FileExplorer, run_orchestrator
 from app.engine.codebook_parser import parse_codebook, validate_codebook
-from app.engine.format_parsers import IngestResult, parse_file
+from app.engine.format_parsers import IngestResult, Table, parse_file
 from app.engine.llm_client import call_llm
 
 logger = logging.getLogger(__name__)
 
 MIN_CLEAN_TEXT_CHARS = 50         # below this, skip Drafter
 DRAFTER_MAX_RETRIES = 3           # strict-JSON + schema validation
-DRAFTER_MAX_TOKENS = 4096
+DRAFTER_MAX_TOKENS = 8000         # many labels + verbatim definitions need headroom
+
+# Codebook drafting is a one-shot reasoning task (read the whole codebook, infer
+# the schema). Use a strong model here regardless of the per-project annotation
+# model, which is often a cheaper one tuned for high-volume labeling.
+CODEBOOK_DRAFTER_MODEL = "gpt-5.5"
+# Drafting is extraction/structuring, not deep reasoning. Full-effort reasoning on
+# gpt-5.5 runs ~2+ minutes (past the client timeout); "low" keeps quality but cuts
+# latency to a usable range.
+CODEBOOK_DRAFTER_EFFORT = "low"
 
 
 @dataclass
@@ -58,6 +68,38 @@ MODE INFERENCE:
     "A & B" in the data, or same sentence appears multiple times with
     different labels, or codebook text explicitly says "labels may co-occur")
 
+DIMENSIONS vs LABELS — get this right, it is the crux:
+  A DIMENSION is one question answered for EVERY item (every sentence gets a
+  Level, a Depth, an Intimacy, a Confession — four independent axes = four
+  dimensions). LABELS are the mutually-exclusive answer options for ONE
+  dimension (High / Low / No). A dimension is ALWAYS a single theme name plus a
+  FLAT list of labels — never nest sub-structure inside it.
+
+  In a spreadsheet, identify the dimensions FIRST. Read the column HEADERS — do
+  not hard-code:
+    - The dimensions are the distinct CODING AXES — typically the values of a
+      "coding theme" / "aspect" column (e.g. "Level of disclosure", "Depth",
+      "Intimacy"; or "Recommendation", "Analysis", "Planning"), PLUS any
+      dedicated column that poses its own categorical question (a separate
+      "Topic" column is its own dimension).
+    - The labels are the option values sitting next to each axis (e.g. a
+      "Levels" / "Code" column).
+    - Definitions, examples, sub-codes, and notes DESCRIBE labels: fold them into
+      the label's `definition` / `examples`. They are never dimensions, and must
+      not be dropped.
+
+  Do NOT mistake a broader grouping column for the dimension axis. If a column
+  ABOVE the axis holds whole DOMAINS (e.g. a "Type" column with values like
+  "Users' prompts" vs "Personalization" — the same role that separate sheets or
+  separate codebooks play elsewhere), it is NOT a dimension. Keep one codebook,
+  take the dimensions from the axis column below it, and mention the domain
+  grouping in the affected dimensions' instructions.
+
+  If the sheet is a single flat list of categories with no axis column, produce
+  ONE dimension whose labels are those categories. Keep dimensions to the
+  genuinely independent axes — never split one axis's labels into many thin
+  dimensions.
+
 RULES:
   1. If the input text already contains a codebook JSON block, extract it faithfully.
   2. If the input is annotator data (spreadsheet dumps with Coding theme / Level
@@ -67,7 +109,9 @@ RULES:
   5. If a dimension may not apply to every item, include an explicit "No label"
      label with a definition like "Use when none of the substantive labels apply."
      Do not represent non-applicability by omitting the dimension or leaving cells blank.
-  6. Output STRICT JSON. No prose, no markdown fences, no comments."""
+  6. Definitions: copy the source cell text verbatim. Never truncate a definition
+     to a fragment, and never reuse an Example cell as a definition.
+  7. Output STRICT JSON. No prose, no markdown fences, no comments."""
 
 
 async def run_codebook_agent(
@@ -114,7 +158,7 @@ async def run_codebook_agent(
             error_message="Input too short for schema extraction.",
         )
 
-    # ─── Drafter ───
+    # ─── Drafter (strong one-shot) ───
     if not api_key:
         return DraftResult(
             warnings=warnings,
@@ -125,84 +169,13 @@ async def run_codebook_agent(
             analysis_rows=analysis_rows,
         )
 
-    draft_json: dict[str, Any] = {}
-    drafter_error: str = ""
-
-    if (provider or "").lower() in {"openai", "anthropic"}:
-        # Tool-calling orchestrator: agent inspects the file directly via
-        # list_sheets / read_sheet_range / column_unique_values / search_text
-        # / read_text and submits the codebook via propose_codebook.
-        try:
-            explorer = FileExplorer(
-                filename=filename or "uploaded",
-                file_bytes=file_bytes,
-                pasted_text=pasted_text,
-            )
-        except Exception as e:
-            logger.warning(f"FileExplorer init failed: {e}", exc_info=True)
-            explorer = None
-
-        if explorer is not None:
-            initial_hint = ""
-            if ingest.tables:
-                initial_hint = f"Sheet hints: {[t.name for t in ingest.tables]}"
-            orch = await run_orchestrator(
-                explorer=explorer,
-                api_key=api_key, provider=provider, model=model,
-                initial_hint=initial_hint,
-            )
-            if orch.ok:
-                draft_json = orch.codebook
-                logger.info(
-                    f"Orchestrator OK: {orch.iterations} iterations, "
-                    f"{orch.tool_calls} tool calls"
-                )
-            else:
-                drafter_error = orch.error
-                logger.warning(f"Orchestrator failed: {orch.error}")
-
-    if not draft_json:
-        # Fallback path: single-shot Drafter (also used for non-OpenAI providers
-        # since native tool-calling shapes differ across vendors).
-        user_msg = _build_drafter_user_message(ingest)
-        last_err = ""
-        for attempt in range(DRAFTER_MAX_RETRIES):
-            try:
-                resp = await call_llm(
-                    messages=[
-                        {"role": "system", "content": _DRAFTER_SYSTEM},
-                        {"role": "user", "content": user_msg + last_err},
-                    ],
-                    provider=provider, model=model, api_key=api_key,
-                    max_tokens=DRAFTER_MAX_TOKENS,
-                )
-            except Exception as e:
-                logger.warning(f"Drafter LLM call failed (attempt {attempt + 1}): {e}")
-                drafter_error = f"LLM call failed: {type(e).__name__}: {e}"
-                continue
-
-            parsed = _extract_json(resp.text)
-            if parsed is None:
-                last_err = (
-                    "\n\nREMINDER: your previous response was not valid JSON. "
-                    "Return ONLY a JSON object — no markdown fences, no prose."
-                )
-                drafter_error = "LLM returned non-JSON."
-                continue
-
-            errors = validate_codebook(parsed)
-            if errors:
-                last_err = (
-                    "\n\nREMINDER: your previous JSON failed schema validation with these errors:\n- "
-                    + "\n- ".join(errors)
-                    + "\nFix these and return STRICT JSON only."
-                )
-                drafter_error = f"Schema validation: {errors[:2]}"
-                continue
-
-            draft_json = parsed
-            drafter_error = ""
-            break
+    # The whole codebook fits in one prompt; feed the full forward-filled content
+    # to a strong model in a single call (with strict-JSON + schema-validation
+    # retries) rather than a self-built tool-calling loop over windowed reads.
+    draft_model = _strong_drafter_model(provider, model)
+    draft_json, drafter_error = await _draft_oneshot(
+        ingest, provider=provider, model=draft_model, api_key=api_key,
+    )
 
     if not draft_json:
         return DraftResult(
@@ -211,7 +184,7 @@ async def run_codebook_agent(
                            f"Drafter failed: {drafter_error}"}],
             error_message=drafter_error,
             analysis_rows=analysis_rows,
-            drafter_model=model,
+            drafter_model=draft_model,
         )
 
     # ─── Critic (rule-based) ───
@@ -221,7 +194,7 @@ async def run_codebook_agent(
     draft_json.setdefault("_meta", {})
     draft_json["_meta"].update({
         "source_filename": filename,
-        "drafter_model": model,
+        "drafter_model": draft_model,
         "has_analysis_rows": bool(analysis_rows),
         "n_analysis_rows": len(analysis_rows),
     })
@@ -232,40 +205,111 @@ async def run_codebook_agent(
         analysis_rows=analysis_rows,
         warnings=warnings,
         critic_flags=critic_flags,
-        drafter_model=model,
+        drafter_model=draft_model,
     )
+
+
+def _strong_drafter_model(provider: str, project_model: str) -> str:
+    """Always draft with a strong model. For OpenAI that's CODEBOOK_DRAFTER_MODEL;
+    other providers keep their project model (no cheap default to override)."""
+    return CODEBOOK_DRAFTER_MODEL if (provider or "").lower() == "openai" else project_model
+
+
+async def _draft_oneshot(
+    ingest: IngestResult, *, provider: str, model: str, api_key: str,
+) -> tuple[dict[str, Any], str]:
+    """One LLM call (with strict-JSON + schema-validation retries) that reads the
+    full codebook and returns a validated draft. Returns ({}, error) on failure."""
+    user_msg = _build_drafter_user_message(ingest)
+    drafter_error = ""
+    last_err = ""
+    for attempt in range(DRAFTER_MAX_RETRIES):
+        try:
+            resp = await call_llm(
+                messages=[
+                    {"role": "system", "content": _DRAFTER_SYSTEM},
+                    {"role": "user", "content": user_msg + last_err},
+                ],
+                provider=provider, model=model, api_key=api_key,
+                max_tokens=DRAFTER_MAX_TOKENS, reasoning_effort=CODEBOOK_DRAFTER_EFFORT,
+            )
+        except Exception as e:
+            logger.warning(f"Drafter LLM call failed (attempt {attempt + 1}): {e}")
+            drafter_error = f"LLM call failed: {type(e).__name__}: {e}"
+            continue
+
+        parsed = _extract_json(resp.text)
+        if parsed is None:
+            last_err = (
+                "\n\nREMINDER: your previous response was not valid JSON. "
+                "Return ONLY a JSON object — no markdown fences, no prose."
+            )
+            drafter_error = "LLM returned non-JSON."
+            continue
+
+        errors = validate_codebook(parsed)
+        if errors:
+            last_err = (
+                "\n\nREMINDER: your previous JSON failed schema validation with these errors:\n- "
+                + "\n- ".join(errors)
+                + "\nFix these and return STRICT JSON only."
+            )
+            drafter_error = f"Schema validation: {errors[:2]}"
+            continue
+
+        return parsed, ""
+    return {}, drafter_error
 
 
 def _build_drafter_user_message(ingest: IngestResult) -> str:
-    """Compose the user prompt for Drafter, including detected tables as hints."""
-    parts = ["INPUT MATERIAL:\n\n" + ingest.clean_text]
+    """Compose the Drafter prompt with the FULL file content.
 
+    For spreadsheets/tables we render every forward-filled row as CSV (parent
+    cells already propagated down the hierarchy) plus per-column multi-label
+    hints. For text inputs we pass the cleaned text directly. This replaces the
+    earlier truncated 25-row / 120-char summary that collapsed deep taxonomies.
+    """
+    parts: list[str] = []
     if ingest.tables:
-        # Summarize detected labels per sheet — huge signal for mode inference
-        parts.append("\n\nDETECTED TABLES:")
+        parts.append(
+            "INPUT SPREADSHEET — every row below is self-contained "
+            "(parent/hierarchy cells are already forward-filled down):"
+        )
         for t in ingest.tables:
-            label_col = None
-            for h in t.header:
-                if h and h.strip().lower() in ("level", "subcategory", "label"):
-                    label_col = h
-                    break
-            if label_col:
-                vals = [str(r.get(label_col) or "") for r in t.rows]
-                has_ampersand = any(" & " in v for v in vals)
-                uniq = sorted({v for v in vals if v})[:30]
-                parts.append(
-                    f"\n[{t.name}] column '{label_col}' has {len(uniq)} distinct values "
-                    f"(ampersand-separated {'YES' if has_ampersand else 'NO'} → "
-                    f"{'multi' if has_ampersand else 'single'}_label hint)"
-                )
-                if uniq:
-                    parts.append("  values: " + ", ".join(uniq))
+            parts.append(_render_table_csv(t))
+            hint = _mode_hints(t)
+            if hint:
+                parts.append(hint)
+    else:
+        parts.append("INPUT MATERIAL:\n\n" + ingest.clean_text)
 
     parts.append(
-        "\n\nProduce the codebook JSON now. Remember: STRICT JSON only, "
-        "no fences, no prose."
+        "\nProduce the codebook JSON now. STRICT JSON only — no fences, no prose. "
+        "Copy definitions verbatim from the cells; capture every distinct category."
     )
     return "\n".join(parts)
+
+
+def _render_table_csv(t: Table) -> str:
+    """Render a table as CSV, dropping fully-empty columns and never truncating cells."""
+    keep = [h for h in t.header if h and any(str(r.get(h) or "").strip() for r in t.rows)]
+    if not keep:
+        keep = [h for h in t.header if h] or [f"col{i}" for i in range(len(t.header))]
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(keep)
+    for r in t.rows:
+        writer.writerow([str(r.get(h, "") or "").replace("\n", " / ").strip() for h in keep])
+    return f"\n[sheet: {t.name}]  ({len(t.rows)} rows)\n{buf.getvalue().rstrip()}"
+
+
+def _mode_hints(t: Table) -> str:
+    """Flag columns whose cells contain ' & ' — a multi-label co-occurrence signal."""
+    flagged = [repr(h) for h in t.header
+               if h and any(" & " in str(r.get(h) or "") for r in t.rows)]
+    if not flagged:
+        return ""
+    return f"MODE HINT: columns {', '.join(flagged)} contain ' & ' (multi-label co-occurrence signal)."
 
 
 def _extract_json(text: str) -> dict[str, Any] | None:

@@ -39,7 +39,6 @@ class OptimizationResult:
     trajectory: list[dict[str, Any]] = field(default_factory=list)
     artifact: dict[str, Any] = field(default_factory=dict)  # Rule library, demos, …
     total_tokens: int = 0
-    total_cost_usd: float = 0.0
 
 
 class PromptOptimizer(ABC):
@@ -138,7 +137,7 @@ async def evaluate_prompt(
 
     is_binary = len(valid_labels) == 2 and any("yes" in l.lower() for l in valid_labels)
 
-    async def _score_one(ex: Example) -> tuple[str, int, int, float]:
+    async def _score_one(ex: Example) -> tuple[str, int]:
         async with semaphore:
             user_msg = f"Sentence: {ex.sentence}"
             if ex.context:
@@ -153,14 +152,13 @@ async def evaluate_prompt(
                 )
                 label = parse_answer(resp.text, valid_labels, is_binary=is_binary)
                 tokens = resp.input_tokens + resp.output_tokens
-                return label, tokens, tokens, resp.cost_usd
+                return label, tokens
             except Exception:
-                return "", 0, 0, 0.0
+                return "", 0
 
     results = await asyncio.gather(*(_score_one(ex) for ex in examples))
     preds = [r[0] for r in results]
-    total_tokens = sum(r[2] for r in results)
-    total_cost = sum(r[3] for r in results)
+    total_tokens = sum(r[1] for r in results)
     correct = sum(1 for p, ex in zip(preds, examples) if p == ex.gold)
     acc = correct / len(examples) if examples else 0.0
-    return acc, preds, total_tokens, total_cost
+    return acc, preds, total_tokens

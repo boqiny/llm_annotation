@@ -2,17 +2,19 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   getProject, updateProject, listPresets, listCodebooks,
-  uploadDataset, listDatasets, deleteDataset, decomposePipeline,
+  listDatasets, deleteDataset, decomposePipeline,
   listSeedDatasets, loadSeedDataset, getBackendConfig,
   type SeedDatasetInfo, type BackendConfig,
 } from '../lib/api'
 import type { Project, Codebook, Dataset, PresetInfo } from '../types'
 import CodebookDraftWizard from '../components/CodebookDraftWizard'
+import LabeledDataUpload from '../components/LabeledDataUpload'
+import { APP_NAME } from '../lib/brand'
 
 type Step = 'model' | 'codebook' | 'data'
 
 const MODEL_OPTIONS: Record<string, string[]> = {
-  openai: ['gpt-5.4-mini', 'gpt-5.4', 'gpt-4.1-mini'],
+  openai: ['gpt-5.4-mini', 'gpt-5.4', 'gpt-5.5', 'gpt-5.5-mini'],
   anthropic: ['claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805', 'claude-3-5-haiku-20241022'],
 }
 
@@ -57,11 +59,6 @@ export default function ProjectSetupV2() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  const handleDataUpload = async (e: React.ChangeEvent<HTMLInputElement>, isGold: boolean) => {
-    const file = e.target.files?.[0]; if (!file) return
-    await uploadDataset(projectId, file, isGold)
-    setDatasets(await listDatasets(projectId))
-  }
   const handleLoadSeed = async (seedId: string) => {
     setLoadingSeed(seedId)
     try { await loadSeedDataset(projectId, seedId); setDatasets(await listDatasets(projectId)) }
@@ -156,6 +153,7 @@ export default function ProjectSetupV2() {
           {step === 'data' && (
             <div data-tour="setup-data">
               <DataStep
+                projectId={projectId}
                 activeCb={activeCb}
                 seeds={seeds}
                 datasets={datasets}
@@ -163,7 +161,7 @@ export default function ProjectSetupV2() {
                 removingDataset={removingDataset}
                 onLoadSeed={handleLoadSeed}
                 onRemoveDataset={handleRemoveDataset}
-                onUpload={handleDataUpload}
+                onUploaded={async () => setDatasets(await listDatasets(projectId))}
               />
             </div>
           )}
@@ -190,7 +188,7 @@ export default function ProjectSetupV2() {
         <p className="mt-1 text-xs leading-relaxed text-stone-600">
           Work through the three steps on the left: pick a model, confirm a codebook, and (optionally) add a
           few labeled examples. When they show a checkmark, click <span className="font-medium text-ink">Generate
-          pipeline</span> at the bottom. AnnotAgent writes one set of labeling instructions per label in your
+          pipeline</span> at the bottom. {APP_NAME} writes one set of labeling instructions per label in your
           codebook and opens the Prompts page, where you improve them and start labeling.
         </p>
       </div>
@@ -332,8 +330,9 @@ function CodebookStep({
 }
 
 function DataStep({
-  activeCb, seeds, datasets, loadingSeed, removingDataset, onLoadSeed, onRemoveDataset, onUpload,
+  projectId, activeCb, seeds, datasets, loadingSeed, removingDataset, onLoadSeed, onRemoveDataset, onUploaded,
 }: {
+  projectId: number
   activeCb?: Codebook
   seeds: SeedDatasetInfo[]
   datasets: Dataset[]
@@ -341,7 +340,7 @@ function DataStep({
   removingDataset: number | null
   onLoadSeed: (id: string) => void
   onRemoveDataset: (id: number) => void
-  onUpload: (e: React.ChangeEvent<HTMLInputElement>, isGold: boolean) => void
+  onUploaded: () => void | Promise<void>
 }) {
   const labeledDatasets = datasets.filter(ds =>
     ds.is_gold
@@ -351,7 +350,7 @@ function DataStep({
   return (
     <div className="space-y-4">
       <div className="border-l-2 border-violet-700 bg-violet-50 px-4 py-3 text-sm text-violet-950 leading-relaxed">
-        Upload existing labeled data if you have it. AnnotAgent can learn from those correct labels to improve the prompts and check annotation quality.
+        Upload existing labeled data if you have it. {APP_NAME} can learn from those correct labels to improve the prompts and check annotation quality.
       </div>
       <div className="border border-violet-200 bg-violet-50/70 px-4 py-3 text-sm text-violet-950">
         <div className="font-medium">Expected labeled-data format</div>
@@ -360,7 +359,7 @@ function DataStep({
           <span className="font-mono text-[11px]"> Relevant quotes </span>,
           <span className="font-mono text-[11px]"> Coding theme </span>, and
           <span className="font-mono text-[11px]"> Level </span>.
-          AnnotAgent groups repeated quotes and reads each Coding theme as a dimension and each Level as its correct label.
+          {APP_NAME} groups repeated quotes and reads each Coding theme as a dimension and each Level as its correct label.
         </p>
         <p className="mt-2 text-xs leading-relaxed text-violet-900/85">
           JSON or CSV files can also include a
@@ -411,18 +410,7 @@ function DataStep({
 
       <div>
         <div className="font-mono-editorial text-stone-500 text-xs mb-2">Upload labeled data</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FileField
-            label="Labeled data (CSV/JSON)"
-            description="Examples that already have correct labels. CSV can use Relevant quotes + Coding theme + Level, or a labels/gold_labels object."
-            onChange={e => onUpload(e, true)}
-          />
-          <FileField
-            label="Gold standard (CSV/JSON)"
-            description="Your most trusted labels, such as expert-reviewed answers, using the same labeled-data format."
-            onChange={e => onUpload(e, true)}
-          />
-        </div>
+        <LabeledDataUpload projectId={projectId} onLoaded={onUploaded} />
       </div>
 
       {labeledDatasets.length > 0 && (
@@ -530,24 +518,6 @@ function ModelStep({
 
 function LabelV2({ children }: { children: React.ReactNode }) {
   return <span className="font-mono-editorial text-stone-500 block mb-1 text-xs">{children}</span>
-}
-
-function FileField({
-  label,
-  description,
-  onChange,
-}: {
-  label: string
-  description?: string
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-}) {
-  return (
-    <label className="block border border-seam bg-white px-4 py-3 hover:border-stone-300 transition">
-      <span className="block text-sm font-semibold text-ink mb-1">{label}</span>
-      {description && <p className="mb-2 text-xs text-stone-600 leading-relaxed">{description}</p>}
-      <input type="file" accept=".csv,.json" onChange={onChange} className="text-sm pt-1" />
-    </label>
-  )
 }
 
 function KeyBadge({ label, loaded }: { label: string; loaded: boolean }) {

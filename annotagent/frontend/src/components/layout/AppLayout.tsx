@@ -1,5 +1,6 @@
 import { Outlet, NavLink, Link, useParams, useLocation } from 'react-router-dom'
 import { useTour } from '../tour/TourProvider'
+import { APP_NAME } from '../../lib/brand'
 
 export default function AppLayout() {
   const { id } = useParams()
@@ -14,7 +15,7 @@ export default function AppLayout() {
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link to="/" className="group flex items-baseline gap-3">
             <span className="text-xl font-semibold tracking-tight text-ink">
-              AnnotAgent
+              {APP_NAME}
             </span>
             <span className="font-mono-editorial text-stone-400 hidden sm:inline">
               codebook-driven annotation
