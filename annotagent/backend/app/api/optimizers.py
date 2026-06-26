@@ -19,7 +19,9 @@ from app.database import get_db, async_session
 from app.engine.codebook_parser import parse_codebook
 from app.engine.metrics import compute_metrics
 from app.engine.prompt_generator import generate_dimension_prompt
-from app.utils.storage import next_version, project_paths, save_text, save_yaml, utc_now_iso
+from app.utils.storage import (
+    append_jsonl, next_version, project_paths, save_json, save_text, save_yaml, utc_now_iso,
+)
 from app.models.tables import Codebook, DataItem, Dataset, OptimizerRun, Pipeline, Project, ReflectMemoryVersion
 from app.optimizers import Example, evaluate_prompt, get_optimizer, list_optimizers
 from app.optimizers.base import audit_prompt_for_leakage
@@ -990,8 +992,10 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
         )
 
         async def on_progress(payload: dict) -> None:
-            # Persist partial state so the UI can poll and see live trajectory.
-            # Never raise — progress failures must not kill the optimizer.
+            # Persist partial state so the UI can poll and see live trajectory, and
+            # mirror the intermediate state to disk so a mid-run crash still leaves
+            # every per-round trajectory step recoverable. Never raise — progress
+            # failures must not kill the optimizer.
             try:
                 async with async_session() as s:
                     r2 = await s.get(OptimizerRun, run_id)
@@ -1009,7 +1013,23 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
                         r2.artifact = payload["artifact"]
                     if "optimized_prompt" in payload:
                         r2.optimized_prompt = payload["optimized_prompt"]
+                    partial = {
+                        "optimizer_run_id": run_id, "project_id": project_id,
+                        "optimizer": r2.optimizer_name, "dimension": r2.dimension_name,
+                        "status": "running", "saved_at": utc_now_iso(),
+                        "initial_score_val": r2.initial_score,
+                        "final_score_val": r2.final_score,
+                        "total_tokens": r2.total_tokens,
+                        "trajectory": r2.trajectory,
+                        "artifact": r2.artifact,
+                        "optimized_prompt": r2.optimized_prompt,
+                    }
                     await s.commit()
+                try:
+                    runs_dir = project_paths(f"project_{project_id}")["runs"]
+                    save_json(runs_dir / f"optrun_{run_id:04d}.json", partial)
+                except Exception:
+                    logger.warning(f"intermediate disk mirror failed for run {run_id}", exc_info=True)
             except Exception:
                 logger.warning(f"progress callback persist failed for run {run_id}", exc_info=True)
 
@@ -1127,6 +1147,39 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
             })
         except Exception:
             logger.warning(f"Filesystem prompt version write failed for run {run_id}", exc_info=True)
+
+        # Durable full-run mirror: the complete enriched artifact + every
+        # intermediate trajectory step + held-out test results, so the run
+        # survives a project delete and nothing that would force a re-run is lost.
+        try:
+            paths = project_paths(f"project_{project_id}")
+            snapshot = {
+                "optimizer_run_id": run_id,
+                "project_id": project_id,
+                "optimizer": run.optimizer_name,
+                "dimension": run.dimension_name,
+                "status": "completed",
+                "initial_score_val": result.initial_score,
+                "final_score_val": result.final_score,
+                "test": enriched_artifact.get("test"),
+                "splits": enriched_artifact.get("splits"),
+                "optimized_prompt": result.optimized_prompt,
+                "trajectory": result.trajectory,
+                "artifact": enriched_artifact,
+                "total_tokens": result.total_tokens + test_tokens,
+                "llm_provider": provider, "llm_model": model,
+                "saved_at": utc_now_iso(),
+            }
+            save_json(paths["runs"] / f"optrun_{run_id:04d}.json", snapshot)
+            append_jsonl(paths["runs_log"], {
+                "saved_at": snapshot["saved_at"], "kind": "optimizer",
+                "optimizer_run_id": run_id, "optimizer": run.optimizer_name,
+                "dimension": run.dimension_name,
+                "final_score_val": result.final_score,
+                "test_final_score": (enriched_artifact.get("test") or {}).get("final_score"),
+            })
+        except Exception:
+            logger.warning(f"Filesystem run snapshot write failed for run {run_id}", exc_info=True)
 
         # Persist the final rule library as a new memory version (reflect_agent
         # only — other optimizers don't produce rule libraries).

@@ -166,6 +166,7 @@ class PipelineRunner:
                     JobStatus.COMPLETED if failed == 0 else JobStatus.FAILED
                 )
                 await session.commit()
+                await self._write_run_snapshot(session)
 
         if self.ws_callback:
             await self.ws_callback({
@@ -176,3 +177,63 @@ class PipelineRunner:
                 "tokens": total_tokens,
                 "status": "completed" if not self._cancel else "cancelled",
             })
+
+    async def _write_run_snapshot(self, session) -> None:
+        """Mirror the finished run to the filesystem so results survive even if the
+        project (and its DB rows) are later deleted. DB stays canonical; this is a
+        best-effort audit copy — a filesystem error never fails the job.
+
+        Written to ``workspace/project_<pid>/runs/job_<jobid>.json`` (project
+        deletion only walks the DB, so this folder is not removed)."""
+        try:
+            from app.utils import storage
+
+            job = await session.get(AnnotationJob, self.job_id)
+            if not job:
+                return
+            dataset = await session.get(Dataset, job.dataset_id)
+            rows = (await session.execute(
+                select(AnnotationResult, DataItem)
+                .join(DataItem, AnnotationResult.data_item_id == DataItem.id)
+                .where(AnnotationResult.job_id == self.job_id)
+                .order_by(AnnotationResult.data_item_id, AnnotationResult.step_order)
+            )).all()
+            status = job.status.value if hasattr(job.status, "value") else str(job.status)
+            snapshot = {
+                "job_id": job.id,
+                "project_id": job.project_id,
+                "source": job.source,
+                "status": status,
+                "dataset_id": job.dataset_id,
+                "dataset_name": dataset.name if dataset else "",
+                "pipeline_id": job.pipeline_id,
+                "total_items": job.total_items,
+                "completed_items": job.completed_items,
+                "failed_items": job.failed_items,
+                "total_tokens": job.total_tokens,
+                "saved_at": storage.utc_now_iso(),
+                "results": [
+                    {
+                        "data_item_id": item.id,
+                        "index": item.index,
+                        "content": item.content,
+                        "context": item.context or "",
+                        "dimension_name": ann.dimension_name,
+                        "predicted_label": ann.predicted_label,
+                        "reasoning": ann.reasoning or "",
+                        "step_order": ann.step_order,
+                        "gold_labels": item.gold_labels or {},
+                    }
+                    for ann, item in rows
+                ],
+            }
+            paths = storage.project_paths(f"project_{job.project_id}")
+            storage.save_json(paths["runs"] / f"job_{job.id:04d}.json", snapshot)
+            storage.append_jsonl(paths["runs_log"], {
+                "saved_at": snapshot["saved_at"], "job_id": job.id, "source": job.source,
+                "status": status, "dataset": snapshot["dataset_name"],
+                "completed": job.completed_items, "total": job.total_items,
+            })
+            logger.info(f"Run snapshot written: project_{job.project_id}/runs/job_{job.id:04d}.json")
+        except Exception as e:
+            logger.warning(f"Run snapshot failed for job {self.job_id}: {e}")
