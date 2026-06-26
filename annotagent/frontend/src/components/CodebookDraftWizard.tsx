@@ -229,8 +229,8 @@ function DoorCard({
 /* ─── Processing panel ─────────────────────────────────────── */
 
 const STAGE_SETS: Record<Door, string[]> = {
-  upload: ['Ingesting file', 'Reading sheet structure', 'Drafting label schema', 'Reviewing for overlaps'],
-  paste: ['Reading your text', 'Drafting label schema', 'Reviewing for overlaps'],
+  upload: ['Ingesting file', 'Reading sheet structure', 'Drafting label schema', 'Reviewing for overlaps', 'Finalizing codebook'],
+  paste: ['Reading your text', 'Drafting label schema', 'Reviewing for overlaps', 'Finalizing codebook'],
   preset: ['Loading preset'],
 }
 
@@ -300,7 +300,7 @@ function ProcessingPanel({ door, caption }: { door: Door; caption: string }) {
 
       {caption && <div className="font-mono-editorial text-stone-400 text-[11px] truncate">{caption}</div>}
       {animated && (
-        <div className="text-xs text-stone-500">A strong model reads the whole codebook, so this usually takes ~30-60s.</div>
+        <div className="text-xs text-stone-500">A strong model reads the whole codebook, so this usually takes ~15-30s.</div>
       )}
     </div>
   )
@@ -583,14 +583,14 @@ function DraftPreview({
                     <select
                       value={dim.type || 'single_label'}
                       onChange={e => updateDim(i, { type: e.target.value })}
-                      className={`font-mono-editorial bg-transparent border-0 border-b border-transparent hover:border-seam focus:border-ink focus:outline-none ${
+                      className={`text-sm font-medium bg-transparent border-0 border-b border-transparent hover:border-seam focus:border-ink focus:outline-none ${
                         (dim.type || '').includes('multi') ? 'text-violet-700' : 'text-indigo-700'
                       }`}
                     >
                       <option value="single_label">Single-label (one per item)</option>
                       <option value="multi_label">Multi-label (a set per item)</option>
                     </select>
-                    <span className="font-mono-editorial text-stone-400">
+                    <span className="text-sm text-stone-500">
                       {(dim.labels || []).length} labels
                     </span>
                     <button
@@ -607,12 +607,12 @@ function DraftPreview({
                     value={dim.instructions || ''}
                     onChange={e => updateDim(i, { instructions: e.target.value })}
                     rows={2}
-                    className="w-full pl-7 pr-2 py-1.5 bg-paper/40 border border-transparent hover:border-seam focus:border-ink focus:outline-none text-xs text-stone-700 italic leading-relaxed resize-y"
+                    className="w-full pl-7 pr-2 py-2 bg-paper/40 border border-transparent hover:border-seam focus:border-ink focus:outline-none text-sm text-stone-600 leading-relaxed resize-y"
                     placeholder="Annotation instructions for this dimension (optional)"
                     aria-label="Edit dimension instructions"
                   />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   {(dim.labels || []).map((lbl: any, j: number) => (
                     <LabelEditor
                       key={`${draft.id}-${i}-${j}`}
@@ -692,19 +692,21 @@ function DraftPreview({
 
           {errorFlags.length + warnFlags.length + infoFlags.length > 0 && (
             <div>
-              <div className="font-mono-editorial text-stone-500 mb-2">Critic flags</div>
-              <ul className="space-y-2 text-xs">
+              <div className="font-mono-editorial text-stone-500 mb-2.5">Critic flags</div>
+              <ul className="space-y-2.5">
                 {[...errorFlags, ...warnFlags, ...infoFlags].map((f, i) => (
-                  <li key={i} className="leading-relaxed">
-                    <span className={`font-mono-editorial mr-2 ${
-                      f.severity === 'error' ? 'text-red-700' :
-                      f.severity === 'warn' ? 'text-amber-700' :
-                      'text-stone-500'
+                  <li key={i} className="flex gap-2.5">
+                    <span className={`mt-0.5 shrink-0 inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wide rounded-sm ${
+                      f.severity === 'error' ? 'bg-red-50 text-red-700 border border-red-200' :
+                      f.severity === 'warn' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                      'bg-stone-100 text-stone-500 border border-stone-200'
                     }`}>
                       {f.severity}
                     </span>
-                    {f.dim && <span className="text-stone-500">[{f.dim}] </span>}
-                    <span className="text-stone-700">{f.message}</span>
+                    <p className="min-w-0 text-[13px] text-stone-700 leading-relaxed">
+                      {f.dim && <span className="font-medium text-stone-600">{f.dim}: </span>}
+                      {f.message}
+                    </p>
                   </li>
                 ))}
               </ul>
@@ -752,15 +754,22 @@ function LabelEditor({
         >
           {open ? '−' : '+'}
         </button>
-        <div className="relative flex-1 min-w-0">
-          <Pencil className="absolute left-1 top-1.5 h-3 w-3 text-stone-400" aria-hidden="true" />
-          <input
-            value={lbl.name || ''}
-            onChange={e => onChange({ name: e.target.value })}
-            className="w-full pl-5 pr-1 py-0.5 bg-transparent border-0 focus:outline-none focus:bg-white text-xs text-stone-800"
-            placeholder="label name"
-            aria-label="Edit label name"
-          />
+        <div className="flex-1 min-w-0">
+          {Array.isArray(lbl.path) && lbl.path.length > 0 && (
+            <div className="pl-5 text-[11px] text-stone-500 truncate" title={lbl.path.join(' › ')}>
+              {lbl.path.join(' › ')} ›
+            </div>
+          )}
+          <div className="relative">
+            <Pencil className="absolute left-1 top-1.5 h-3 w-3 text-stone-400" aria-hidden="true" />
+            <input
+              value={lbl.name || ''}
+              onChange={e => onChange({ name: e.target.value })}
+              className="w-full pl-5 pr-1 py-1 bg-transparent border-0 focus:outline-none focus:bg-white text-sm text-stone-800"
+              placeholder="label name"
+              aria-label="Edit label name"
+            />
+          </div>
         </div>
         <button
           onClick={onRemove}
@@ -777,7 +786,7 @@ function LabelEditor({
             value={lbl.definition || ''}
             onChange={e => onChange({ definition: e.target.value })}
             rows={3}
-            className="w-full pl-8 pr-3 py-2 bg-white text-xs text-stone-700 leading-relaxed focus:outline-none resize-y"
+            className="w-full pl-8 pr-3 py-2.5 bg-white text-sm text-stone-700 leading-relaxed focus:outline-none resize-y"
             placeholder="What does this label mean? (definition, edge cases)"
             aria-label="Edit label definition"
           />

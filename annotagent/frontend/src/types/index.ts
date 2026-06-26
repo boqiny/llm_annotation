@@ -14,6 +14,9 @@ export interface Label {
   name: string
   definition: string
   examples: string[]
+  // Ancestor chain between the dimension and this leaf (e.g. [Function, Code]).
+  // Empty/absent for flat, non-hierarchical labels.
+  path?: string[]
   sort_order: number
 }
 
@@ -22,6 +25,8 @@ export interface Dimension {
   name: string
   dim_type: string
   instructions: string
+  // Name of the dimension that gates this one's labels (conditional cascade).
+  gated_by?: string
   sort_order: number
   labels: Label[]
 }

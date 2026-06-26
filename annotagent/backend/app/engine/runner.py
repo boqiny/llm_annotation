@@ -123,7 +123,10 @@ class PipelineRunner:
 
                     async with self.session_factory() as session:
                         for step_idx, step in enumerate(steps):
-                            for dim_name in step.get("dimensions", []):
+                            step_dims = list(step.get("dimensions", [])) + [
+                                d["name"] for d in step.get("derived_dimensions", [])
+                            ]
+                            for dim_name in step_dims:
                                 db_result = AnnotationResult(
                                     job_id=self.job_id,
                                     data_item_id=item.id,

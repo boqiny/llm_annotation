@@ -89,6 +89,7 @@ async def upload_codebook(
             name=dim_def.name,
             dim_type=DimensionType(dim_def.dim_type),
             instructions=dim_def.instructions,
+            gated_by=dim_def.gated_by,
             sort_order=i,
         )
         db.add(dim)
@@ -100,6 +101,7 @@ async def upload_codebook(
                 name=lbl_def.name,
                 definition=lbl_def.definition,
                 examples=lbl_def.examples,
+                path=lbl_def.path,
                 sort_order=j,
             )
             db.add(label)
@@ -274,6 +276,7 @@ async def accept_draft(
             name=dim_def.name,
             dim_type=DimensionType(dim_def.dim_type),
             instructions=dim_def.instructions,
+            gated_by=dim_def.gated_by,
             sort_order=i,
         )
         db.add(dim)
@@ -284,6 +287,7 @@ async def accept_draft(
                 name=lbl_def.name,
                 definition=lbl_def.definition,
                 examples=lbl_def.examples,
+                path=lbl_def.path,
                 sort_order=j,
             )
             db.add(label)
