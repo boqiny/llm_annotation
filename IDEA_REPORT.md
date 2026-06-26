@@ -1,8 +1,8 @@
-# AnnotAgent
+# CLAIR
 
 ## What this is
 
-AnnotAgent is an open-source, codebook-driven system for LLM-assisted text
+CLAIR is an open-source, codebook-driven system for LLM-assisted text
 annotation. A small research team feeds it a codebook and raw text; the system
 ingests the codebook into a structured schema, drafts one annotation prompt per
 dimension, labels items with bounded-concurrency batch runs, and closes a
@@ -28,7 +28,7 @@ often no single right label: two trained coders applying the same codebook to
 the same text agree only part of the time, and each one is internally
 consistent in a different way.
 
-AnnotAgent's contribution is a labeling pipeline whose improvement loop
+CLAIR's contribution is a labeling pipeline whose improvement loop
 **calibrates the annotator to a chosen target rater**. Point the loop at coder
 A's labels and it learns to label the way A labels; point it at coder B and it
 learns B. The system does not force the two coders into one consensus before it
@@ -41,7 +41,7 @@ The rest of this document describes the system, then reports a per-target
 alignment evaluation on a four-dimension self-disclosure codebook with two
 independent annotators.
 
-![AnnotAgent pipeline: messy inputs flow through CodebookAgent, AutoPromptGenerator, the labeling stage, and the ReflectAgent improvement loop with cross-session Memory. The labeling stage exposes three entry paths: cold-start interactive labeling, multi-annotator review, and target-aligned optimization.](assets/workflow_v1.png)
+![CLAIR pipeline: messy inputs flow through CodebookAgent, AutoPromptGenerator, the labeling stage, and the ReflectAgent improvement loop with cross-session Memory. The labeling stage exposes three entry paths: cold-start interactive labeling, multi-annotator review, and target-aligned optimization.](assets/workflow_v1.png)
 
 *(Figure to be refreshed for the system-demo framing: the current asset still
 labels the old adjudication contribution.)*
@@ -77,7 +77,7 @@ calls. That throws away a real signal: a growing line of work argues that
 disagreement reflects genuine ambiguity rather than error, and that
 annotator-specific targets carry information a forced consensus destroys.
 
-AnnotAgent takes the second view seriously inside a usable tool. It does not
+CLAIR takes the second view seriously inside a usable tool. It does not
 assume a single ground truth exists. It lets the team pick a target rater and
 calibrates the LLM annotator to that target. Where a team genuinely needs one
 resolved label, the disagreement-review UI supports that workflow too, but the
@@ -86,14 +86,14 @@ system's default stance is that the target is a choice, not a given.
 LLM-as-judge offers a partial precedent. The standard recipe (Zheng et al.,
 2023; Shankar et al., 2024) writes a judge prompt, splits labeled data into
 train, dev, and test, refines the prompt, and measures agreement with human
-labels. AnnotAgent borrows the leakage-guarded split and the iterate-against-
+labels. CLAIR borrows the leakage-guarded split and the iterate-against-
 held-out-data discipline, and applies them to production annotation with an
 interpretable rule library and a target rater rather than an assumed gold
 standard.
 
 ---
 
-## What AnnotAgent does
+## What CLAIR does
 
 The system is four LLM-backed agents and two shared persistent artifacts. The
 agents are `CodebookAgent`, which ingests codebook materials into a structured
@@ -422,15 +422,15 @@ result.
 
 ## Related work
 
-| Prior work | What it does | How AnnotAgent relates |
+| Prior work | What it does | How CLAIR relates |
 |---|---|---|
-| **LabelLLM** (OpenDataLab), and other general-purpose labeling tools (Prodigy, Doccano) | Open-source human-annotation platforms with task management, multi-format ingest, per-item labeling, and static LLM pre-annotation | Feature baseline AnnotAgent matches and extends. Flow A provides the same per-item surface with LLM pre-fill; on top, AnnotAgent adds codebook ingestion into a structured schema, an improvement loop that learns from the team's own labels, and multi-annotator IAA as a first-class signal. Their pre-fill is fixed; ours calibrates to a target rater |
-| **CrowdAgent** (EMNLP 2025 Demo) | Multi-agent system that routes fresh annotation tasks across LLMs, SLMs, and human experts under joint quality and cost management | CrowdAgent allocates who labels what. AnnotAgent assumes humans already labeled and calibrates the LLM to a chosen rater's labels |
-| **EvoAgentX** (EMNLP 2025 Demo) | Platform for evolving multi-agent workflow topology; integrates TextGrad, AFlow, MIPRO | EvoAgentX evolves workflow topology on general benchmarks. AnnotAgent refines a single annotator prompt anchored in a codebook and a target rater |
+| **LabelLLM** (OpenDataLab), and other general-purpose labeling tools (Prodigy, Doccano) | Open-source human-annotation platforms with task management, multi-format ingest, per-item labeling, and static LLM pre-annotation | Feature baseline CLAIR matches and extends. Flow A provides the same per-item surface with LLM pre-fill; on top, CLAIR adds codebook ingestion into a structured schema, an improvement loop that learns from the team's own labels, and multi-annotator IAA as a first-class signal. Their pre-fill is fixed; ours calibrates to a target rater |
+| **CrowdAgent** (EMNLP 2025 Demo) | Multi-agent system that routes fresh annotation tasks across LLMs, SLMs, and human experts under joint quality and cost management | CrowdAgent allocates who labels what. CLAIR assumes humans already labeled and calibrates the LLM to a chosen rater's labels |
+| **EvoAgentX** (EMNLP 2025 Demo) | Platform for evolving multi-agent workflow topology; integrates TextGrad, AFlow, MIPRO | EvoAgentX evolves workflow topology on general benchmarks. CLAIR refines a single annotator prompt anchored in a codebook and a target rater |
 | **Shankar et al., UIST 2024** (EvalGen) | Mixed-initiative tool that aligns LLM-generated evaluators with human grades; surfaces criteria drift | Their LLM scores LLM outputs against user criteria. Our LLM annotates the underlying data and is tuned to a specific human's labels |
-| **Cleanlab / Confident Learning** (Northcutt et al., JAIR 2021) | Estimates noisy-vs-true label distribution; flags suspected label errors | Cleanlab assumes a single latent true label and flags deviations. AnnotAgent does not assume one true label; it tunes to a chosen target |
-| **Dawid-Skene (1979); MACE** (Hovy et al., NAACL 2013) | Crowd-aggregation models that recover one latent label from redundant annotations | They collapse disagreement into one inferred label with no reasoning trace. AnnotAgent keeps each rater as a separate target and produces inspectable rules per target |
-| **Lapras** (Wang et al., CHI 2024) | LLM labels everything; a learned verifier scores LLM labels; humans re-annotate low-confidence items | Closest spirit-neighbor on the human-LLM loop, but it pursues one correct label. AnnotAgent pursues alignment with a chosen rater |
+| **Cleanlab / Confident Learning** (Northcutt et al., JAIR 2021) | Estimates noisy-vs-true label distribution; flags suspected label errors | Cleanlab assumes a single latent true label and flags deviations. CLAIR does not assume one true label; it tunes to a chosen target |
+| **Dawid-Skene (1979); MACE** (Hovy et al., NAACL 2013) | Crowd-aggregation models that recover one latent label from redundant annotations | They collapse disagreement into one inferred label with no reasoning trace. CLAIR keeps each rater as a separate target and produces inspectable rules per target |
+| **Lapras** (Wang et al., CHI 2024) | LLM labels everything; a learned verifier scores LLM labels; humans re-annotate low-confidence items | Closest spirit-neighbor on the human-LLM loop, but it pursues one correct label. CLAIR pursues alignment with a chosen rater |
 | **GEPA** (Agrawal et al., 2025), **MIPROv2** (Opsahl-Ong et al., EMNLP 2024), **OPRO** (Yang et al., ICLR 2024) | Offline batch prompt optimizers; each returns one optimized prompt, no persistent artifact | ReflectAgent runs online inside the tool, accumulates an inspectable rule library across sessions, and optimizes against a target rater |
 | **Ni et al., 2025** (Reasoning and annotator disagreement) | Studies whether LLMs can predict human disagreement distributions | We cite it as evidence that LLM behavior under disagreement is an open problem, and we take the practical stance of aligning to one chosen rater rather than predicting the full distribution |
 
@@ -438,7 +438,7 @@ result.
 
 A growing line of work argues that disagreement should be preserved rather than
 resolved: keep soft labels, train annotator-specific models, report full
-distributions. AnnotAgent sits inside that view rather than against it. Where a
+distributions. CLAIR sits inside that view rather than against it. Where a
 forced consensus would discard the difference between Fiona and Chang, the system
 keeps both as targets and calibrates to whichever the team picks. For teams that
 do require one resolved label, the review queue supports that path too, but the
@@ -470,7 +470,7 @@ rules are the mitigation: a reviewer can read what the system learned to imitate
 
 The system improves a prompt and a rule library, not model weights. There is no
 fine-tuning. For codebooks whose ceiling truly requires weight updates,
-AnnotAgent is the wrong tool.
+CLAIR is the wrong tool.
 
 The improvement loop assumes enough labeled items per dimension to form a
 train, validation, and test split; dimensions below the gate are labeled

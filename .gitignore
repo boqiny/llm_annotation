@@ -30,4 +30,13 @@ reference.md
 annotagent/frontend/node_modules/
 annotagent/frontend/dist/assets/
 annotagent/frontend/dist/
+annotagent/frontend/.vite/
 paper_draft
+# Experiment results and scratch data at the repo root.
+# Ignore root-level json / md / xlsx, but keep README.md and CLAUDE.md.
+/*.json
+/*.xlsx
+/*.md
+!/README.md
+!/CLAUDE.md
+review-stage/
