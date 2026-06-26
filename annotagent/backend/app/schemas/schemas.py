@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime
 from typing import Any, Optional
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 
 # ---------- Project ----------
@@ -45,9 +45,16 @@ class LabelOut(BaseModel):
     name: str
     definition: str
     examples: list[Any] = []
+    path: list[str] = []
     sort_order: int = 0
 
     model_config = {"from_attributes": True}
+
+    @field_validator("path", "examples", mode="before")
+    @classmethod
+    def _none_to_list(cls, v: Any) -> Any:
+        # Rows predating the column have NULL; coerce to empty list.
+        return v if v is not None else []
 
 
 class DimensionOut(BaseModel):
@@ -55,6 +62,7 @@ class DimensionOut(BaseModel):
     name: str
     dim_type: str
     instructions: str
+    gated_by: str = ""
     sort_order: int = 0
     labels: list[LabelOut] = []
 

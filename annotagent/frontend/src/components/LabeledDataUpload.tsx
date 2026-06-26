@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ArrowRight } from 'lucide-react'
 import {
   getExpectedSchema, validateLabeledUpload, autofixLabeledData, applyLabeledFix, commitLabeledData,
@@ -19,6 +19,7 @@ export default function LabeledDataUpload({
   const [validation, setValidation] = useState<GoldValidation | null>(null)
   const [fixed, setFixed] = useState<GoldAutofix | null>(null)
   const [error, setError] = useState('')
+  const [previewOpen, setPreviewOpen] = useState(false)
 
   useEffect(() => { getExpectedSchema(projectId).then(setSchema).catch(() => setSchema(null)) }, [projectId])
 
@@ -106,7 +107,15 @@ export default function LabeledDataUpload({
                 ? <span className="text-emerald-700">Matches the codebook · {report.n_items} items</span>
                 : <span className="text-red-700">{report.n_error_items} of {report.n_items} rows don’t match the codebook</span>}
             </div>
-            <span className="font-mono-editorial text-stone-400 text-[11px]">{validation.filename}</span>
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                onClick={() => setPreviewOpen(true)}
+                className="px-2.5 py-1 text-xs font-medium border border-seam bg-white text-stone-700 hover:border-ink hover:text-ink transition"
+              >
+                Preview file
+              </button>
+              <span className="font-mono-editorial text-stone-400 text-[11px]">{validation.filename}</span>
+            </div>
           </div>
 
           <ReportSummary report={report} />
@@ -157,6 +166,71 @@ export default function LabeledDataUpload({
           </div>
         </div>
       )}
+
+      {previewOpen && validation && (
+        <FilePreviewModal validation={validation} onClose={() => setPreviewOpen(false)} />
+      )}
+    </div>
+  )
+}
+
+function FilePreviewModal({ validation, onClose }: { validation: GoldValidation; onClose: () => void }) {
+  const items: any[] = validation.items || []
+  const { dims, meta } = useMemo(() => {
+    const d = new Set<string>(), m = new Set<string>()
+    for (const it of items) {
+      for (const k of Object.keys(it.gold_labels || {})) d.add(k)
+      for (const k of Object.keys(it.metadata || {})) m.add(k)
+    }
+    return { dims: [...d], meta: [...m] }
+  }, [items])
+  const CAP = 1000
+  const rows = items.slice(0, CAP)
+  const cell = (v: any) => Array.isArray(v) ? v.join(' & ') : String(v ?? '')
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40" onClick={onClose}>
+      <div className="bg-white border border-seam shadow-xl w-full max-w-6xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-seam">
+          <div className="text-sm font-medium text-ink truncate">
+            {validation.filename}
+            <span className="ml-2 font-mono-editorial text-stone-400 text-[11px]">
+              {validation.file_type} · {items.length.toLocaleString()} rows{items.length > CAP ? ` (showing first ${CAP})` : ''}
+            </span>
+          </div>
+          <button onClick={onClose} className="px-2.5 py-1 text-xs font-medium border border-seam text-stone-600 hover:border-ink hover:text-ink">
+            Close ✕
+          </button>
+        </div>
+        <div className="overflow-auto">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-paper">
+              <tr className="font-mono-editorial text-stone-500 border-b border-seam">
+                <th className="px-2 py-2 text-left">#</th>
+                <th className="px-2 py-2 text-left min-w-[280px]">content</th>
+                {dims.map(d => <th key={`d-${d}`} className="px-2 py-2 text-left whitespace-nowrap bg-violet-50/60">{d}</th>)}
+                {meta.map(m => <th key={`m-${m}`} className="px-2 py-2 text-left whitespace-nowrap">{m}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-seam">
+              {rows.map((it, i) => (
+                <tr key={i} className="align-top">
+                  <td className="px-2 py-1.5 font-mono text-stone-400">{it.index ?? i + 1}</td>
+                  <td className="px-2 py-1.5 text-stone-800 max-w-[420px]"><div className="line-clamp-3">{cell(it.content)}</div></td>
+                  {dims.map(d => <td key={`d-${d}`} className="px-2 py-1.5 font-mono text-violet-900 whitespace-nowrap">{cell((it.gold_labels || {})[d])}</td>)}
+                  {meta.map(m => <td key={`m-${m}`} className="px-2 py-1.5 text-stone-500 max-w-[200px] truncate" title={cell((it.metadata || {})[m])}>{cell((it.metadata || {})[m])}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }
@@ -248,7 +322,29 @@ function MismatchFixer({ projectId, schema, report, originalItems, busy, onApply
   const labelsByDim: Record<string, string[]> = Object.fromEntries(schema.dimensions.map(d => [d.name, d.labels]))
   const [dimMap, setDimMap] = useState<Record<string, string>>({})
   const [labelMap, setLabelMap] = useState<Record<string, Record<string, string>>>({})
+  // Per-row overrides: { rowIndex: { dimension: value } }.
+  const [itemOverrides, setItemOverrides] = useState<Record<string, Record<string, string>>>({})
   const [applying, setApplying] = useState(false)
+
+  const norm = (s: string) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/s\b/g, '')
+  // Rows whose value for `dim` matches `value` (dim is canonical; item key may differ).
+  const rowsFor = (dim: string, value: string) => originalItems.filter(it => {
+    const g = it.gold_labels || {}
+    for (const [k, val] of Object.entries(g)) {
+      if (norm(k) !== norm(dim)) continue
+      const vals = Array.isArray(val) ? val : [val]
+      if (vals.some(x => norm(String(x)) === norm(value))) return true
+    }
+    return false
+  })
+  const setRowOverride = (index: number, dim: string, value: string) =>
+    setItemOverrides(p => {
+      const row = { ...(p[String(index)] || {}) }
+      if (value === '') delete row[dim]; else row[dim] = value
+      const next = { ...p, [String(index)]: row }
+      if (Object.keys(row).length === 0) delete next[String(index)]
+      return next
+    })
 
   const unknownDims = Object.keys(report.unknown_dimensions || {})
   const unknownLabels = Object.entries(report.unknown_label_values || {})
@@ -283,6 +379,7 @@ function MismatchFixer({ projectId, schema, report, originalItems, busy, onApply
     drop_dimensions: Object.entries(dm).filter(([, v]) => v === DROP).map(([k]) => k),
     label_map: Object.fromEntries(Object.entries(lm).map(([d, m]) => [d, Object.fromEntries(Object.entries(m).filter(([, v]) => v))])),
     multi_split: [' & ', ','],
+    item_overrides: itemOverrides,
   })
 
   const apply = async () => {
@@ -303,6 +400,21 @@ function MismatchFixer({ projectId, schema, report, originalItems, busy, onApply
       onApply(await applyLabeledFix(projectId, originalItems, buildSpec(dimMap, nextLabelMap)))
     } catch (e: any) {
       window.alert('Could not add label: ' + (e?.response?.data?.detail || e?.message || 'unknown error'))
+    } finally { setApplying(false) }
+  }
+
+  // Dimensions left blank in some rows: offer to add a "-" no-label option (with a
+  // definition of when it applies). Blank cells then become an explicit "-".
+  const [noLabelDef, setNoLabelDef] = useState<Record<string, string>>({})
+  const emptyDims = Object.entries(report.empty_dimensions || {})
+    .filter(([, info]) => info.count > 0 && !info.has_no_label)
+  const addNoLabel = async (dim: string) => {
+    setApplying(true)
+    try {
+      await addCodebookLabel(projectId, dim, '-', noLabelDef[dim] || 'No label applies to this item.')
+      onApply(await applyLabeledFix(projectId, originalItems, buildSpec(dimMap, labelMap)))
+    } catch (e: any) {
+      window.alert('Could not add option: ' + (e?.response?.data?.detail || e?.message || 'unknown error'))
     } finally { setApplying(false) }
   }
 
@@ -341,25 +453,64 @@ function MismatchFixer({ projectId, schema, report, originalItems, busy, onApply
             <div key={dim} className="space-y-1">
               <div className="text-xs font-medium text-stone-700">{dim}</div>
               {Object.entries(vals).map(([v, cnt]) => (
-                <FixRow key={v} from={v} count={cnt} examples={examples('unknown_label', dim, v)}>
-                  <select value={labelMap[dim]?.[v] ?? ''} disabled={busy || applying}
-                    onChange={e => {
-                      if (e.target.value === '__create__') createLabel(dim, v)
-                      else setLabelMap(p => ({ ...p, [dim]: { ...(p[dim] || {}), [v]: e.target.value } }))
-                    }}
-                    className="bg-white border border-seam px-2 py-1 text-xs focus:outline-none focus:border-ink">
-                    <option value="">(choose)</option>
-                    {(labelsByDim[dim] || []).map(l => <option key={l} value={l}>{l}</option>)}
-                    <option value="__create__">＋ add “{v}” as a new codebook label</option>
-                  </select>
-                </FixRow>
+                <div key={v} className="space-y-1">
+                  <FixRow from={v} count={cnt} examples={examples('unknown_label', dim, v)}>
+                    <select value={labelMap[dim]?.[v] ?? ''} disabled={busy || applying}
+                      onChange={e => {
+                        if (e.target.value === '__create__') createLabel(dim, v)
+                        else setLabelMap(p => ({ ...p, [dim]: { ...(p[dim] || {}), [v]: e.target.value } }))
+                      }}
+                      className="bg-white border border-seam px-2 py-1 text-xs focus:outline-none focus:border-ink">
+                      <option value="">(choose)</option>
+                      {(labelsByDim[dim] || []).map(l => <option key={l} value={l}>{l}</option>)}
+                      <option value="__create__">＋ add “{v}” as a new codebook label</option>
+                    </select>
+                  </FixRow>
+                  <PerRowFixer
+                    rows={rowsFor(dim, v)} dim={dim}
+                    options={labelsByDim[dim] || []}
+                    overrides={itemOverrides} onSet={setRowOverride}
+                    fallback={labelMap[dim]?.[v] || ''} disabled={busy || applying}
+                  />
+                </div>
               ))}
             </div>
           ))}
         </div>
       )}
 
-      {unknownDims.length === 0 && unknownLabels.length === 0 && (
+      {emptyDims.length > 0 && (
+        <div className="space-y-2">
+          <div className="font-mono-editorial text-[11px] text-stone-400">Dimensions left blank in some rows</div>
+          {emptyDims.map(([dim, info]) => (
+            <div key={dim} className="border border-seam bg-paper/40 p-2 space-y-1.5">
+              <div className="text-xs">
+                <span className="font-medium text-stone-700">{dim}</span>
+                <span className="text-stone-400"> · {info.count} {info.count === 1 ? 'row has' : 'rows have'} no value</span>
+              </div>
+              {info.samples.length > 0 && (
+                <ul className="text-[11px] text-stone-500 space-y-0.5">
+                  {info.samples.slice(0, 2).map((s, i) => <li key={i} className="truncate">· {s.slice(0, 80)}</li>)}
+                </ul>
+              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  value={noLabelDef[dim] ?? ''} disabled={busy || applying}
+                  onChange={e => setNoLabelDef(p => ({ ...p, [dim]: e.target.value }))}
+                  placeholder="When does “no label” apply here? (definition)"
+                  className="flex-1 min-w-[220px] bg-white border border-seam px-2 py-1 text-xs focus:outline-none focus:border-ink"
+                />
+                <button onClick={() => addNoLabel(dim)} disabled={busy || applying}
+                  className="px-2.5 py-1 text-xs font-medium border border-ink bg-white text-ink hover:bg-paper disabled:opacity-50 whitespace-nowrap">
+                  ＋ add “-” option
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {unknownDims.length === 0 && unknownLabels.length === 0 && emptyDims.length === 0 && (
         <div className="text-xs text-stone-500">No name-level mismatches left to map. Apply to normalize remaining values, or auto-fix with the LLM.</div>
       )}
 
@@ -391,6 +542,48 @@ function FixRow({ from, count, examples, children }: {
       {open && (
         <ul className="mt-1 ml-1 space-y-0.5 text-stone-500">
           {examples.map((ex, i) => <li key={i} className="truncate">· {ex.slice(0, 90)}</li>)}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/* Per-row override editor: fix individual rows of one mismatch differently from
+ * the apply-all mapping. Collapsed by default to keep the panel compact. */
+function PerRowFixer({ rows, dim, options, overrides, onSet, fallback, disabled }: {
+  rows: any[]; dim: string; options: string[]
+  overrides: Record<string, Record<string, string>>
+  onSet: (index: number, dim: string, value: string) => void
+  fallback: string; disabled: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  if (rows.length === 0) return null
+  const overriddenCount = rows.filter(r => overrides[String(r.index)]?.[dim] !== undefined).length
+  return (
+    <div className="ml-1 text-xs">
+      <button type="button" onClick={() => setOpen(o => !o)} className="text-stone-400 underline">
+        {open ? 'hide rows' : `fix individual rows (${rows.length})`}
+        {overriddenCount > 0 && <span className="text-indigo-600"> · {overriddenCount} set</span>}
+      </button>
+      {open && (
+        <ul className="mt-1 space-y-1 border-l border-seam pl-2">
+          {rows.slice(0, 50).map(r => {
+            const cur = overrides[String(r.index)]?.[dim]
+            const content = String(r.content || '').slice(0, 70)
+            return (
+              <li key={r.index} className="flex items-center gap-2 flex-wrap">
+                <span className="text-stone-400 font-mono">#{r.index}</span>
+                <span className="text-stone-600 truncate max-w-[280px]">{content}</span>
+                <select value={cur ?? ''} disabled={disabled}
+                  onChange={e => onSet(r.index, dim, e.target.value)}
+                  className="bg-white border border-seam px-1.5 py-0.5 text-[11px] focus:outline-none focus:border-ink">
+                  <option value="">{fallback ? `use “${fallback}”` : '(use mapping)'}</option>
+                  {options.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+              </li>
+            )
+          })}
+          {rows.length > 50 && <li className="text-stone-400">+ {rows.length - 50} more rows…</li>}
         </ul>
       )}
     </div>

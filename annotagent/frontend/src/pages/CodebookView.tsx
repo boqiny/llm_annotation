@@ -244,20 +244,64 @@ function DimensionCard({
             </div>
           )}
 
-          {/* Labels — uniform grid */}
+          {/* Labels — grouped tree when hierarchical, flat grid otherwise */}
           <div>
             <div className="font-mono-editorial text-stone-500 mb-3">
               Labels
             </div>
-            <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {dim.labels.map(lbl => (
-                <LabelCard key={lbl.id} label={lbl} isMulti={isMulti} />
-              ))}
-            </ul>
+            {dim.labels.some(l => l.path && l.path.length > 0)
+              ? <HierarchicalLabels labels={dim.labels} isMulti={isMulti} />
+              : (
+                <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {dim.labels.map(lbl => (
+                    <LabelCard key={lbl.id} label={lbl} isMulti={isMulti} />
+                  ))}
+                </ul>
+              )}
           </div>
         </div>
       )}
     </article>
+  )
+}
+
+/* ─── Hierarchical labels (leaves grouped under their path) ── */
+
+function HierarchicalLabels({ labels, isMulti }: { labels: Label[]; isMulti: boolean }) {
+  // Group leaves by their full path (breadcrumb), preserving order.
+  const groups: { key: string; path: string[]; labels: Label[] }[] = []
+  for (const lbl of labels) {
+    const path = lbl.path ?? []
+    const key = path.join(' › ')
+    const last = groups[groups.length - 1]
+    if (last && last.key === key) last.labels.push(lbl)
+    else groups.push({ key, path, labels: [lbl] })
+  }
+
+  return (
+    <div className="space-y-5">
+      {groups.map((g, gi) => (
+        <div key={gi} className="border-l-2 border-stone-200 pl-4">
+          {g.path.length > 0 && (
+            <div className="mb-2 flex flex-wrap items-center gap-1.5 font-mono-editorial text-stone-500">
+              {g.path.map((node, i) => (
+                <span key={i} className="inline-flex items-center gap-1.5">
+                  {i > 0 && <span className="text-stone-300" aria-hidden="true">›</span>}
+                  <span className={i === g.path.length - 1 ? 'text-stone-700' : 'text-stone-400'}>
+                    {node}
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
+          <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {g.labels.map(lbl => (
+              <LabelCard key={lbl.id} label={lbl} isMulti={isMulti} />
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
   )
 }
 

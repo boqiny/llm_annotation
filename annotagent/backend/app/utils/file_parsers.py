@@ -122,6 +122,15 @@ def _parse_theme_level_csv(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if content_key is None or theme_key is None or level_key is None:
             continue
 
+        # Coder sheets carry Topic / Topic-thematic-category as parallel annotation
+        # columns alongside the coding theme — capture them as their own dimensions.
+        topic_key = _find_key(row, "Topic", "Topics")
+        cat_key = _find_key(row, "Topic thematic category", "Topic thematic categories",
+                            "Thematic category", "Topic category")
+        # Columns consumed into content/gold_labels must NOT also appear in metadata
+        # (otherwise the coding-theme/level columns show up twice in the preview).
+        consumed = {k for k in (content_key, theme_key, level_key, topic_key, cat_key) if k}
+
         content = str(row.get(content_key, "")).strip()
         if len(content) >= 2 and content[0] == '"' and content[-1] == '"':
             content = content[1:-1].strip()  # coders often wrap the quoted turn in quotes
@@ -136,7 +145,7 @@ def _parse_theme_level_csv(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "index": len(order) - 1,
                 "content": content,
                 "context": "",
-                "metadata": {k: v for k, v in row.items() if k != content_key},
+                "metadata": {k: v for k, v in row.items() if k not in consumed},
                 "gold_labels": {},
             }
 
@@ -151,12 +160,6 @@ def _parse_theme_level_csv(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             elif existing != level:
                 item["gold_labels"][theme] = [existing, level]
 
-        # Coder sheets carry Topic / Topic-thematic-category as parallel annotation
-        # columns alongside the coding theme — capture them as their own dimensions
-        # so a Topic codebook dimension gets gold labels too.
-        topic_key = _find_key(row, "Topic", "Topics")
-        cat_key = _find_key(row, "Topic thematic category", "Topic thematic categories",
-                            "Thematic category", "Topic category")
         if topic_key:
             topic = str(row.get(topic_key, "")).strip()
             if topic:

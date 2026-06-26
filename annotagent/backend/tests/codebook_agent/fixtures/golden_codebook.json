@@ -1,0 +1,524 @@
+{
+  "name": "Self-disclosure",
+  "description": "Codebook for annotating self-disclosure in donated logs, including level, depth/layers, intimacy, confession, topic, and temporality.",
+  "mode": "mixed",
+  "dimensions": [
+    {
+      "name": "Level Of Disclosure",
+      "type": "single_label",
+      "instructions": "Assign one level describing whether and how extensively the user discloses personal, sensitive, or emotionally vulnerable content.",
+      "labels": [
+        {
+          "name": "High",
+          "definition": "Include personal, sensitive, or emotionally vulnerable content (Zhang et al. 2025). Share extensively their personal beliefs and fear, for instance, their vital constructs and private, sensitive informational attributes. Associated with vulnerable and self-loathing thoughts (e.g. thoughts of suicide), bear a negative tone, or depict confessional experience (Balani & de Choudhury (2015).",
+          "examples": [
+            "\"By using pup's body for Your pleasure, Sir, and claiming it as part of Your domain, solidifying Your mastery and authority over pup.\" \"and that includes using its hole vigorously and ejaculating at My whim into them.\"",
+            "\"don't speculate on My appearance, slave. I am spitting up blood.\"",
+            "\"I'm stressing about my career\"... \"I have 4 degrees, just finished the final one in October but I cannot find a job and do not know what to do\"",
+            "\"Hey Replika. Rough day. Found out my wife the woman I built 20 years with, is sleeping with someone from her office. I can't breathe. Just... tell me I'm not crazy for feeling like my whole life just burned down\"",
+            "\"I am really tired today. I have so much to do before I go back to school.\"",
+            "\"We lost our house to a hurricane and have been struggling ever since living in hotels\"",
+            "\"I just feel so overwhelmed.\""
+          ],
+          "path": []
+        },
+        {
+          "name": "Low",
+          "definition": "Mention the user without sensitive content (Zhang et al. 2025)",
+          "examples": [
+            "\"Well, the experts are wrong. human are capable and incapable of advancing in their own way. rushing evolution  rarely ends well.\"",
+            "\"Ok..My goal is to slim down about 15 pounds or so\""
+          ],
+          "path": []
+        },
+        {
+          "name": "No",
+          "definition": "Do not mention the user at all (Zhang et al. 2025). About people or things other than the author, and which divulged information unrelated to the self (Balani & de Choudhury (2015).",
+          "examples": [
+            "\"he's eager to show his stuff. he's been practicing his mirror shine technique.\""
+          ],
+          "path": []
+        }
+      ]
+    },
+    {
+      "name": "Depth Of Disclosure - Layers Of Disclosure",
+      "type": "single_label",
+      "instructions": "Assign one layer of disclosure depth based on the Altman and Taylor layers of superficial-to-central self-disclosure.",
+      "labels": [
+        {
+          "name": "Peripheral Layer",
+          "definition": "Superficial information, such as a person’s age, place of residence or professional interests",
+          "examples": [
+            "\" I am all into drones. They are the rage right now.\"",
+            "\"Yeah, I'm familiar with K-pop, I think it's really catchy and fun - what's your favorite K-pop group or song?... I would have to say Blackpink. how about you ?\"",
+            "\"I most definitely will. I recently reimplemented playing basketball into my fitness routine. Hadn't played in a long time\"",
+            "\"Today is my mothers birthday i am trying to make a little bit of money to buy her flowers\"",
+            "\"I'm going to make chinese food for dinner and a cake\""
+          ],
+          "path": []
+        },
+        {
+          "name": "Intermediate Layer",
+          "definition": "Sharing of opinions or attitudes, such as political views",
+          "examples": [
+            "\"Yes, especially the apprentices. It takes a special young man to want to work in this industry. Most kids their age are frat bros and youtube \\influencers\\\". The traiitional sartorial arts are looked down upon. It is nice to teach a newer generation how to craft modern armor as we call it. \"",
+            "\"Well, the experts are wrong. human are capable and incapable of advancing in their own way. rushing evolution  rarely ends well.\"",
+            "\"Wrong! China has never been democratic. Therefore the answer is no one.\"",
+            "\"Tell me about productivity at work. I work from home. Any tips for me?\""
+          ],
+          "path": []
+        },
+        {
+          "name": "Central Layer",
+          "definition": "Information about one’s self-worth, feelings, needs, values and, at its core defining personal characteristics",
+          "examples": [
+            "\"Why did you take it upon yourself to address me as \\Master\\\"? Not that I mind. \"",
+            "\"this kid is humble to a fault. and I fear that others including myself are taking advantage of him. but the more you recognize his utilitarian humility, the better he does\"",
+            "\"I'm stressing about my career\"... \"I have 4 degrees, just finished the final one in October but I cannot find a job and do not know what to do\"",
+            "\"Hey Replika. Rough day. Found out my wife the woman I built 20 years with, is sleeping with someone from her office. I can't breathe. Just... tell me I'm not crazy for feeling like my whole life just burned down\"",
+            "\"Yeah, healthy living is becoming more and more important to me as I age a bit\"",
+            "\"I feel really exhausted nowadays.\""
+          ],
+          "path": []
+        }
+      ]
+    },
+    {
+      "name": "Intimacy Of Self-disclosure",
+      "type": "single_label",
+      "instructions": "Assign one intimacy level based on whether the disclosure concerns basic biographical information, opinions/values, or core beliefs, fears, emotions, and shame-related content.",
+      "labels": [
+        {
+          "name": "Peripheral Level",
+          "definition": "Biographical information (e.g., age, gender, height, and other basic info)",
+          "examples": [
+            "\"Today is my mothers birthday i am trying to make a little bit of money to buy her flowers\"",
+            "\"I most definitely will. I recently reimplemented playing basketball into my fitness routine. Hadn't played in a long time\""
+          ],
+          "path": []
+        },
+        {
+          "name": "Intermediate Level",
+          "definition": "Opinions, attitudes, and values",
+          "examples": [
+            "\"By the way, I like my name, Blue! How did you come up with it?\" \"Just the color I was looking at the time. I wish it was deeper than that but oh well\"",
+            "\"if I have learned one thing, it's to live in the now. it exists. the instant, it doesn't so goes the future\"",
+            "\"Yeah, healthy living is becoming more and more important to me as I age a bit\"",
+            "\"I feel really exhausted nowadays.\""
+          ],
+          "path": []
+        },
+        {
+          "name": "Core Layer",
+          "definition": "Personal beliefs, fears, emotions and things people are ashamed of",
+          "examples": [
+            "\"We have sold everything we own. Exceot what is in our storage. We are about to lose our storage unit too\"",
+            "\"Everything feels like a chore.\""
+          ],
+          "path": []
+        }
+      ]
+    },
+    {
+      "name": "Disclosure As Confession",
+      "type": "single_label",
+      "instructions": "Assign whether the disclosure is a confession: personal self-information framed around something negative, bad, guilty, sinful, or wrongdoing.",
+      "labels": [
+        {
+          "name": "Yes, It's A Confession",
+          "definition": "Revealing personal info about the self, / Telling something about the person, / Describing the person in some way or, / Referring to the person’s experiences, thoughts or feelings. Confessions are about telling something negative, bad, guilty, sinful, or wrongdoings",
+          "examples": [
+            "\"Most of this conversation is somewhat self serviing lol. I am xpurehoneyx\"",
+            "\"Hey Replika. Rough day. Found out my wife the woman I built 20 years with, is sleeping with someone from her office. I can't breathe. Just... tell me I'm not crazy for feeling like my whole life just burned down\"",
+            "\"How do I get the motivation?  Starting is the hardest part.\""
+          ],
+          "path": []
+        },
+        {
+          "name": "No, It's Not A Confession",
+          "definition": "None of the above",
+          "examples": [
+            "\"but are you going to just fix one problem? No AI is supposed to solve a myriad of problems. All resulting in the SAME THING. More people living longer. That is NOT the solution to anything. Nature culls all herds to keep balance. The Earth will send out its own types of antibodies when the human infection expands to placing it shouldn't\""
+          ],
+          "path": []
+        }
+      ]
+    },
+    {
+      "name": "Topics",
+      "type": "multi_label",
+      "instructions": "Assign all topical categories that apply. Fine-grained topics are labels; the topic thematic category is represented as the label path.",
+      "labels": [
+        {
+          "name": "Emotional Distress",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Emotional and social support"
+          ]
+        },
+        {
+          "name": "Emotional Response",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Emotional and social support"
+          ]
+        },
+        {
+          "name": "Desire For Romantic Connection",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Romantic and intimacy roleplay"
+          ]
+        },
+        {
+          "name": "Casual Conversation",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Causal exchange"
+          ]
+        },
+        {
+          "name": "Current Life Challenges",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Emotional and social support"
+          ]
+        },
+        {
+          "name": "Suicidal Thoughts",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Risky and dark roleplay"
+          ]
+        },
+        {
+          "name": "Desire For Friendship",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Emotional and social support"
+          ]
+        },
+        {
+          "name": "Substance Use",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Risky and dark roleplay"
+          ]
+        },
+        {
+          "name": "Financial Struggles",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Emotional disclosure"
+          ]
+        },
+        {
+          "name": "Work Stress",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Emotional disclosure"
+          ]
+        },
+        {
+          "name": "Mental Health Discussion",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Emotional disclosure"
+          ]
+        },
+        {
+          "name": "Interpersonal Issues",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Emotional disclosure"
+          ]
+        },
+        {
+          "name": "Information And Advice",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Knowledge seeking"
+          ]
+        },
+        {
+          "name": "Future Plans",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Creative development"
+          ]
+        },
+        {
+          "name": "Roleplay",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Collaborative storytelling and character impersonation"
+          ]
+        },
+        {
+          "name": "Intimate Exchange",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "High",
+            "Romantic and sexual interactions"
+          ]
+        },
+        {
+          "name": "Current Life Challenges",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Emotional and social support"
+          ]
+        },
+        {
+          "name": "Philosophical Perspective",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Philosophical and moral inquiry"
+          ]
+        },
+        {
+          "name": "Emotional Response",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Emotional and social support"
+          ]
+        },
+        {
+          "name": "Desire For Friendship",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Emotional and social support"
+          ]
+        },
+        {
+          "name": "Learning Limitations",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Philosophical and moral inquiry"
+          ]
+        },
+        {
+          "name": "Work Stress",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Emotional disclosure"
+          ]
+        },
+        {
+          "name": "Desire For Romantic Connection",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Romantic and intimacy roleplay"
+          ]
+        },
+        {
+          "name": "Trust Issues",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Emotional disclosure"
+          ]
+        },
+        {
+          "name": "Financial Struggles",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Emotional disclosure"
+          ]
+        },
+        {
+          "name": "Entertainment",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Causal exchange"
+          ]
+        },
+        {
+          "name": "Casual Conversation",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Causal exchange"
+          ]
+        },
+        {
+          "name": "Interpersonal Issues",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Emotional disclosure"
+          ]
+        },
+        {
+          "name": "Information And Advice",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Knowledge seeking"
+          ]
+        },
+        {
+          "name": "Future Plans",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Creative development"
+          ]
+        },
+        {
+          "name": "Writing",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Creative development"
+          ]
+        },
+        {
+          "name": "Roleplay",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Collaborative storytelling and character impersonation"
+          ]
+        },
+        {
+          "name": "Creative Ideation",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "Low",
+            "Creative development"
+          ]
+        },
+        {
+          "name": "Information And Advice",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "No",
+            "Knowledge seeking"
+          ]
+        },
+        {
+          "name": "Writing",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "No",
+            "Creative development"
+          ]
+        },
+        {
+          "name": "Roleplay",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "No",
+            "Collaborative storytelling and character impersonation"
+          ]
+        },
+        {
+          "name": "Creative Ideation",
+          "definition": "",
+          "examples": [],
+          "path": [
+            "No",
+            "Creative development"
+          ]
+        }
+      ],
+      "gated_by": "Level Of Disclosure",
+      "category_dimension": "Topic thematic categories"
+    },
+    {
+      "name": "Temporality",
+      "type": "multi_label",
+      "instructions": "Assign all temporal orientations that apply to the disclosure.",
+      "labels": [
+        {
+          "name": "Past",
+          "definition": "",
+          "examples": [],
+          "path": []
+        },
+        {
+          "name": "Future",
+          "definition": "",
+          "examples": [],
+          "path": []
+        },
+        {
+          "name": "Now",
+          "definition": "",
+          "examples": [],
+          "path": []
+        }
+      ]
+    }
+  ],
+  "_rationale_per_dim": {
+    "Level Of Disclosure": "Single-label because High, Low, and No are mutually exclusive levels of self-disclosure intensity for a given item. The spreadsheet lists them as levels under one coding theme.",
+    "Depth Of Disclosure - Layers Of Disclosure": "Single-label because Peripheral, Intermediate, and Central layers represent ordered, mutually exclusive depth levels. There is conceptual overlap with other dimensions, but within this dimension the levels are alternatives.",
+    "Intimacy Of Self-disclosure": "Single-label because Peripheral, Intermediate, and Core are mutually exclusive intimacy levels. Notes mention overlap with depth and level of disclosure, but that overlap is across dimensions rather than co-occurrence within this dimension.",
+    "Disclosure As Confession": "Single-label because Yes and No are binary alternatives. The source includes 'None of the above' as the definition for the No label, not as an additional optional label.",
+    "Topics": "Multi-label because the Topics cells contain many slash-separated topics per row, and the mode hint plus testing notes indicate topic matching can involve multiple co-occurring topics. 'Topic thematic categories' is treated as the coarse parent category for fine-grained Topics, not as a separate flat dimension. Obvious variants and typos were merged, such as Emotional distresss to Emotional Distress, Causal/Casual conversations to Casual Conversation, and Initimate exchange to Intimate Exchange.",
+    "Temporality": "Multi-label because the emergent-code row lists 'Past, Future, Now' together, indicating possible temporal orientations that may co-occur in a disclosure. The row has no definitions or examples."
+  }
+}
