@@ -1,5 +1,6 @@
 import {
   createContext, useCallback, useContext, useEffect, useRef, useState,
+  type ReactNode, type CSSProperties,
 } from 'react'
 import { useLocation } from 'react-router-dom'
 import { TOUR_STEPS, type TourStep, pageOf, stepForPage } from './steps'
@@ -24,7 +25,7 @@ const PAD = 8
 const GAP = 12
 const W = 320
 
-export function TourProvider({ children }: { children: React.ReactNode }) {
+export function TourProvider({ children }: { children: ReactNode }) {
   const loc = useLocation()
   const [active, setActive] = useState(loadActive)
   const [welcomeOpen, setWelcomeOpen] = useState(false)
@@ -185,7 +186,7 @@ function Popover({
   const left = Math.min(Math.max(GAP, rect.left), vw - W - GAP)
   // Cap height to the room on the chosen side so the card can never run off screen.
   const maxHeight = Math.max(140, (placeBelow ? vh - rect.bottom : rect.top) - GAP * 2)
-  const style: React.CSSProperties = placeBelow
+  const style: CSSProperties = placeBelow
     ? { top: rect.bottom + GAP, left, width: W, maxHeight, overflowY: 'auto' }
     : { bottom: vh - rect.top + GAP, left, width: W, maxHeight, overflowY: 'auto' }
 
