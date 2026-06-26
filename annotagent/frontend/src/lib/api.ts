@@ -20,6 +20,8 @@ export const listPresets = (projectId: number) =>
   api.get<PresetInfo[]>(`/projects/${projectId}/codebooks/presets`).then(r => r.data)
 export const uploadCodebook = (projectId: number, data: { preset_name?: string; raw_json?: object }) =>
   api.post<Codebook>(`/projects/${projectId}/codebooks`, data).then(r => r.data)
+export const addCodebookLabel = (projectId: number, dimension: string, label: string, definition = '') =>
+  api.post<Codebook>(`/projects/${projectId}/codebooks/add-label`, { dimension, label, definition }).then(r => r.data)
 export const listCodebooks = (projectId: number) =>
   api.get<Codebook[]>(`/projects/${projectId}/codebooks`).then(r => r.data)
 
@@ -64,6 +66,8 @@ export interface GoldReport {
   issues: { row: number; severity: string; kind: string; dimension: string; value: any; message: string }[]
   unknown_label_values: Record<string, Record<string, number>>
   unknown_dimensions: Record<string, number>
+  label_value_samples?: Record<string, Record<string, string[]>>
+  dimension_samples?: Record<string, string[]>
 }
 export interface GoldValidation {
   filename: string
@@ -104,6 +108,27 @@ export const commitLabeledData = (
   projectId: number,
   payload: { name: string; is_gold: boolean; file_type: string; items: any[] },
 ) => api.post<Dataset>(`/projects/${projectId}/datasets/commit`, payload).then(r => r.data)
+
+// Messy unlabeled input: LLM picks the text column, user confirms
+export interface ExtractPreview {
+  filename: string
+  file_type: string
+  columns: string[]
+  n_rows: number
+  sample_rows: any[]
+  suggested_content_column: string
+  rows: any[]
+}
+export const extractInputPreview = (projectId: number, file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post<ExtractPreview>(`/projects/${projectId}/datasets/extract-preview`, form, { timeout: 120_000 })
+    .then(r => r.data)
+}
+export const extractInputCommit = (
+  projectId: number,
+  payload: { filename: string; file_type: string; rows: any[]; content_column: string; context_column?: string | null },
+) => api.post<Dataset>(`/projects/${projectId}/datasets/extract-commit`, payload).then(r => r.data)
 export const previewDataset = (projectId: number, datasetId: number) =>
   api.get<DatasetPreview>(`/projects/${projectId}/datasets/${datasetId}`).then(r => r.data)
 export const deleteDataset = (projectId: number, datasetId: number) =>

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { ArrowRight } from 'lucide-react'
 import {
   getExpectedSchema, validateLabeledUpload, autofixLabeledData, applyLabeledFix, commitLabeledData,
+  addCodebookLabel,
   type GoldSchema, type GoldValidation, type GoldAutofix, type GoldReport, type GoldFixSpec,
 } from '../lib/api'
 
@@ -269,26 +270,39 @@ function MismatchFixer({ projectId, schema, report, originalItems, busy, onApply
     })
   }, [report])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const contentByIndex = new Map<number, string>(originalItems.map(it => [it.index, String(it.content || '')]))
-  const examples = (kind: string, dimension: string, value?: string): string[] =>
-    (report.issues || [])
-      .filter(i => i.kind === kind && i.dimension === dimension && (value === undefined || String(i.value) === value))
-      .slice(0, 3)
-      .map(i => contentByIndex.get(i.row) || '')
-      .filter(Boolean)
+  // Per-value example text comes straight from the report now, so every value
+  // (not just the first N) can show "where?".
+  const examples = (kind: string, dimension: string, value?: string): string[] => {
+    if (kind === 'unknown_dimension') return report.dimension_samples?.[dimension] ?? []
+    if (kind === 'unknown_label' && value !== undefined) return report.label_value_samples?.[dimension]?.[value] ?? []
+    return []
+  }
+
+  const buildSpec = (dm: Record<string, string>, lm: Record<string, Record<string, string>>): GoldFixSpec => ({
+    dimension_map: Object.fromEntries(Object.entries(dm).filter(([, v]) => v && v !== DROP)),
+    drop_dimensions: Object.entries(dm).filter(([, v]) => v === DROP).map(([k]) => k),
+    label_map: Object.fromEntries(Object.entries(lm).map(([d, m]) => [d, Object.fromEntries(Object.entries(m).filter(([, v]) => v))])),
+    multi_split: [' & ', ','],
+  })
 
   const apply = async () => {
     setApplying(true)
     try {
-      const spec: GoldFixSpec = {
-        dimension_map: Object.fromEntries(Object.entries(dimMap).filter(([, v]) => v && v !== DROP)),
-        drop_dimensions: Object.entries(dimMap).filter(([, v]) => v === DROP).map(([k]) => k),
-        label_map: Object.fromEntries(
-          Object.entries(labelMap).map(([d, m]) => [d, Object.fromEntries(Object.entries(m).filter(([, v]) => v))]),
-        ),
-        multi_split: [' & ', ','],
-      }
-      onApply(await applyLabeledFix(projectId, originalItems, spec))
+      onApply(await applyLabeledFix(projectId, originalItems, buildSpec(dimMap, labelMap)))
+    } finally { setApplying(false) }
+  }
+
+  // "this value is actually a valid label I forgot": add it to the codebook,
+  // then re-validate (it now matches as a label).
+  const createLabel = async (dim: string, value: string) => {
+    setApplying(true)
+    try {
+      await addCodebookLabel(projectId, dim, value)
+      const nextLabelMap = { ...labelMap, [dim]: { ...(labelMap[dim] || {}), [value]: value } }
+      setLabelMap(nextLabelMap)
+      onApply(await applyLabeledFix(projectId, originalItems, buildSpec(dimMap, nextLabelMap)))
+    } catch (e: any) {
+      window.alert('Could not add label: ' + (e?.response?.data?.detail || e?.message || 'unknown error'))
     } finally { setApplying(false) }
   }
 
@@ -329,10 +343,14 @@ function MismatchFixer({ projectId, schema, report, originalItems, busy, onApply
               {Object.entries(vals).map(([v, cnt]) => (
                 <FixRow key={v} from={v} count={cnt} examples={examples('unknown_label', dim, v)}>
                   <select value={labelMap[dim]?.[v] ?? ''} disabled={busy || applying}
-                    onChange={e => setLabelMap(p => ({ ...p, [dim]: { ...(p[dim] || {}), [v]: e.target.value } }))}
+                    onChange={e => {
+                      if (e.target.value === '__create__') createLabel(dim, v)
+                      else setLabelMap(p => ({ ...p, [dim]: { ...(p[dim] || {}), [v]: e.target.value } }))
+                    }}
                     className="bg-white border border-seam px-2 py-1 text-xs focus:outline-none focus:border-ink">
                     <option value="">(choose)</option>
                     {(labelsByDim[dim] || []).map(l => <option key={l} value={l}>{l}</option>)}
+                    <option value="__create__">＋ add “{v}” as a new codebook label</option>
                   </select>
                 </FixRow>
               ))}

@@ -299,3 +299,58 @@ async def accept_draft(
         .options(selectinload(Codebook.dimensions).selectinload(Dimension.labels))
     )
     return result.scalars().first()
+
+
+class AddLabelBody(BaseModel):
+    dimension: str
+    label: str
+    definition: str = ""
+
+
+def _norm_name(s: str) -> str:
+    import re
+    return " ".join(re.sub(r"[^0-9a-z]+", " ", str(s or "").casefold()).split())
+
+
+@router.post("/add-label", response_model=CodebookOut)
+async def add_label(project_id: int, body: AddLabelBody, db: AsyncSession = Depends(get_db)):
+    """Add a new label to a dimension of the project's active codebook. Used from
+    the gold-data mismatch fixer when a value is actually a valid label the user
+    forgot to include. Updates raw_json and the normalized Label rows."""
+    cb = (await db.execute(
+        select(Codebook).where(Codebook.project_id == project_id)
+        .order_by(Codebook.id.desc()).limit(1)
+    )).scalars().first()
+    if not cb:
+        raise HTTPException(404, "No codebook for this project.")
+    if not body.label.strip():
+        raise HTTPException(400, "Label is empty.")
+
+    raw = dict(cb.raw_json or {})
+    dims = raw.get("dimensions", [])
+    target = next((d for d in dims if _norm_name(d.get("name", "")) == _norm_name(body.dimension)), None)
+    if target is None:
+        raise HTTPException(404, f"Dimension {body.dimension!r} not in the codebook.")
+    labels = target.setdefault("labels", [])
+    if not any(_norm_name(l.get("name", "")) == _norm_name(body.label) for l in labels):
+        labels.append({"name": body.label, "definition": body.definition or "User-added label.", "examples": []})
+        cb.raw_json = raw
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(cb, "raw_json")
+
+    # Mirror into the normalized Label table.
+    dim_rows = (await db.execute(select(Dimension).where(Dimension.codebook_id == cb.id))).scalars().all()
+    dim_row = next((d for d in dim_rows if _norm_name(d.name) == _norm_name(target["name"])), None)
+    if dim_row is not None:
+        existing = (await db.execute(select(Label).where(Label.dimension_id == dim_row.id))).scalars().all()
+        if not any(_norm_name(l.name) == _norm_name(body.label) for l in existing):
+            db.add(Label(dimension_id=dim_row.id, name=body.label,
+                         definition=body.definition or "User-added label.",
+                         examples=[], sort_order=len(existing)))
+    await db.commit()
+
+    result = await db.execute(
+        select(Codebook).where(Codebook.id == cb.id)
+        .options(selectinload(Codebook.dimensions).selectinload(Dimension.labels))
+    )
+    return result.scalars().first()
