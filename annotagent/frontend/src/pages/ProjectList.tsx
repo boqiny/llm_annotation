@@ -44,7 +44,7 @@ export default function ProjectList() {
   }
 
   // One-click demo: build a ready-to-run project (preset self-disclosure codebook
-  // + coder Fiona's labels as the gold target, Chang as reference, + generated
+  // + Coder A's labels as the gold target, Coder B as reference, + generated
   // prompts) and land on the Improve page, so a first-time visitor reaches a working
   // golden path with no setup. Preset prompts are deterministic, so this needs no
   // API key; running the loop later does.
@@ -52,19 +52,19 @@ export default function ProjectList() {
     setDemoBusy(true); setDemoError(null)
     try {
       const project = await createProject({
-        name: 'Demo · Align to coder Fiona',
-        description: 'One-click demo: calibrate the annotator to coder Fiona on a self-disclosure codebook.',
+        name: 'Demo · Align to Coder A',
+        description: 'One-click demo: calibrate the annotator to Coder A on a self-disclosure codebook.',
       })
       const preset = (await listPresets(project.id)).find(p => p.name === 'self_disclosure')
       if (preset) await uploadCodebook(project.id, { preset_name: preset.name })
       const seeds = await listSeedDatasets(project.id)
       // The wedge is per-coder alignment, so the gold target is one chosen coder
-      // (Fiona), with the second coder (Chang) loaded as reference for contrast.
-      const target = seeds.find(s => s.id === 'sd_fiona' && s.available)
+      // (Coder A), with the second coder (Coder B) loaded as reference for contrast.
+      const target = seeds.find(s => s.id === 'sd_coder_a' && s.available)
         ?? seeds.find(s => s.role === 'reference' && s.available)
         ?? seeds.find(s => s.available)
       if (target) await loadSeedDataset(project.id, target.id, true)
-      const other = seeds.find(s => s.id === 'sd_chang' && s.available)
+      const other = seeds.find(s => s.id === 'sd_coder_b' && s.available)
       if (other) await loadSeedDataset(project.id, other.id, false)
       await decomposePipeline(project.id)
       navigate(`/projects/${project.id}/prompt-lab?tab=prompts`)
