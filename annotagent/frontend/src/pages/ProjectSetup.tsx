@@ -69,6 +69,8 @@ export default function ProjectSetupV2() {
     try {
       await deleteDataset(projectId, datasetId)
       setDatasets(await listDatasets(projectId))
+    } catch (e: any) {
+      window.alert('Could not remove dataset: ' + (e?.response?.data?.detail || e?.message || 'unknown error'))
     } finally { setRemovingDataset(null) }
   }
   const handleSaveLLM = async () => {
@@ -429,7 +431,7 @@ function DataStep({
                 <span className="flex-1 min-w-0 font-medium truncate">{ds.name}</span>
                 <span className="shrink-0 w-24 text-right font-mono text-xs text-stone-600">{ds.total_items} items</span>
                 <span className="shrink-0 w-16 text-right font-mono-editorial text-stone-400 text-[11px]">{ds.file_type}</span>
-                <span className="shrink-0 w-28 text-right text-xs text-stone-700">{ds.is_gold ? 'Gold standard' : 'Reference labels'}</span>
+                <span className="shrink-0 w-28 text-right text-xs text-stone-700">{ds.is_gold ? 'Labeled (gold)' : 'Reference labels'}</span>
                 <button
                   onClick={() => onRemoveDataset(ds.id)}
                   disabled={removingDataset === ds.id}

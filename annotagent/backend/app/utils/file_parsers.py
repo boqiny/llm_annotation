@@ -41,10 +41,48 @@ def parse_json_dataset(content: str) -> list[dict[str, Any]]:
     return result
 
 
+def _csv_rows_with_header(content: str) -> list[dict[str, Any]]:
+    """Read CSV rows as dicts, detecting the annotator 2-row header where the real
+    column names live in row 2 (row 1 is a meta strip like ``#, User, FL``). This
+    mirrors the XLSX annotator-sheet handling so coder exports parse the same way
+    in either format. Falls back to a normal row-1 header otherwise.
+    """
+    raw = list(csv.reader(io.StringIO(content)))
+    if not raw:
+        return []
+
+    r1 = [str(c or "").strip().lower() for c in raw[0]]
+    header_idx = 0
+    if len(r1) >= 3 and r1[0] == "#" and r1[1].startswith("user"):
+        header_idx = 1  # real header is row 2
+
+    if header_idx >= len(raw):
+        return []
+
+    # Build unique, non-empty header keys (trailing blank columns collide otherwise).
+    header = [str(c or "").strip() for c in raw[header_idx]]
+    seen: dict[str, int] = {}
+    keys: list[str] = []
+    for j, h in enumerate(header):
+        name = h or f"col{j}"
+        if name in seen:
+            seen[name] += 1
+            name = f"{name}_{seen[name]}"
+        else:
+            seen[name] = 0
+        keys.append(name)
+
+    rows: list[dict[str, Any]] = []
+    for r in raw[header_idx + 1:]:
+        if not any(str(c or "").strip() for c in r):
+            continue
+        rows.append({keys[j]: (r[j] if j < len(r) else "") for j in range(len(keys))})
+    return rows
+
+
 def parse_csv_dataset(content: str) -> list[dict[str, Any]]:
     """Parse CSV dataset content into list of data items."""
-    reader = csv.DictReader(io.StringIO(content))
-    rows = list(reader)
+    rows = _csv_rows_with_header(content)
     if _looks_like_theme_level_csv(rows):
         return _parse_theme_level_csv(rows)
 
@@ -85,6 +123,8 @@ def _parse_theme_level_csv(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
 
         content = str(row.get(content_key, "")).strip()
+        if len(content) >= 2 and content[0] == '"' and content[-1] == '"':
+            content = content[1:-1].strip()  # coders often wrap the quoted turn in quotes
         theme = str(row.get(theme_key, "")).strip()
         level = str(row.get(level_key, "")).strip()
         if not content:
@@ -110,6 +150,21 @@ def _parse_theme_level_csv(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     existing.append(level)
             elif existing != level:
                 item["gold_labels"][theme] = [existing, level]
+
+        # Coder sheets carry Topic / Topic-thematic-category as parallel annotation
+        # columns alongside the coding theme — capture them as their own dimensions
+        # so a Topic codebook dimension gets gold labels too.
+        topic_key = _find_key(row, "Topic", "Topics")
+        cat_key = _find_key(row, "Topic thematic category", "Topic thematic categories",
+                            "Thematic category", "Topic category")
+        if topic_key:
+            topic = str(row.get(topic_key, "")).strip()
+            if topic:
+                item["gold_labels"].setdefault("Topic", topic)
+        if cat_key:
+            cat = str(row.get(cat_key, "")).strip()
+            if cat:
+                item["gold_labels"].setdefault("Topic thematic category", cat)
 
     return [items_by_content[content] for content in order]
 

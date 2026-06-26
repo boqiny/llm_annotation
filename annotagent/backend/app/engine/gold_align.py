@@ -25,10 +25,22 @@ AUTOFIX_MAX_TOKENS = 2000
 
 # ─── normalization ──────────────────────────────────────────────────────────
 
+def _stem(tok: str) -> str:
+    """Light singular/plural fold so "Topic" matches "Topics" and "category" matches
+    "categories". Conservative: only touches longer tokens."""
+    if len(tok) > 4 and tok.endswith("ies"):
+        return tok[:-3] + "y"
+    if len(tok) > 3 and tok.endswith("s") and not tok.endswith("ss"):
+        return tok[:-1]
+    return tok
+
+
 def _norm(value: Any) -> str:
-    """Case/space/punctuation-insensitive key for matching dimension & label names."""
+    """Case/space/punctuation/plural-insensitive key for matching dimension & label
+    names, so a gold dimension that already corresponds to a codebook dimension is
+    matched (and preserved) rather than dropped."""
     text = re.sub(r"[^0-9a-zA-Z]+", " ", str(value or "").casefold())
-    return " ".join(text.split())
+    return " ".join(_stem(t) for t in text.split())
 
 
 # ─── schema ─────────────────────────────────────────────────────────────────
