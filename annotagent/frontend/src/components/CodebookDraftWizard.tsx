@@ -497,6 +497,22 @@ function DraftPreview({
       return { ...w, dimensions: dims }
     })
   }
+  // For the flat "Topics" view of a gated dimension: rename/remove a topic across
+  // every gate value it appears under (a topic is one concept, repeated per level).
+  const renameLeavesByName = (i: number, oldName: string, newName: string) => {
+    setWorking((w: any) => {
+      const dims = [...(w.dimensions || [])]
+      dims[i] = { ...dims[i], labels: (dims[i].labels || []).map((l: any) => l.name === oldName ? { ...l, name: newName } : l) }
+      return { ...w, dimensions: dims }
+    })
+  }
+  const removeLeavesByName = (i: number, name: string) => {
+    setWorking((w: any) => {
+      const dims = [...(w.dimensions || [])]
+      dims[i] = { ...dims[i], labels: (dims[i].labels || []).filter((l: any) => l.name !== name) }
+      return { ...w, dimensions: dims }
+    })
+  }
   const removeDim = (i: number) => {
     setWorking((w: any) => {
       const dims = [...(w.dimensions || [])]
@@ -612,25 +628,26 @@ function DraftPreview({
                     aria-label="Edit dimension instructions"
                   />
                 </div>
-                {(dim.labels || []).some((l: any) => l.path?.length) ? (
-                  <div className="grid lg:grid-cols-[1fr_240px] gap-4 items-start">
-                    <div className="space-y-2">
-                      <WizardNestedGroups
-                        node={wBuildTree(dim.labels || [])} depth={0}
-                        levelKinds={[dim.gated_by || '', dim.category_dimension || '']}
-                        keyPrefix={`${draft.id}-${i}`}
-                        onChange={(j, patch) => updateLabel(i, j, patch)}
-                        onRemove={(j) => removeLabel(i, j)}
-                      />
-                      <button onClick={() => addLabel(i)}
-                        className="text-xs px-2 py-1 border border-dashed border-seam hover:border-ink text-stone-500 hover:text-ink">
-                        + add label
-                      </button>
-                    </div>
-                    <WizardTree
-                      labels={dim.labels || []} gatedBy={dim.gated_by || ''}
+                {dim.category_dimension && (dim.labels || []).some((l: any) => l.path?.length) ? (
+                  <FlatTwoLists
+                    dim={dim}
+                    onRenameTopic={(oldN, newN) => renameLeavesByName(i, oldN, newN)}
+                    onRemoveTopic={(n) => removeLeavesByName(i, n)}
+                    onAddTopic={() => addLabel(i)}
+                  />
+                ) : (dim.labels || []).some((l: any) => l.path?.length) ? (
+                  <div className="space-y-2">
+                    <WizardNestedGroups
+                      node={wBuildTree(dim.labels || [])} depth={0}
                       levelKinds={[dim.gated_by || '', dim.category_dimension || '']}
+                      keyPrefix={`${draft.id}-${i}`}
+                      onChange={(j, patch) => updateLabel(i, j, patch)}
+                      onRemove={(j) => removeLabel(i, j)}
                     />
+                    <button onClick={() => addLabel(i)}
+                      className="text-xs px-2 py-1 border border-dashed border-seam hover:border-ink text-stone-500 hover:text-ink">
+                      + add label
+                    </button>
                   </div>
                 ) : (
                   <div className="space-y-1.5">
@@ -678,6 +695,21 @@ function DraftPreview({
               Drafter model: {draft.drafter_model || 'n/a'}
             </div>
           </div>
+
+          {dimensions.filter((d: any) => (d.labels || []).some((l: any) => l.path?.length)).map((d: any, idx: number) => (
+            <div key={idx}>
+              <div className="font-mono-editorial text-stone-500 mb-2">Structure · {d.name}</div>
+              {d.gated_by && (
+                <p className="text-[11px] leading-relaxed text-stone-500 mb-2">
+                  Predicted after <span className="font-medium text-indigo-700">{d.gated_by}</span>; the available labels depend on its value.
+                </p>
+              )}
+              <div className="max-h-[420px] overflow-auto pr-1 border border-seam bg-white p-2">
+                <WizardTreeLines node={wBuildTree(d.labels || [])} depth={0}
+                  levelKinds={[d.gated_by || '', d.category_dimension || '']} />
+              </div>
+            </div>
+          ))}
 
           {draft.has_cleaned_data && (
             <div>
@@ -817,24 +849,6 @@ function WizardNestedGroups({ node, depth, levelKinds, keyPrefix, onChange, onRe
   )
 }
 
-/* Read-only dependency-tree visualizer for the draft wizard. */
-function WizardTree({ labels, gatedBy, levelKinds }: { labels: any[]; gatedBy: string; levelKinds: string[] }) {
-  const root = wBuildTree(labels)
-  return (
-    <aside className="lg:sticky lg:top-4 border border-seam bg-paper/40 p-3">
-      <div className="font-mono-editorial text-[11px] text-stone-500 mb-1.5">Structure</div>
-      <p className="text-[11px] leading-relaxed text-stone-500 mb-2">
-        {gatedBy
-          ? <>Predicted after <span className="font-medium text-indigo-700">{gatedBy}</span>; labels depend on its value.</>
-          : <>Pick one leaf; the grouping above it is context.</>}
-      </p>
-      <div className="max-h-[360px] overflow-auto pr-1">
-        <WizardTreeLines node={root} depth={0} levelKinds={levelKinds} />
-      </div>
-    </aside>
-  )
-}
-
 function WizardTreeLines({ node, depth, levelKinds }: { node: WNode; depth: number; levelKinds: string[] }) {
   const isGate = depth === 0 && !!levelKinds[0]
   return (
@@ -857,6 +871,74 @@ function WizardTreeLines({ node, depth, levelKinds }: { node: WNode; depth: numb
         </li>
       ))}
     </ul>
+  )
+}
+
+/* Gated dimension shown as two normal lists: the topics (deduped, editable by
+ * name across gate values) and the thematic categories (read-only chips). The
+ * conditional tree itself lives in the right-hand "Structure" panel. */
+function FlatTwoLists({ dim, onRenameTopic, onRemoveTopic, onAddTopic }: {
+  dim: any
+  onRenameTopic: (oldName: string, newName: string) => void
+  onRemoveTopic: (name: string) => void
+  onAddTopic: () => void
+}) {
+  const labels = dim.labels || []
+  const topics: string[] = []
+  const seenT = new Set<string>()
+  for (const l of labels) if (l.name && !seenT.has(l.name)) { seenT.add(l.name); topics.push(l.name) }
+  const cats: string[] = []
+  const seenC = new Set<string>()
+  for (const l of labels) { const c = (l.path || []).slice(-1)[0]; if (c && !seenC.has(c)) { seenC.add(c); cats.push(c) } }
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="font-mono-editorial text-[10px] uppercase tracking-wider text-stone-400 mb-1.5">
+          {dim.name} · {topics.length}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {topics.map(t => (
+            <TopicChip key={t} name={t} onRename={n => onRenameTopic(t, n)} onRemove={() => onRemoveTopic(t)} />
+          ))}
+          <button onClick={onAddTopic}
+            className="text-xs px-2 py-1 border border-dashed border-seam hover:border-ink text-stone-500 hover:text-ink">
+            + add
+          </button>
+        </div>
+      </div>
+      {cats.length > 0 && (
+        <div>
+          <div className="font-mono-editorial text-[10px] uppercase tracking-wider text-stone-400 mb-1.5">
+            {dim.category_dimension} · {cats.length}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {cats.map(c => (
+              <span key={c} className="text-xs px-2 py-1 bg-paper border border-seam text-stone-600">{c}</span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TopicChip({ name, onRename, onRemove }: {
+  name: string; onRename: (n: string) => void; onRemove: () => void
+}) {
+  const [val, setVal] = useState(name)
+  useEffect(() => setVal(name), [name])
+  return (
+    <span className="inline-flex items-center gap-1 bg-white border border-seam pl-2 pr-1 py-0.5">
+      <input
+        value={val}
+        onChange={e => setVal(e.target.value)}
+        onBlur={() => { const v = val.trim(); if (v && v !== name) onRename(v); else setVal(name) }}
+        style={{ width: `${Math.max(4, val.length)}ch` }}
+        className="bg-transparent border-0 focus:outline-none text-xs text-stone-800"
+        aria-label="Edit topic name"
+      />
+      <button onClick={onRemove} className="text-stone-400 hover:text-red-600 text-xs px-0.5" title="Remove topic">×</button>
+    </span>
   )
 }
 
