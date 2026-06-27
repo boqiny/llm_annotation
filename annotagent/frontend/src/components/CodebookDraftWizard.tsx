@@ -533,6 +533,28 @@ function DraftPreview({
       return { ...w, dimensions: dims }
     })
   }
+  // Categories live as each leaf's last path segment; rename/remove across all
+  // leaves under that category (every gate value it appears in).
+  const renameCategory = (i: number, oldCat: string, newCat: string) => {
+    setWorking((w: any) => {
+      const dims = [...(w.dimensions || [])]
+      dims[i] = { ...dims[i], labels: (dims[i].labels || []).map((l: any) => {
+        const p = l.path || []
+        if (p.length && p[p.length - 1] === oldCat) { const np = [...p]; np[np.length - 1] = newCat; return { ...l, path: np } }
+        return l
+      }) }
+      return { ...w, dimensions: dims }
+    })
+  }
+  const removeCategory = (i: number, cat: string) => {
+    setWorking((w: any) => {
+      const dims = [...(w.dimensions || [])]
+      dims[i] = { ...dims[i], labels: (dims[i].labels || []).filter((l: any) => {
+        const p = l.path || []; return !(p.length && p[p.length - 1] === cat)
+      }) }
+      return { ...w, dimensions: dims }
+    })
+  }
   const removeDim = (i: number) => {
     setWorking((w: any) => {
       const dims = [...(w.dimensions || [])]
@@ -654,6 +676,8 @@ function DraftPreview({
                     onRenameTopic={(oldN, newN) => renameLeavesByName(i, oldN, newN)}
                     onRemoveTopic={(n) => removeLeavesByName(i, n)}
                     onAddTopic={() => addLabel(i)}
+                    onRenameCategory={(oldC, newC) => renameCategory(i, oldC, newC)}
+                    onRemoveCategory={(c) => removeCategory(i, c)}
                   />
                 ) : (dim.labels || []).some((l: any) => l.path?.length) ? (
                   <div className="space-y-2">
@@ -952,11 +976,13 @@ function PresetPreviewModal({ name, data, onClose }: { name: string; data: any; 
 /* Gated dimension shown as two normal lists: the topics (deduped, editable by
  * name across gate values) and the thematic categories (read-only chips). The
  * conditional tree itself lives in the right-hand "Structure" panel. */
-function FlatTwoLists({ dim, onRenameTopic, onRemoveTopic, onAddTopic }: {
+function FlatTwoLists({ dim, onRenameTopic, onRemoveTopic, onAddTopic, onRenameCategory, onRemoveCategory }: {
   dim: any
   onRenameTopic: (oldName: string, newName: string) => void
   onRemoveTopic: (name: string) => void
   onAddTopic: () => void
+  onRenameCategory: (oldName: string, newName: string) => void
+  onRemoveCategory: (name: string) => void
 }) {
   const labels = dim.labels || []
   const topics: string[] = []
@@ -988,7 +1014,7 @@ function FlatTwoLists({ dim, onRenameTopic, onRemoveTopic, onAddTopic }: {
           </div>
           <div className="flex flex-wrap gap-1.5">
             {cats.map(c => (
-              <span key={c} className="text-xs px-2 py-1 bg-paper border border-seam text-stone-600">{c}</span>
+              <TopicChip key={c} name={c} onRename={n => onRenameCategory(c, n)} onRemove={() => onRemoveCategory(c)} />
             ))}
           </div>
         </div>
