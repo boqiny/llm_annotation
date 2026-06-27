@@ -749,8 +749,10 @@ function DraftPreview({
                 </p>
               )}
               <div className="max-h-[420px] overflow-auto pr-1 border border-seam bg-white p-2">
-                <WizardTreeLines node={wBuildTree(d.labels || [])} depth={0}
-                  levelKinds={[d.gated_by || '', d.category_dimension || '']} />
+                {d.category_dimension
+                  ? <TopicCategoryTree labels={d.labels || []} />
+                  : <WizardTreeLines node={wBuildTree(d.labels || [])} depth={0}
+                      levelKinds={[d.gated_by || '', d.category_dimension || '']} />}
               </div>
             </div>
           ))}
@@ -890,6 +892,42 @@ function WizardNestedGroups({ node, depth, levelKinds, keyPrefix, onChange, onRe
         </section>
       ))}
     </div>
+  )
+}
+
+/* Topic-first structure for a gated dimension: under each gate value, list the
+ * TOPICS, each annotated with its thematic category — matching the coder workflow
+ * "first pick the topic, then pick its thematic category". */
+function TopicCategoryTree({ labels }: { labels: any[] }) {
+  const byGate = new Map<string, { topic: string; category: string }[]>()
+  for (const l of labels) {
+    const p = l.path || []
+    const gate = p[0] || ''
+    const category = p.length > 1 ? p[p.length - 1] : ''
+    if (!byGate.has(gate)) byGate.set(gate, [])
+    byGate.get(gate)!.push({ topic: l.name, category })
+  }
+  return (
+    <ul className="space-y-1.5">
+      {[...byGate.entries()].map(([gate, items], gi) => (
+        <li key={gi}>
+          {gate && (
+            <div className="flex items-baseline gap-1.5 text-[11px]">
+              <span className="text-indigo-700 font-medium">{gate}</span>
+              <span className="font-mono text-[10px] text-stone-400">{items.length}</span>
+            </div>
+          )}
+          <ul className="space-y-0.5 mt-0.5">
+            {items.map((it, ii) => (
+              <li key={ii} className="text-[11px] leading-snug" style={{ paddingLeft: gate ? 12 : 0 }}>
+                <span className="text-stone-700">{it.topic}</span>
+                {it.category && <span className="text-stone-400"> · {it.category}</span>}
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ul>
   )
 }
 
