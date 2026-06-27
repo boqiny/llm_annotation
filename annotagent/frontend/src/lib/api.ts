@@ -18,6 +18,8 @@ export const deleteProject = (id: number) => api.delete(`/projects/${id}`)
 // Codebooks
 export const listPresets = (projectId: number) =>
   api.get<PresetInfo[]>(`/projects/${projectId}/codebooks/presets`).then(r => r.data)
+export const getPreset = (projectId: number, name: string) =>
+  api.get<any>(`/projects/${projectId}/codebooks/presets/${name}`).then(r => r.data)
 export const uploadCodebook = (projectId: number, data: { preset_name?: string; raw_json?: object }) =>
   api.post<Codebook>(`/projects/${projectId}/codebooks`, data).then(r => r.data)
 export const addCodebookLabel = (projectId: number, dimension: string, label: string, definition = '') =>

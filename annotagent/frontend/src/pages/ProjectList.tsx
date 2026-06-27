@@ -247,7 +247,11 @@ function Step({ n, title, body }: { n: string; title: string; body: string }) {
 function formatDate(value: string | null) {
   if (!value) return '—'
 
-  const date = new Date(value)
+  // Backend stores naive UTC (SQLite func.now()); mark it UTC explicitly so the
+  // viewer's local timezone can't misparse it, then render in Pacific. The short
+  // timeZoneName resolves to PST/PDT automatically across DST.
+  const utc = /(?:Z|[+-]\d\d:?\d\d)$/.test(value) ? value : value + 'Z'
+  const date = new Date(utc)
   if (Number.isNaN(date.getTime())) return '—'
 
   return date.toLocaleString(undefined, {
@@ -256,8 +260,9 @@ function formatDate(value: string | null) {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    timeZone: 'UTC',
-  }) + ' UTC'
+    timeZone: 'America/Los_Angeles',
+    timeZoneName: 'short',
+  })
 }
 
 function ProjectRow({
