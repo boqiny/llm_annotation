@@ -46,6 +46,20 @@ async def list_presets(project_id: int):
     return presets
 
 
+@router.get("/presets/{name}")
+async def get_preset(project_id: int, name: str):
+    """Full preset codebook (name, description, dimensions with labels + paths) so
+    the wizard can preview it before loading. Same shape a drafted codebook has."""
+    # Guard against path traversal: only a bare preset stem is allowed.
+    if "/" in name or "\\" in name or name.startswith("."):
+        raise HTTPException(400, "Invalid preset name.")
+    path = PRESETS_DIR / f"{name}.json"
+    if not path.exists():
+        raise HTTPException(404, f"Preset '{name}' not found")
+    with open(path) as fp:
+        return json.load(fp)
+
+
 @router.post("", response_model=CodebookOut, status_code=201)
 async def upload_codebook(
     project_id: int,
