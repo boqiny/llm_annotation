@@ -3,7 +3,7 @@ import { Pencil, Loader2, Check } from 'lucide-react'
 import {
   uploadCodebookDraft, pasteCodebookDraft, presetCodebookDraft,
   acceptCodebookDraft, deleteCodebookDraft, patchCodebookDraft,
-  artifactDownloadUrl,
+  artifactDownloadUrl, getPreset,
   type CodebookDraft,
 } from '../lib/api'
 import type { PresetInfo } from '../types'
@@ -159,6 +159,7 @@ export default function CodebookDraftWizard({
           )}
           {door === 'preset' && (
             <PresetForm
+              projectId={projectId}
               presets={presets}
               value={presetName}
               onChange={setPresetName}
@@ -383,14 +384,23 @@ function PasteForm({
 }
 
 function PresetForm({
-  presets, value, onChange, onSubmit, busy,
+  projectId, presets, value, onChange, onSubmit, busy,
 }: {
+  projectId: number
   presets: PresetInfo[]
   value: string
   onChange: (v: string) => void
   onSubmit: () => void
   busy: boolean
 }) {
+  const [preview, setPreview] = useState<{ name: string; data: any } | null>(null)
+  const [loadingPreview, setLoadingPreview] = useState<string | null>(null)
+  const openPreview = async (name: string) => {
+    setLoadingPreview(name)
+    try { setPreview({ name, data: await getPreset(projectId, name) }) }
+    catch { /* ignore */ }
+    finally { setLoadingPreview(null) }
+  }
   return (
     <div>
       <div className="font-mono-editorial text-stone-500 mb-2">
@@ -412,8 +422,17 @@ function PresetForm({
               onChange={() => onChange(p.name)}
               className="mt-1"
             />
-            <div>
-              <div className="font-medium">{p.name}</div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{p.name}</span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); openPreview(p.name) }}
+                  className="ml-auto shrink-0 text-[11px] font-mono-editorial text-stone-500 hover:text-ink underline"
+                >
+                  {loadingPreview === p.name ? 'loading…' : 'preview'}
+                </button>
+              </div>
               <div className="text-xs text-stone-500 mt-0.5">{p.dimensions} dimensions</div>
               {p.description && (
                 <div className="text-sm text-stone-600 mt-1 leading-relaxed">{p.description}</div>
@@ -422,6 +441,7 @@ function PresetForm({
           </label>
         ))}
       </div>
+      {preview && <PresetPreviewModal name={preview.name} data={preview.data} onClose={() => setPreview(null)} />}
       <div className="flex justify-end">
         <button
           onClick={onSubmit}
@@ -871,6 +891,61 @@ function WizardTreeLines({ node, depth, levelKinds }: { node: WNode; depth: numb
         </li>
       ))}
     </ul>
+  )
+}
+
+/* Read-only preview of a preset codebook before loading it. */
+function PresetPreviewModal({ name, data, onClose }: { name: string; data: any; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  const dims = data?.dimensions || []
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-cream border border-seam w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-4 px-5 py-3 border-b border-seam">
+          <div>
+            <div className="font-medium">{data?.name || name}</div>
+            <div className="font-mono-editorial text-[11px] text-stone-400">{dims.length} dimensions · preview</div>
+          </div>
+          <button onClick={onClose} className="text-stone-400 hover:text-ink text-xl leading-none px-1" title="Close (Esc)">×</button>
+        </div>
+        <div className="overflow-auto p-5 space-y-5">
+          {data?.description && <p className="text-sm text-stone-600 leading-relaxed">{data.description}</p>}
+          {dims.map((d: any, i: number) => {
+            const hier = (d.labels || []).some((l: any) => l.path?.length)
+            return (
+              <div key={i} className="border-l-2 border-stone-200 pl-3">
+                <div className="flex items-baseline gap-2 mb-1.5 flex-wrap">
+                  <span className="font-medium text-ink">{d.name}</span>
+                  <span className={`font-mono-editorial text-[10px] uppercase tracking-wider ${(d.type || '').includes('multi') ? 'text-violet-600' : 'text-indigo-600'}`}>
+                    {(d.type || 'single_label').replace('_', ' ')}
+                  </span>
+                  <span className="font-mono text-[11px] text-stone-400">{(d.labels || []).length}</span>
+                </div>
+                {hier ? (
+                  <div className="max-h-[280px] overflow-auto pr-1">
+                    <WizardTreeLines node={wBuildTree(d.labels || [])} depth={0}
+                      levelKinds={[d.gated_by || '', d.category_dimension || '']} />
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(d.labels || []).map((l: any, j: number) => (
+                      <span key={j} className="text-xs px-2 py-0.5 bg-white border border-seam text-stone-700">{l.name}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        <div className="px-5 py-3 border-t border-seam">
+          <button onClick={onClose} className="text-sm px-4 py-1.5 border border-ink hover:bg-paper">Close</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
