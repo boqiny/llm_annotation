@@ -35,6 +35,9 @@ DRAFTER_MAX_TOKENS = 8000         # many labels + verbatim definitions need head
 # Codebook drafting is a one-shot reasoning task (read the whole codebook, infer
 # the schema). Use a strong model here regardless of the per-project annotation
 # model, which is often a cheaper one tuned for high-volume labeling.
+# TODO: expose this as an explicit "codebook parser model" setting in setup so
+# users can see and change the cost/latency tradeoff instead of relying on a
+# hidden backend override.
 CODEBOOK_DRAFTER_MODEL = "gpt-5.5"
 # Drafting is extraction/structuring, not deep reasoning. Full-effort reasoning on
 # gpt-5.5 runs ~2+ minutes (past the client timeout); "low" keeps quality but cuts
