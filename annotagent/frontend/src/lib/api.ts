@@ -271,6 +271,16 @@ export const codebookToDraft = (codebookId: number) =>
   api.post<CodebookDraft>('/codebook-drafts/from-codebook', { codebook_id: codebookId })
      .then(r => r.data)
 
+export interface StructureLevel { label: string; sublabel?: string }
+export interface StructureSchema {
+  root: { label: string; sublabel?: string } | null
+  themes: { name: string; citation?: string; levels: StructureLevel[]; feeds?: boolean }[]
+  outputs: { name: string; sublabel?: string }[]
+}
+export const generateStructureSchema = (projectId: number, codebookId: number) =>
+  api.post<StructureSchema>(`/projects/${projectId}/codebooks/${codebookId}/structure-schema`)
+     .then(r => r.data)
+
 export const getCodebookDraft = (draftId: number) =>
   api.get<CodebookDraft>(`/codebook-drafts/${draftId}`).then(r => r.data)
 

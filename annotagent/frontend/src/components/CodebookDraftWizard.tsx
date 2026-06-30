@@ -562,10 +562,20 @@ function DraftPreview({
   const rationalePerDim: Record<string, string> =
     (draft.draft_json || {})._rationale_per_dim || {}
 
-  const flags = draft.critic_flags || []
-  const errorFlags = flags.filter(f => f.severity === 'error')
-  const warnFlags = flags.filter(f => f.severity === 'warn')
-  const infoFlags = flags.filter(f => f.severity === 'info')
+  // Blocking errors are recomputed from the LIVE edited dimensions, not the stored
+  // critic flags — otherwise a flag for a dimension the user just removed (or fixed)
+  // would keep blocking acceptance. Backend warn/info flags are still shown, but
+  // only for dimensions that still exist.
+  const liveDimNames = new Set(dimensions.map(d => (d.name || '').toLowerCase()))
+  const errorFlags = dimensions.flatMap((d: any) => {
+    const n = (d.labels || []).length
+    return n < 2
+      ? [{ severity: 'error', dim: d.name, message: `Only ${n} label(s) — need at least 2.` }]
+      : []
+  })
+  const staleable = (f: any) => !f.dim || liveDimNames.has(String(f.dim).toLowerCase())
+  const warnFlags = (draft.critic_flags || []).filter(f => f.severity === 'warn' && staleable(f))
+  const infoFlags = (draft.critic_flags || []).filter(f => f.severity === 'info' && staleable(f))
 
   const updateDim = (i: number, patch: Partial<any>) => {
     setWorking((w: any) => {
@@ -984,9 +994,6 @@ function WizardNestedGroups({ node, depth, levelKinds, keyPrefix, onChange, onRe
  * dimension is `gated_by`) is followed by the dimensions it gates, ordered so a
  * dimension that takes another as `context_dims` comes after it. */
 function CascadeArrow({ dims }: { dims: any[] }) {
-  const distinct = (d: any) => new Set<string>((d.labels || []).map((l: any) => l.name).filter(Boolean)).size
-  const gateValues = (d: any) => new Set<string>((d.labels || []).map((l: any) => (l.path || [])[0]).filter(Boolean)).size
-
   const orderByContext = (group: any[]) => {
     const placed: any[] = []
     const remaining = [...group]
@@ -1008,21 +1015,14 @@ function CascadeArrow({ dims }: { dims: any[] }) {
   return (
     <div className="space-y-3">
       {gateNames.map(gate => {
-        const gateDim = dims.find(d => d.name === gate)
         const gated = orderByContext(dims.filter(d => d.gated_by === gate))
-        const nodes: { label: string; sub: string }[] = [
-          { label: gate, sub: `${gateDim ? distinct(gateDim) : gateValues(gated[0])} values` },
-          ...gated.map(d => ({ label: d.name, sub: `${distinct(d)} labels` })),
-        ]
+        const chain = [gate, ...gated.map(d => d.name)]
         return (
           <div key={gate} className="flex flex-wrap items-center gap-1.5">
-            {nodes.map((n, i) => (
-              <div key={n.label} className="flex items-center gap-1.5">
+            {chain.map((name, i) => (
+              <div key={name} className="flex items-center gap-1.5">
                 {i > 0 && <span className="text-stone-400 text-sm" aria-hidden="true">&rarr;</span>}
-                <div className="border border-seam bg-white px-2.5 py-1.5">
-                  <div className="text-[12px] font-medium text-stone-800 leading-tight">{n.label}</div>
-                  <div className="font-mono text-[10px] text-stone-400 mt-0.5">{n.sub}</div>
-                </div>
+                <div className="border border-seam bg-white px-2.5 py-1.5 text-[12px] font-medium text-stone-800">{name}</div>
               </div>
             ))}
           </div>

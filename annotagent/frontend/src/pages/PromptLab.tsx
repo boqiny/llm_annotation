@@ -12,6 +12,7 @@ import api, {
   type OptimizerInfo, type OptimizerRun, type AutoPromptResponse, type MemoryVersion, type MemoryRule, type FeedbackEvidence,
 } from '../lib/api'
 import type { Codebook, Dataset, Job, Pipeline } from '../types'
+import StructureDiagram from '../components/StructureDiagram'
 import { APP_NAME } from '../lib/brand'
 
 type Tab = 'prompts' | 'improve' | 'runs' | 'memory'
@@ -326,6 +327,7 @@ export default function PromptLabV2() {
         <ImproveTab
           codebooks={codebooks}
           datasets={datasets}
+          runs={runs}
           selectedDim={selectedDim} setSelectedDim={setSelectedDim}
           selectedGold={selectedGold} setSelectedGold={setSelectedGold}
           optimizers={optimizers}
@@ -560,6 +562,31 @@ function PromptsTab({
           </p>
         </div>
       </div>
+      {(
+        <details className="border border-indigo-200 bg-indigo-50/40 group" open>
+          <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden px-3 py-2 flex items-center justify-between gap-2">
+            <span className="font-mono-editorial text-indigo-800 text-xs flex items-center gap-1.5">
+              <span className="transition-transform group-open:rotate-90" aria-hidden="true">▸</span>
+              Prediction structure · improve earlier steps first
+            </span>
+            <span className="shrink-0 text-[11px] font-medium px-2 py-1 border border-indigo-300 rounded bg-white text-indigo-700 hover:bg-indigo-100">
+              <span className="group-open:hidden">Show ▾</span>
+              <span className="hidden group-open:inline">Hide ▴</span>
+            </span>
+          </summary>
+          <div className="px-3 pb-3 space-y-3">
+            <div className="bg-white border border-seam p-3">
+              <StructureDiagram projectId={projectId} codebookId={activeCb.id} />
+            </div>
+            <p className="text-[11px] leading-relaxed text-indigo-900/80">
+              Predicted as a cascade: each theme's level is predicted first, then Topics, then the thematic category — each
+              step's available labels depend on the ones before it. Improve them in that order; a dependent step's run is
+              blocked until its predecessors have a completed run.
+            </p>
+          </div>
+        </details>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {autoPrompt.prompts.map((p, i) => {
           const completedRuns = runs.filter(r =>
@@ -890,13 +917,14 @@ function optimizerChoices(optimizers: OptimizerInfo[]) {
 }
 
 function ImproveTab({
-  codebooks, datasets, selectedDim, setSelectedDim, selectedGold, setSelectedGold,
+  codebooks, datasets, runs, selectedDim, setSelectedDim, selectedGold, setSelectedGold,
   optimizers, selectedOptimizer, setSelectedOptimizer,
   budget, setBudget, launching, launchError, projectId, onLaunched,
   setLaunching, setLaunchError,
 }: {
   codebooks: Codebook[]
   datasets: Dataset[]
+  runs: OptimizerRun[]
   selectedDim: string
   setSelectedDim: (v: string) => void
   selectedGold: number | null
@@ -947,6 +975,17 @@ function ImproveTab({
   }
   const selectedDimension = activeCb?.dimensions.find(d => normDimensionName(d.name) === normDimensionName(selectedDim))
   const expectedLabels = useMemo(() => selectedDimension?.labels.map(l => l.name) ?? [], [selectedDimension])
+
+  // Cascade gating: a dependent dimension (gated by another, or taking another's
+  // value as context) must be improved AFTER the ones it depends on. Require each
+  // prerequisite to have a completed optimization run first.
+  const hasCompletedRun = (dimName: string) => runs.some(r =>
+    normDimensionName(r.dimension_name) === normDimensionName(dimName) && normStatus(r.status) === 'completed')
+  const prereqs: string[] = selectedDimension
+    ? [selectedDimension.gated_by, ...((selectedDimension as any).context_dims || [])].filter(Boolean) as string[]
+    : []
+  const unmetPrereqs = prereqs.filter(p => !hasCompletedRun(p))
+  const blockedByPrereq = unmetPrereqs.length > 0
   const displayedClasses = useMemo(() => {
     const merged: Record<string, number> = {}
     for (const expected of expectedLabels) {
@@ -980,7 +1019,7 @@ function ImproveTab({
     : []
 
   const handleLaunch = async () => {
-    if (!selectedGold || noLabels || tooFew) return
+    if (!selectedGold || noLabels || tooFew || blockedByPrereq) return
     setLaunching(true); setLaunchError('')
     try {
       const run = await startOptimizerRun(projectId, {
@@ -1109,10 +1148,16 @@ function ImproveTab({
             Improvement can make many LLM calls; the number scales with the rounds, the examples, and retries. {APP_NAME} tracks measured token usage in the run summary.
           </p>
         </div>
-        <button onClick={handleLaunch} disabled={launching || noLabels || tooFew}
+        {blockedByPrereq && (
+          <div className="border border-indigo-200 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-900">
+            <span className="font-medium">“{selectedDim}” is predicted after {prereqs.join(' and ')}.</span>{' '}
+            Improve {unmetPrereqs.join(' and ')} first — run it through this step until it has a completed run, then come back.
+          </div>
+        )}
+        <button onClick={handleLaunch} disabled={launching || noLabels || tooFew || blockedByPrereq}
                 data-tour="run-improvement"
                 className="w-full py-2.5 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40">
-          {launching ? 'Starting…' : 'Run improvement →'}
+          {launching ? 'Starting…' : blockedByPrereq ? `Improve ${unmetPrereqs[0]} first` : 'Run improvement →'}
         </button>
         {launchError && <div className="text-xs text-red-700">{launchError}</div>}
         </div>

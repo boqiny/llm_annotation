@@ -18,6 +18,7 @@ from app.schemas.schemas import (
 from app.config import resolve_api_key
 from app.engine.codebook_parser import parse_codebook, validate_codebook
 from app.engine.auto_prompt_generator import agenerate_prompts_per_dimension
+from app.engine.llm_client import call_llm
 from app.utils.storage import next_version, project_paths, save_text, save_yaml, utc_now_iso
 
 router = APIRouter(prefix="/api/projects/{project_id}/codebooks", tags=["codebooks"])
@@ -225,6 +226,207 @@ async def auto_generate_prompt(
         ))
 
     return AutoPromptResponse(prompts=out)
+
+
+_STRUCTURE_SYSTEM = """You map an annotation codebook to a prediction-structure diagram.
+
+Given the dimensions (name, type, labels, and dependencies: ``gated_by`` = a
+dimension whose value restricts this one's labels; ``context_dims`` = dimensions fed
+in as context), output STRICT JSON describing a left-to-right tree:
+
+{
+  "root": {"label": "<short scheme name>", "sublabel": "predict 1 of N"}  OR null,
+  "themes": [
+    {"name": "<dimension predicted first>",
+     "citation": "<Author Year pulled from its definitions, or ''>",
+     "levels": ["<label>", "<label>", ...]}
+  ],
+  "outputs": [{"name": "<dependent dimension>", "sublabel": "<short count e.g. '37 topics', or ''>"}],
+  "independent_themes": ["<exact names of themes that do NOT feed the outputs>"]
+}
+
+How to fill it (works for ANY codebook, do not hard-code one):
+  - THEMES = dimensions predicted on their own (no gated_by) whose labels are a
+    SMALL mutually-exclusive scale (High/Low/No, Yes/No, Peripheral/Intermediate/
+    Central, ...). Put each label in "levels". Pull a citation
+    (e.g. "Zhang et al. 2025", "Altman & Taylor 1973") from the dimension's
+    definitions if present, else "".
+  - OUTPUTS = the dependent dimensions (those with gated_by or context_dims),
+    ordered so a dimension others depend on comes BEFORE the ones depending on it
+    (e.g. Topics before Topic thematic categories). Do NOT list their labels; put a
+    short count in "sublabel" (e.g. "37 topics"). If there are none, outputs = [].
+    Every theme's levels flow into the first output, so list outputs even if only
+    one dimension formally gates them.
+  - A predicted-first dimension with MANY labels (not a small scale) is still a
+    theme; give it few or no "levels".
+  - "independent_themes": MOST themes feed the outputs (the topic is described in
+    their context). List here ONLY the EXACT names of themes that are clearly
+    ORTHOGONAL to the topic — a different axis the topic does not depend on, e.g. a
+    temporal "when" orientation (past/future/now). Everything not listed feeds.
+  - "root": include only if the themes are facets of one coding scheme; sublabel
+    like "predict 1 of <#themes>". Else null.
+
+EXAMPLE — for a self-disclosure codebook with themes Level of disclosure (High/Low/
+No), Depth of disclosure, Intimacy, Disclosure as confession, and Temporality
+(Past/Future/Now), plus dependent dimensions Topics and Topic thematic categories:
+{
+  "root": {"label": "Self-disclosure", "sublabel": "predict 1 of 5"},
+  "themes": [
+    {"name": "Level of disclosure", "citation": "Zhang et al. 2025", "levels": ["High","Low","No"]},
+    {"name": "Depth of disclosure", "citation": "Altman & Taylor 1973", "levels": ["Peripheral","Intermediate","Central"]},
+    {"name": "Intimacy of self-disclosure", "citation": "Croes et al. 2024", "levels": ["Peripheral","Intermediate","Core"]},
+    {"name": "Disclosure as confession", "citation": "Croes et al. 2024", "levels": ["Yes","No"]},
+    {"name": "Temporality", "citation": "", "levels": ["Past","Future","Now"]}
+  ],
+  "outputs": [{"name": "Topics", "sublabel": "37 topics"},
+              {"name": "Topic thematic categories", "sublabel": "17 categories"}],
+  "independent_themes": ["Temporality"]
+}
+Temporality is independent (a "when" axis), so the four disclosure facets feed the
+topic and Temporality does not.
+
+Output STRICT JSON only — no prose, no fences."""
+
+
+def _structure_user_message(parsed) -> str:
+    dims = []
+    for d in parsed.dimensions:
+        # Include instructions + label-definition text so the model can pull a
+        # citation (e.g. "Zhang et al. 2025") out of it.
+        defs = " ".join((l.definition or "") for l in d.labels)
+        dims.append({
+            "name": d.name,
+            "type": d.dim_type,
+            "gated_by": d.gated_by or None,
+            "context_dims": d.context_dims or [],
+            "n_labels": len(d.labels),
+            "labels": [l.name for l in d.labels][:40],
+            "definition_text": ((d.instructions or "") + " " + defs)[:700],
+        })
+    return ("CODEBOOK DIMENSIONS:\n" + json.dumps(dims, ensure_ascii=False, indent=2)
+            + "\n\nProduce the diagram JSON now. STRICT JSON only.")
+
+
+def _extract_json(text: str):
+    s = (text or "").strip()
+    if s.startswith("```"):
+        s = s.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    try:
+        return json.loads(s)
+    except json.JSONDecodeError:
+        i, j = s.find("{"), s.rfind("}")
+        if 0 <= i < j:
+            try:
+                return json.loads(s[i:j + 1])
+            except json.JSONDecodeError:
+                return None
+        return None
+
+
+def _theme_levels(d, cap: int) -> list[dict]:
+    """The boxes shown branching off a theme, built deterministically from the
+    codebook so it works for any shape:
+      - hierarchical labels (path) -> one box per top-level group (function), with a
+        leaf count, so a 37-leaf taxonomy shows ~6 function boxes, not 37 leaves;
+      - a small flat scale (High/Low/No) -> one box per label;
+      - many flat labels -> none (just the theme box, the count is on the theme).
+    """
+    has_path = any(getattr(l, "path", None) for l in d.labels)
+    if has_path:
+        order, counts = [], {}
+        for l in d.labels:
+            g = (l.path[0] if getattr(l, "path", None) else l.name)
+            if g not in counts:
+                counts[g] = 0; order.append(g)
+            counts[g] += 1
+        return [{"label": g, "sublabel": f"{counts[g]} codes"} for g in order[:cap]]
+    if len(d.labels) <= cap:
+        return [{"label": l.name} for l in d.labels]
+    return []
+
+
+class StructureSchemaOut(BaseModel):
+    root: dict | None = None
+    themes: list[dict] = []
+    outputs: list[dict] = []
+
+
+@router.post("/{codebook_id}/structure-schema", response_model=StructureSchemaOut)
+async def generate_structure_schema(
+    project_id: int, codebook_id: int, db: AsyncSession = Depends(get_db),
+):
+    """LLM-predict a structured diagram schema (root / themes[levels] / outputs) of
+    the codebook's prediction structure. Universal: the model infers which dimensions
+    are themes (with their levels + citations) and which are the dependent topic
+    chain; the frontend renders the fixed left-to-right tree from it."""
+    project = await db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    cb = await db.get(Codebook, codebook_id)
+    if not cb or cb.project_id != project_id:
+        raise HTTPException(404, "Codebook not found for this project")
+    api_key = resolve_api_key(project.llm_provider, project.api_key_encrypted)
+    if not api_key:
+        raise HTTPException(400, f"No {project.llm_provider} API key available.")
+
+    parsed = parse_codebook(cb.raw_json or {})
+    if not parsed.dimensions:
+        raise HTTPException(400, "Codebook has no dimensions")
+
+    try:
+        resp = await call_llm(
+            messages=[
+                {"role": "system", "content": _STRUCTURE_SYSTEM},
+                {"role": "user", "content": _structure_user_message(parsed)},
+            ],
+            provider=project.llm_provider, model=project.llm_model, api_key=api_key,
+            max_tokens=3000,
+        )
+    except Exception as e:
+        raise HTTPException(502, f"LLM call failed: {type(e).__name__}: {e}")
+
+    obj = _extract_json(resp.text)
+    if not isinstance(obj, dict):
+        raise HTTPException(502, "Model did not return a usable diagram schema.")
+
+    # The LLM enriches (citation, which labels to show as levels, sublabel), but the
+    # theme/output SPLIT is decided deterministically from the codebook so an
+    # independent dimension (e.g. Temporality) is never mislabelled as a dependent
+    # output: outputs = dimensions that actually depend on another (gated_by /
+    # context_dims); everything else is a theme.
+    llm_t = {str(t.get("name", "")): t for t in (obj.get("themes") or []) if isinstance(t, dict)}
+    llm_o = {str(o.get("name", "")): o for o in (obj.get("outputs") or []) if isinstance(o, dict)}
+    LEVEL_CAP = 12
+
+    # Most themes feed the outputs; the LLM names the orthogonal ones to exclude.
+    independent = {str(x) for x in (obj.get("independent_themes") or [])}
+
+    themes, out_raw = [], []
+    for d in parsed.dimensions:
+        is_output = bool(d.gated_by or d.context_dims)
+        if is_output:
+            o = llm_o.get(d.name, {})
+            out_raw.append({
+                "name": d.name,
+                "sublabel": str(o.get("sublabel", "") or "") or f"{len(d.labels)} labels",
+                "_deps": [x for x in [d.gated_by, *(d.context_dims or [])] if x],
+            })
+        else:
+            t = llm_t.get(d.name, {})
+            themes.append({"name": d.name, "citation": str(t.get("citation", "") or ""),
+                           "levels": _theme_levels(d, LEVEL_CAP), "feeds": d.name not in independent})
+
+    # Order outputs so a dimension that depends on another output comes after it.
+    out_names = {o["name"] for o in out_raw}
+    out_raw.sort(key=lambda o: sum(1 for dep in o["_deps"] if dep in out_names))
+    outputs = [{"name": o["name"], "sublabel": o["sublabel"]} for o in out_raw]
+
+    if not themes:
+        raise HTTPException(502, "Model did not return any themes.")
+    root = obj.get("root") if isinstance(obj.get("root"), dict) else None
+    if root:  # keep the count honest with the actual number of themes
+        root["sublabel"] = f"predict 1 of {len(themes)}"
+    return StructureSchemaOut(root=root, themes=themes, outputs=outputs)
 
 
 @router.get("", response_model=list[CodebookOut])
