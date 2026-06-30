@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, Download } from 'lucide-react'
 import {
   getExpectedSchema, validateLabeledUpload, autofixLabeledData, applyLabeledFix, commitLabeledData,
   addCodebookLabel,
@@ -79,6 +79,29 @@ export default function LabeledDataUpload({
   const busy = phase === 'validating' || phase === 'fixing' || phase === 'committing'
   const report = fixed?.report ?? validation?.report ?? null
 
+  // The cleaned, codebook-aligned rows currently in hand (after any fixes).
+  const cleanedItems = fixed?.items ?? validation?.items ?? []
+  const exportCleaned = (fmt: 'json' | 'csv') => {
+    const rows = cleanedItems.map((it: any) => ({
+      content: it.content ?? '', context: it.context ?? '', ...(it.gold_labels || {}),
+    }))
+    let blob: Blob, ext: string
+    if (fmt === 'json') {
+      blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' }); ext = 'json'
+    } else {
+      const cols = Array.from(rows.reduce((s: Set<string>, r: any) => { Object.keys(r).forEach(k => s.add(k)); return s }, new Set<string>()))
+      const esc = (x: any) => { const s = Array.isArray(x) ? x.join(' & ') : String(x ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
+      const lines = [cols.join(','), ...rows.map((r: any) => cols.map(c => esc(r[c])).join(','))]
+      blob = new Blob([lines.join('\n')], { type: 'text/csv' }); ext = 'csv'
+    }
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = (validation?.filename?.replace(/\.[^.]+$/, '') || 'labeled-data') + `.cleaned.${ext}`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-3">
       {schema && <SchemaView schema={schema} />}
@@ -136,7 +159,26 @@ export default function LabeledDataUpload({
           {fixed && (
             <div className="space-y-2 border-t border-seam pt-3">
               <TraceView trace={fixed.trace} />
-              <BeforeAfter original={validation.items} fixedItems={fixed.items} />
+            </div>
+          )}
+
+          {cleanedItems.length > 0 && (
+            <div className="flex items-center justify-between gap-3 flex-wrap border border-emerald-200 bg-emerald-50/60 px-3 py-2.5">
+              <div className="text-xs text-emerald-900">
+                <span className="font-medium">Cleaned data ready</span>
+                <span className="text-emerald-700"> · {cleanedItems.length} rows, aligned to the codebook</span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => exportCleaned('csv')} disabled={busy}
+                  className="px-2.5 py-1 text-xs font-medium border border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-100 disabled:opacity-50">
+                  CSV
+                </button>
+                <button onClick={() => exportCleaned('json')} disabled={busy}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50">
+                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                  Export cleaned data
+                </button>
+              </div>
             </div>
           )}
 
@@ -168,25 +210,44 @@ export default function LabeledDataUpload({
       )}
 
       {previewOpen && validation && (
-        <FilePreviewModal validation={validation} onClose={() => setPreviewOpen(false)} />
+        <FilePreviewModal
+          validation={validation}
+          modifiedItems={fixed?.items}
+          onClose={() => setPreviewOpen(false)}
+        />
       )}
     </div>
   )
 }
 
-function FilePreviewModal({ validation, onClose }: { validation: GoldValidation; onClose: () => void }) {
-  const items: any[] = validation.items || []
+function FilePreviewModal({ validation, modifiedItems, onClose }: {
+  validation: GoldValidation; modifiedItems?: any[]; onClose: () => void
+}) {
+  const original: any[] = validation.items || []
+  const hasModified = !!modifiedItems && modifiedItems.length > 0
+  const [view, setView] = useState<'original' | 'modified'>('original')
+  const showModified = view === 'modified' && hasModified
+  const items = showModified ? (modifiedItems as any[]) : original
+
+  const cell = (v: any) => Array.isArray(v) ? v.join(' & ') : String(v ?? '')
+
+  // Columns are derived from the ACTIVE view only — the modified data uses the
+  // canonical codebook dimension names (e.g. "Topics"), the original uses the
+  // file's own columns (e.g. "Topic"); unioning them would show every column
+  // empty in the other view.
   const { dims, meta } = useMemo(() => {
     const d = new Set<string>(), m = new Set<string>()
     for (const it of items) {
-      for (const k of Object.keys(it.gold_labels || {})) d.add(k)
+      for (const [k, v] of Object.entries(it.gold_labels || {})) {
+        if (Array.isArray(v) ? v.length : String(v ?? '').trim()) d.add(k)
+      }
       for (const k of Object.keys(it.metadata || {})) m.add(k)
     }
     return { dims: [...d], meta: [...m] }
   }, [items])
+
   const CAP = 1000
   const rows = items.slice(0, CAP)
-  const cell = (v: any) => Array.isArray(v) ? v.join(' & ') : String(v ?? '')
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -198,16 +259,37 @@ function FilePreviewModal({ validation, onClose }: { validation: GoldValidation;
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40" onClick={onClose}>
       <div className="bg-white border border-seam shadow-xl w-full max-w-6xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-seam">
-          <div className="text-sm font-medium text-ink truncate">
-            {validation.filename}
-            <span className="ml-2 font-mono-editorial text-stone-400 text-[11px]">
-              {validation.file_type} · {items.length.toLocaleString()} rows{items.length > CAP ? ` (showing first ${CAP})` : ''}
-            </span>
+          <div className="min-w-0 flex items-center gap-3">
+            {hasModified && (
+              <div className="inline-flex border border-seam shrink-0">
+                <button onClick={() => setView('original')}
+                  className={`px-2.5 py-1 text-xs font-medium ${!showModified ? 'bg-ink text-cream' : 'bg-white text-stone-600 hover:text-ink'}`}>
+                  Original file
+                </button>
+                <button onClick={() => setView('modified')}
+                  className={`px-2.5 py-1 text-xs font-medium border-l border-seam ${showModified ? 'bg-amber-600 text-white' : 'bg-white text-stone-600 hover:text-ink'}`}>
+                  Modified (your edits)
+                </button>
+              </div>
+            )}
+            <div className="text-sm font-medium text-ink truncate">
+              {validation.filename}
+              <span className="ml-2 font-mono-editorial text-stone-400 text-[11px]">
+                {validation.file_type} · {items.length.toLocaleString()} rows{items.length > CAP ? ` (showing first ${CAP})` : ''}
+              </span>
+            </div>
           </div>
           <button onClick={onClose} className="px-2.5 py-1 text-xs font-medium border border-seam text-stone-600 hover:border-ink hover:text-ink">
             Close ✕
           </button>
         </div>
+
+        {showModified && (
+          <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-[11px] text-amber-900">
+            This is <span className="font-medium">your modified version</span> — the file cleaned by your fixes (not the original upload). Changed cells are highlighted.
+          </div>
+        )}
+
         <div className="overflow-auto">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-paper">
@@ -326,7 +408,15 @@ function MismatchFixer({ projectId, schema, report, originalItems, busy, onApply
   const [itemOverrides, setItemOverrides] = useState<Record<string, Record<string, string>>>({})
   const [applying, setApplying] = useState(false)
 
-  const norm = (s: string) => String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/s\b/g, '')
+  // Mirror the backend's _norm/_stem (gold_align.py) so a singular gold column
+  // ("Topic thematic category") matches a plural codebook dim ("…categories");
+  // a naive /s\b/ strip leaves "categorie" vs "category" and finds no rows.
+  const stem = (t: string) =>
+    t.length > 4 && t.endsWith('ies') ? t.slice(0, -3) + 'y'
+    : t.length > 3 && t.endsWith('s') && !t.endsWith('ss') ? t.slice(0, -1)
+    : t
+  const norm = (s: string) =>
+    String(s ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean).map(stem).join(' ')
   // Rows whose value for `dim` matches `value` (dim is canonical; item key may differ).
   const rowsFor = (dim: string, value: string) => originalItems.filter(it => {
     const g = it.gold_labels || {}
@@ -464,6 +554,7 @@ function MismatchFixer({ projectId, schema, report, originalItems, busy, onApply
                       <option value="">(choose)</option>
                       {(labelsByDim[dim] || []).map(l => <option key={l} value={l}>{l}</option>)}
                       <option value="__create__">＋ add “{v}” as a new codebook label</option>
+                      <option value={DROP}>— discard (drop this value) —</option>
                     </select>
                   </FixRow>
                   <PerRowFixer
@@ -577,7 +668,9 @@ function PerRowFixer({ rows, dim, options, overrides, onSet, fallback, disabled 
                 <select value={cur ?? ''} disabled={disabled}
                   onChange={e => onSet(r.index, dim, e.target.value)}
                   className="bg-white border border-seam px-1.5 py-0.5 text-[11px] focus:outline-none focus:border-ink">
-                  <option value="">{fallback ? `use “${fallback}”` : '(use mapping)'}</option>
+                  <option value="">
+                    {fallback === DROP ? 'discard (default)' : fallback ? `use “${fallback}”` : '(use mapping)'}
+                  </option>
                   {options.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </li>
@@ -606,26 +699,3 @@ function TraceView({ trace }: { trace: any[] }) {
   )
 }
 
-function BeforeAfter({ original, fixedItems }: { original: any[]; fixedItems: any[] }) {
-  const byIndex = new Map(fixedItems.map((it, i) => [it.index ?? i, it]))
-  const sample = original.slice(0, 6)
-  return (
-    <div className="space-y-1.5">
-      <div className="font-mono-editorial text-stone-400 text-[11px]">Preview · first {sample.length} rows</div>
-      <div className="space-y-2">
-        {sample.map((o, i) => {
-          const f = byIndex.get(o.index ?? i)
-          return (
-            <div key={i} className="text-xs border border-seam bg-white px-2.5 py-1.5">
-              <div className="truncate text-stone-700">{String(o.content || '').slice(0, 80) || <span className="text-stone-400">(no content)</span>}</div>
-              <div className="mt-1 grid grid-cols-1 md:grid-cols-2 gap-1">
-                <div className="text-stone-400 font-mono break-words">before: {JSON.stringify(o.gold_labels || {})}</div>
-                <div className="text-emerald-700 font-mono break-words">after: {JSON.stringify(f?.gold_labels || {})}</div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}

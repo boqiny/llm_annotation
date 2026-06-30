@@ -63,6 +63,8 @@ class DimensionOut(BaseModel):
     dim_type: str
     instructions: str
     gated_by: str = ""
+    derived_from: str = ""
+    context_dims: list[str] = []
     sort_order: int = 0
     labels: list[LabelOut] = []
 
@@ -263,6 +265,9 @@ class CodebookDraftOut(BaseModel):
     has_cleaned_data: bool = False
     cleaned_data_rows: int = 0
     drafter_model: str = ""
+    # When status == "needs_sheet_choice": the content sheets the user must choose
+    # to merge or import individually. Empty otherwise.
+    sheet_options: list[str] = []
     accepted_for_project_id: Optional[int] = None
     created_at: Optional[datetime.datetime] = None
     updated_at: Optional[datetime.datetime] = None

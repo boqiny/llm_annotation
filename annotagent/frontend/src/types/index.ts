@@ -27,6 +27,11 @@ export interface Dimension {
   instructions: string
   // Name of the dimension that gates this one's labels (conditional cascade).
   gated_by?: string
+  // Set on a derived entry (e.g. a thematic-category rollup) that is filled from
+  // another dimension's chosen leaf rather than predicted on its own.
+  derived_from?: string
+  // Already-predicted dimensions injected as context into this one's prompt.
+  context_dims?: string[]
   sort_order: number
   labels: Label[]
 }
