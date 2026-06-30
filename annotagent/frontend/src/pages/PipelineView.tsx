@@ -344,8 +344,14 @@ export default function PipelineView() {
             />
             <FormatNote
               title="Output format"
-              body="After annotation, results can be exported as CSV or JSON. Each output row keeps the original item and adds predicted labels across all codebook dimensions."
-              sample={`item_id,content,Level Of Disclosure,Depth Of Disclosure\n42,"I want to lose weight",Low,Peripheral`}
+              body="After annotation, results can be exported as CSV or JSON. Each output row keeps the original item and adds a column for every codebook dimension — the same schema as your labeled data."
+              sample={(() => {
+                const dims = activeCb?.dimensions ?? []
+                if (!dims.length) return `item_id,content,Level Of Disclosure,Depth Of Disclosure\n42,"I want to lose weight",Low,Peripheral`
+                const header = `item_id,content,${dims.map(d => d.name).join(',')}`
+                const row = `42,"I want to lose weight",${dims.map(d => d.labels?.[0]?.name ?? '…').join(',')}`
+                return `${header}\n${row}`
+              })()}
             />
           </div>
         </div>

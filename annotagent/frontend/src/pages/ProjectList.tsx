@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   listProjects, createProject, deleteProject,
   listPresets, uploadCodebook, listSeedDatasets, loadSeedDataset, decomposePipeline,
+  listPipelines,
 } from '../lib/api'
 import { useTour } from '../components/tour/TourProvider'
 import type { Project } from '../types'
@@ -29,6 +30,19 @@ export default function ProjectList() {
   }
 
   useEffect(() => { listProjects().then(setProjects) }, [])
+
+  // Open a project where the user left off: if a pipeline already exists (setup
+  // is done), go straight to Prompts; otherwise start at Setup.
+  const openProject = async (id: number) => {
+    try {
+      const pipelines = await listPipelines(id)
+      navigate(pipelines.length > 0
+        ? `/projects/${id}/prompt-lab?tab=prompts`
+        : `/projects/${id}/setup`)
+    } catch {
+      navigate(`/projects/${id}/setup`)
+    }
+  }
 
   const handleCreate = async () => {
     if (!name.trim()) return
@@ -221,7 +235,7 @@ export default function ProjectList() {
               <ProjectRow
                 key={p.id}
                 project={p}
-                onOpen={() => navigate(`/projects/${p.id}/setup`)}
+                onOpen={() => openProject(p.id)}
                 onDelete={() => handleDelete(p.id)}
               />
             ))}
