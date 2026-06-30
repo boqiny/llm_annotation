@@ -54,6 +54,12 @@ async def lifespan(app: FastAPI):
         )
         if "gated_by" not in dim_cols:
             await conn.execute(_text("ALTER TABLE dimensions ADD COLUMN gated_by VARCHAR(255) DEFAULT ''"))
+        # Add dimensions.derived_from for materialized derived (e.g. thematic-category) entries.
+        if "derived_from" not in dim_cols:
+            await conn.execute(_text("ALTER TABLE dimensions ADD COLUMN derived_from VARCHAR(255) DEFAULT ''"))
+        # Add dimensions.context_dims for prior-prediction context injection (e.g. topic -> category).
+        if "context_dims" not in dim_cols:
+            await conn.execute(_text("ALTER TABLE dimensions ADD COLUMN context_dims JSON"))
 
 
     # Reap stale in-flight rows. The asyncio.Task registry is process-local

@@ -22,7 +22,10 @@ async def decompose_codebook(codebook: CodebookDef, few_shot: bool = False) -> l
 
 
 def _per_dimension(codebook: CodebookDef, few_shot: bool = False) -> list[dict[str, Any]]:
-    return [_step_for_dim(dim, few_shot) for dim in codebook.dimensions]
+    # A derived dimension (e.g. a thematic-category rollup) is not predicted on its
+    # own — its value is filled from the source dimension's chosen leaf, surfaced as
+    # a `derived_dimensions` output of that source step. Skip it here.
+    return [_step_for_dim(dim, few_shot) for dim in codebook.dimensions if not dim.derived_from]
 
 
 def _step_for_dim(dim: DimensionDef, few_shot: bool = False) -> dict[str, Any]:
@@ -37,6 +40,10 @@ def _step_for_dim(dim: DimensionDef, few_shot: bool = False) -> dict[str, Any]:
         cond_prompts, cond_labels = _conditional_views(dim, few_shot)
         step["conditional_prompts"] = cond_prompts
         step["conditional_labels"] = cond_labels
+    # Already-predicted dimensions whose values are injected as context at runtime
+    # (e.g. the chosen Topic when predicting its thematic category).
+    if dim.context_dims:
+        step["context_from"] = list(dim.context_dims)
     # Surface the parent thematic category (path[-1]) as a derived output, so the
     # category the user picks "after the topic" is shown, not buried in the path.
     if dim.category_dimension and any(len(l.path) > 1 for l in dim.labels):
@@ -87,9 +94,16 @@ def _conditional_views(dim: DimensionDef, few_shot: bool = False) -> tuple[dict[
 
 
 def _order_by_gate(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Topologically order so every gated step follows its gate step. Single-level
-    gating only; any unsatisfiable remainder is appended in original order."""
-    gate_of = {s["name"]: s.get("gate_by") for s in steps}
+    """Topologically order so every step follows the steps it depends on: its gate
+    (``gate_by``) and any context sources (``context_from``). Any unsatisfiable
+    remainder (cycle / missing dep) is appended in original order."""
+    names = {s["name"] for s in steps}
+    deps_of: dict[str, list[str]] = {}
+    for s in steps:
+        deps = [s["gate_by"]] if s.get("gate_by") else []
+        deps += [c for c in (s.get("context_from") or [])]
+        # only depend on names that are real steps (a derived context source may not be one)
+        deps_of[s["name"]] = [d for d in deps if d in names]
     placed: set[str] = set()
     out: list[dict[str, Any]] = []
     remaining = list(steps)
@@ -98,8 +112,7 @@ def _order_by_gate(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
         progress = False
         still: list[dict[str, Any]] = []
         for s in remaining:
-            gate = gate_of.get(s["name"])
-            if not gate or gate in placed:
+            if all(d in placed for d in deps_of[s["name"]]):
                 out.append(s)
                 placed.add(s["name"])
                 progress = True

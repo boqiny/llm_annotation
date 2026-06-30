@@ -228,7 +228,7 @@ export interface CodebookDraft {
   source: 'upload' | 'paste' | 'preset' | 'scratch' | string
   source_filename: string
   source_bytes: number
-  status: 'pending' | 'ingesting' | 'drafting' | 'ready' | 'failed' | string
+  status: 'pending' | 'ingesting' | 'drafting' | 'ready' | 'failed' | 'needs_sheet_choice' | string
   error_message: string
   draft_json: Record<string, any>
   warnings: string[]
@@ -236,15 +236,21 @@ export interface CodebookDraft {
   has_cleaned_data: boolean
   cleaned_data_rows: number
   drafter_model: string
+  // Set when status === 'needs_sheet_choice': the multi-sheet options to resolve.
+  sheet_options?: string[]
   accepted_for_project_id: number | null
   created_at: string | null
   updated_at: string | null
 }
 
-export const uploadCodebookDraft = async (projectId: number, file: File): Promise<CodebookDraft> => {
+export const uploadCodebookDraft = async (
+  projectId: number, file: File, opts?: { mergeSheets?: boolean; sheet?: string },
+): Promise<CodebookDraft> => {
   const form = new FormData()
   form.append('file', file)
   form.append('project_id', String(projectId))
+  if (opts?.mergeSheets) form.append('merge_sheets', 'true')
+  if (opts?.sheet) form.append('sheet', opts.sheet)
   const r = await api.post<CodebookDraft>('/codebook-drafts/upload', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 120_000,  // one strong-model pass over the parsed CSV (~20s + retries)
@@ -258,6 +264,11 @@ export const pasteCodebookDraft = (projectId: number, text: string) =>
 
 export const presetCodebookDraft = (preset_name: string) =>
   api.post<CodebookDraft>('/codebook-drafts', { source: 'preset', preset_name })
+     .then(r => r.data)
+
+// Seed an editable draft from an existing codebook (revise it in the wizard).
+export const codebookToDraft = (codebookId: number) =>
+  api.post<CodebookDraft>('/codebook-drafts/from-codebook', { codebook_id: codebookId })
      .then(r => r.data)
 
 export const getCodebookDraft = (draftId: number) =>

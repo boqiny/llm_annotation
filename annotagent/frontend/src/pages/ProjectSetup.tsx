@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import {
   getProject, updateProject, listPresets, listCodebooks,
   listDatasets, deleteDataset, decomposePipeline,
@@ -42,8 +42,10 @@ export default function ProjectSetupV2() {
   const [loading, setLoading] = useState(false)
   const [loadingSeed, setLoadingSeed] = useState<string | null>(null)
   const [removingDataset, setRemovingDataset] = useState<number | null>(null)
-  const [wizardMode, setWizardMode] = useState(false)
   const [fewShot, setFewShot] = useState(false)
+  // When a codebook is already loaded, the Codebook step shows it; the setup
+  // wizard only appears once the user explicitly chooses to change it.
+  const [changingCodebook, setChangingCodebook] = useState(false)
 
   const loadData = useCallback(async () => {
     const [p, pr, cb, ds, sd, cfg] = await Promise.all([
@@ -108,7 +110,10 @@ export default function ProjectSetupV2() {
   const missing: string[] = []
   if (!activeCb) missing.push('codebook')
   if (!keyOK) missing.push(`${llmProvider === 'anthropic' ? 'anthropic' : 'openai'} key`)
-  const replacingCodebook = step === 'codebook' && wizardMode
+  // On the codebook step, once a codebook exists the editable wizard + banner
+  // carry their own actions, so suppress the global generate-pipeline footer.
+  // (First-time, with no codebook yet, the footer still shows "Still need: codebook".)
+  const replacingCodebook = step === 'codebook' && !!activeCb
 
   return (
     <div className="space-y-4 pb-24">
@@ -147,11 +152,11 @@ export default function ProjectSetupV2() {
             <div data-tour="setup-codebook" data-tour-done={activeCb ? 'true' : 'false'}>
               <CodebookStep
                 activeCb={activeCb}
-                wizardMode={wizardMode}
-                setWizardMode={setWizardMode}
+                changing={changingCodebook}
+                setChanging={setChangingCodebook}
                 presets={presets}
                 projectId={projectId}
-                onAccepted={() => { setWizardMode(false); loadData(); setStep('data') }}
+                onAccepted={() => { setChangingCodebook(false); loadData(); setStep('data') }}
                 onContinue={() => setStep('data')}
               />
             </div>
@@ -262,88 +267,77 @@ function StepLink({
 /* ─── Steps ─────────────────────────────────────────────────── */
 
 function CodebookStep({
-  activeCb, wizardMode, setWizardMode, presets, projectId, onAccepted, onContinue,
+  activeCb, changing, setChanging, presets, projectId, onAccepted, onContinue,
 }: {
   activeCb?: Codebook
-  wizardMode: boolean
-  setWizardMode: (b: boolean) => void
+  changing: boolean
+  setChanging: (b: boolean) => void
   presets: PresetInfo[]
   projectId: number
   onAccepted: () => void
   onContinue: () => void
 }) {
-  if (activeCb && !wizardMode) {
+  // No codebook yet: the empty door chooser (upload / paste / preset).
+  if (!activeCb) {
+    return <CodebookDraftWizard projectId={projectId} presets={presets} onAccepted={onAccepted} />
+  }
+
+  // "Start a different codebook": the empty door chooser, replacing the current one.
+  if (changing) {
     return (
-      <div className="border border-seam bg-white">
-        <div className="border-b border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-950">
-          <div className="font-medium">Review this codebook carefully before generating prompts.</div>
-          <p className="mt-1 text-xs leading-relaxed text-violet-900/80">
-            The codebook defines the dimensions, labels, and label meanings used by every prompt, improvement run, annotation run, and result export. If parsing looks off, edit or replace it before continuing.
+      <>
+        <div className="mb-3 border border-seam bg-paper/60 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <p className="text-xs leading-relaxed text-stone-500 min-w-0">
+            Building a different codebook to replace <span className="font-medium text-ink">{activeCb.name}</span>.
+            Accepting it replaces the current one.
           </p>
+          <button onClick={() => setChanging(false)}
+                  className="font-mono-editorial text-stone-500 hover:text-ink text-xs shrink-0">
+            ← keep current
+          </button>
         </div>
-        {/* Top toolbar: actions on the right, info underneath. Two rows so
-            buttons never collide with the heading on narrow widths. */}
-        <div className="px-4 pt-3 pb-4 border-b border-seam">
-          <div className="flex items-center justify-between gap-3 mb-2">
-            <div className="font-mono-editorial text-stone-500 text-xs">Active codebook</div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Link to={`/projects/${projectId}/codebook`}
-                    className="px-3 py-1 text-xs font-medium text-ink border border-ink hover:bg-ink hover:text-cream">
-                View →
-              </Link>
-              <button onClick={() => setWizardMode(true)}
-                      className="px-3 py-1 text-xs font-medium text-stone-600 border border-seam hover:border-stone-400">
-                Replace
-              </button>
-            </div>
+        <CodebookDraftWizard
+          key="new-codebook"
+          projectId={projectId}
+          presets={presets}
+          onAccepted={onAccepted}
+          replacingName={activeCb.name}
+        />
+      </>
+    )
+  }
+
+  // Default: the current codebook loaded as an EDITABLE draft (left: dimensions,
+  // right: structure/arrow). Edit and Accept to save a new version, keep it and
+  // move on, or start a different codebook from scratch.
+  return (
+    <>
+      <div className="mb-3 border border-seam bg-paper/60 px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="font-mono-editorial text-stone-500 text-xs">Editing current codebook</div>
+          <div className="font-medium leading-snug truncate">
+            {activeCb.name}
+            <span className="font-mono-editorial text-stone-400 text-xs"> · {activeCb.dimensions.length} dimensions</span>
           </div>
-          <h3 className="text-lg font-medium tracking-tight leading-snug">{activeCb.name}</h3>
-          {activeCb.description && (
-            <p className="text-sm text-stone-600 mt-1 leading-relaxed">{activeCb.description}</p>
-          )}
         </div>
-        <ul className="divide-y divide-seam">
-          {activeCb.dimensions.map((dim, i) => (
-            <li key={dim.id} className="px-4 py-2 flex items-baseline gap-3">
-              <span className="font-mono-editorial text-stone-400 text-xs w-7 shrink-0">{String(i + 1).padStart(2, '0')}</span>
-              <span className="font-medium">{dim.name}</span>
-              <span className="font-mono-editorial text-stone-400 text-xs">{dim.dim_type}</span>
-              <span className="font-mono-editorial text-stone-400 text-xs">· {dim.labels.length} labels</span>
-            </li>
-          ))}
-        </ul>
-        <div className="px-4 py-3 border-t border-seam">
-          <div className="mb-3 border border-violet-200 bg-violet-50 px-3 py-2 text-xs leading-relaxed text-violet-900">
-            Final check: make sure the labels match your intended annotation task. Prompt quality depends directly on this codebook.
-          </div>
-          <button
-            onClick={onContinue}
-            className="ml-auto block px-5 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition"
-          >
-            Continue to data →
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => setChanging(true)}
+                  className="px-3 py-1 text-xs font-medium text-stone-600 border border-seam hover:border-stone-400">
+            Start a different codebook
+          </button>
+          <button onClick={onContinue}
+                  className="px-3 py-1 text-xs font-medium text-cream bg-ink hover:bg-stone-800">
+            Keep current, continue to data →
           </button>
         </div>
       </div>
-    )
-  }
-  return (
-    <>
-      {activeCb && wizardMode && (
-        <div className="mb-3 border border-violet-200 bg-violet-50/70 px-3 py-3">
-          <div className="flex items-center justify-between gap-3 text-xs">
-            <div className="font-medium text-violet-950">Replacing <span>{activeCb.name}</span></div>
-            <button onClick={() => setWizardMode(false)} className="font-mono-editorial text-stone-500 hover:text-ink">cancel</button>
-          </div>
-          <p className="mt-2 text-xs leading-relaxed text-violet-900/80">
-            Please inspect the parsed dimensions and labels before accepting. A codebook mistake will affect prompt generation, improvement, annotation, and exported results.
-          </p>
-        </div>
-      )}
       <CodebookDraftWizard
+        key={`edit-${activeCb.id}`}
         projectId={projectId}
         presets={presets}
         onAccepted={onAccepted}
-        replacingName={activeCb && wizardMode ? activeCb.name : undefined}
+        replacingName={activeCb.name}
+        seedFromCodebookId={activeCb.id}
       />
     </>
   )

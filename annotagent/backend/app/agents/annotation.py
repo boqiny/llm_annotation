@@ -72,6 +72,15 @@ async def annotate_item(
         user_msg = f"Sentence: {content}"
         if context:
             user_msg = f"Context: {context}\n\n{user_msg}"
+        # Inject already-predicted dimensions as context (e.g. the chosen Topic when
+        # predicting its thematic category), so this step can condition on them.
+        prior = [
+            f"{dim} = {result.labels[dim]}"
+            for dim in step.get("context_from", [])
+            if result.labels.get(dim)
+        ]
+        if prior:
+            user_msg = f"{user_msg}\n\nAlready determined: " + "; ".join(prior) + "."
 
         messages = [
             {"role": "system", "content": prompt},

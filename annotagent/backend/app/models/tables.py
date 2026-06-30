@@ -95,6 +95,13 @@ class Dimension(Base):
     # Name of the dimension that gates this one's label set (conditional cascade).
     # Empty for independent dimensions. Each label's path[0] is the gate value.
     gated_by = Column(String(255), default="")
+    # Set on a dimension that is materialized for display but filled deterministically
+    # from another dimension's chosen leaf (e.g. a thematic-category rollup). Such a
+    # dimension is not a prediction step. Empty for ordinary predicted dimensions.
+    derived_from = Column(String(255), default="")
+    # Names of already-predicted dimensions injected as context into this one's
+    # prompt (e.g. the chosen Topic when predicting its thematic category).
+    context_dims = Column(JSON, default=list)
     sort_order = Column(Integer, default=0)
 
     codebook = relationship("Codebook", back_populates="dimensions")
