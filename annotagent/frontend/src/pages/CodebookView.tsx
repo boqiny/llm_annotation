@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { getProject, listCodebooks } from '../lib/api'
+import StructureDiagram from '../components/StructureDiagram'
 import type { Codebook, Dimension, Label, Project } from '../types'
 
 type RawDim = { name: string; type?: string; instructions?: string; category_dimension?: string }
@@ -99,6 +100,14 @@ export default function CodebookView() {
           <MetaPair label="Labels" value={codebook.dimensions.reduce((s, d) => s + d.labels.length, 0)} />
         </div>
       </header>
+
+      {/* Prediction structure diagram (LLM-generated tree) */}
+      <section>
+        <SectionLabel>Prediction structure</SectionLabel>
+        <div className="border border-seam bg-white p-4 mt-3">
+          <StructureDiagram projectId={projectId} codebookId={codebook.id} />
+        </div>
+      </section>
 
       {/* Dimensions header + expand-all */}
       <section>

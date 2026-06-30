@@ -1,12 +1,12 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   getProject, updateProject, listPresets, listCodebooks,
-  listDatasets, deleteDataset, decomposePipeline,
+  listDatasets, deleteDataset, decomposePipeline, previewDataset,
   listSeedDatasets, loadSeedDataset, getBackendConfig,
   type SeedDatasetInfo, type BackendConfig,
 } from '../lib/api'
-import type { Project, Codebook, Dataset, PresetInfo } from '../types'
+import type { Project, Codebook, Dataset, DatasetPreview, PresetInfo } from '../types'
 import CodebookDraftWizard from '../components/CodebookDraftWizard'
 import LabeledDataUpload from '../components/LabeledDataUpload'
 import { APP_NAME } from '../lib/brand'
@@ -98,12 +98,20 @@ export default function ProjectSetupV2() {
     } finally { setLoading(false) }
   }
 
-  if (!project) return <div className="font-mono-editorial text-stone-400 py-24 text-center">Loading…</div>
-
   const activeCb = codebooks[codebooks.length - 1]
   const codebookHasExamples = !!activeCb?.dimensions?.some(
     d => d.labels?.some(l => (l.examples?.length ?? 0) > 0)
   )
+  // Auto-enable few-shot once, when a codebook with examples loads. The ref keeps
+  // a later manual uncheck from being overridden on re-render. (Hooks must run
+  // before any early return, so this stays above the `!project` guard.)
+  const autoFewShotRef = useRef(false)
+  useEffect(() => {
+    if (codebookHasExamples && !autoFewShotRef.current) { autoFewShotRef.current = true; setFewShot(true) }
+  }, [codebookHasExamples])
+
+  if (!project) return <div className="font-mono-editorial text-stone-400 py-24 text-center">Loading…</div>
+
   const hasDataset = datasets.length > 0
   const keyOK = envKeyAvailable(backendCfg, llmProvider) || apiKey.length > 0
   const canGenerate = !!activeCb && keyOK
@@ -360,6 +368,12 @@ function DataStep({
     ds.is_gold
     || seeds.some(s => s.role !== 'test' && s.label === ds.name)
   )
+  const [preview, setPreview] = useState<DatasetPreview | null>(null)
+  const [previewing, setPreviewing] = useState<number | null>(null)
+  const openPreview = async (id: number) => {
+    setPreviewing(id)
+    try { setPreview(await previewDataset(projectId, id)) } catch {} finally { setPreviewing(null) }
+  }
 
   return (
     <div className="space-y-4">
@@ -436,7 +450,7 @@ function DataStep({
               <span className="shrink-0 w-24 text-right">Items</span>
               <span className="shrink-0 w-16 text-right">Format</span>
               <span className="shrink-0 w-28 text-right">Type</span>
-              <span className="shrink-0 w-[72px] text-right">Action</span>
+              <span className="shrink-0 w-[150px] text-right">Action</span>
             </li>
             {labeledDatasets.map(ds => (
               <li key={ds.id} className="flex items-baseline gap-4 py-2">
@@ -444,18 +458,78 @@ function DataStep({
                 <span className="shrink-0 w-24 text-right font-mono text-xs text-stone-600">{ds.total_items} items</span>
                 <span className="shrink-0 w-16 text-right font-mono-editorial text-stone-400 text-[11px]">{ds.file_type}</span>
                 <span className="shrink-0 w-28 text-right text-xs text-stone-700">{ds.is_gold ? 'Labeled (gold)' : 'Reference labels'}</span>
-                <button
-                  onClick={() => onRemoveDataset(ds.id)}
-                  disabled={removingDataset === ds.id}
-                  className="shrink-0 w-[72px] px-2 py-1 text-xs font-medium border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
-                >
-                  {removingDataset === ds.id ? 'Removing…' : 'Remove'}
-                </button>
+                <div className="shrink-0 w-[150px] flex justify-end gap-2">
+                  <button
+                    onClick={() => openPreview(ds.id)}
+                    disabled={previewing === ds.id}
+                    className="px-2 py-1 text-xs font-medium border border-seam text-stone-700 hover:border-ink hover:text-ink disabled:opacity-50"
+                  >
+                    {previewing === ds.id ? 'Loading…' : 'Preview'}
+                  </button>
+                  <button
+                    onClick={() => onRemoveDataset(ds.id)}
+                    disabled={removingDataset === ds.id}
+                    className="px-2 py-1 text-xs font-medium border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {removingDataset === ds.id ? 'Removing…' : 'Remove'}
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
         </div>
       )}
+
+      {preview && <DatasetPreviewModal preview={preview} onClose={() => setPreview(null)} />}
+    </div>
+  )
+}
+
+function DatasetPreviewModal({ preview, onClose }: { preview: DatasetPreview; onClose: () => void }) {
+  const items = preview.items || []
+  const dims = Array.from(items.reduce((s, it) => {
+    Object.keys(it.gold_labels || {}).forEach(k => s.add(k)); return s
+  }, new Set<string>()))
+  const CAP = 1000
+  const cell = (v: any) => Array.isArray(v) ? v.join(' & ') : String(v ?? '')
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/40" onClick={onClose}>
+      <div className="bg-white border border-seam shadow-xl w-full max-w-6xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-seam">
+          <div className="text-sm font-medium text-ink truncate">
+            {preview.dataset.name}
+            <span className="ml-2 font-mono-editorial text-stone-400 text-[11px]">
+              {preview.dataset.file_type} · {items.length.toLocaleString()} rows{items.length > CAP ? ` (first ${CAP})` : ''}
+            </span>
+          </div>
+          <button onClick={onClose} className="px-2.5 py-1 text-xs font-medium border border-seam text-stone-600 hover:border-ink hover:text-ink">Close ✕</button>
+        </div>
+        <div className="overflow-auto">
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 bg-paper">
+              <tr className="font-mono-editorial text-stone-500 border-b border-seam">
+                <th className="px-2 py-2 text-left">#</th>
+                <th className="px-2 py-2 text-left min-w-[280px]">content</th>
+                {dims.map(d => <th key={d} className="px-2 py-2 text-left whitespace-nowrap bg-violet-50/60">{d}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-seam">
+              {items.slice(0, CAP).map((it, i) => (
+                <tr key={i} className="align-top">
+                  <td className="px-2 py-1.5 font-mono text-stone-400">{it.index ?? i + 1}</td>
+                  <td className="px-2 py-1.5 text-stone-800 max-w-[420px]"><div className="line-clamp-3">{cell(it.content)}</div></td>
+                  {dims.map(d => <td key={d} className="px-2 py-1.5 font-mono text-violet-900 whitespace-nowrap">{cell((it.gold_labels || {})[d])}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }
