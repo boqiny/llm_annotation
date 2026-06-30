@@ -30,6 +30,15 @@ class DimensionDef:
     # categories"). When set, each leaf's category (path[-1]) is surfaced as a
     # second, derived result so users see it rather than it living only in `path`.
     category_dimension: str = ""
+    # Set on a dimension that is NOT predicted on its own but materialized as a
+    # visible entry derived from another dimension (its value comes from the named
+    # source dimension's chosen leaf). Such a dimension is skipped when building
+    # prediction steps. Empty for an ordinary (predicted) dimension.
+    derived_from: str = ""
+    # Names of already-predicted dimensions whose values are injected as context
+    # into this dimension's prompt (e.g. the chosen Topic when predicting its
+    # thematic category). Such dimensions are ordered after their context sources.
+    context_dims: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -61,6 +70,8 @@ def parse_codebook(raw: dict[str, Any]) -> CodebookDef:
                 instructions=dim_raw.get("instructions", ""),
                 gated_by=dim_raw.get("gated_by", "") or "",
                 category_dimension=dim_raw.get("category_dimension", "") or "",
+                derived_from=dim_raw.get("derived_from", "") or "",
+                context_dims=[str(c) for c in (dim_raw.get("context_dims") or [])],
             )
         )
     return CodebookDef(

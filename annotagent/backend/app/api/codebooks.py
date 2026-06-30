@@ -104,6 +104,8 @@ async def upload_codebook(
             dim_type=DimensionType(dim_def.dim_type),
             instructions=dim_def.instructions,
             gated_by=dim_def.gated_by,
+            derived_from=dim_def.derived_from,
+            context_dims=dim_def.context_dims,
             sort_order=i,
         )
         db.add(dim)
@@ -291,6 +293,8 @@ async def accept_draft(
             dim_type=DimensionType(dim_def.dim_type),
             instructions=dim_def.instructions,
             gated_by=dim_def.gated_by,
+            derived_from=dim_def.derived_from,
+            context_dims=dim_def.context_dims,
             sort_order=i,
         )
         db.add(dim)

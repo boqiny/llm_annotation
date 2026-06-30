@@ -49,10 +49,12 @@ def _cap_text(s: str) -> tuple[str, str | None]:
     return s, None
 
 
-async def parse_file(data: bytes, filename: str, mime: str = "") -> IngestResult:
+async def parse_file(data: bytes, filename: str, mime: str = "", only_sheet: str | None = None) -> IngestResult:
     """Top-level dispatch. Returns IngestResult; never raises.
 
     Detection order: extension → MIME → first 8 bytes.
+    ``only_sheet`` restricts XLSX parsing to a single named sheet (else all sheets
+    are merged, the default).
     """
     ext = (filename.rsplit(".", 1)[-1] or "").lower() if "." in filename else ""
     mime_lc = (mime or "").lower()
@@ -68,7 +70,7 @@ async def parse_file(data: bytes, filename: str, mime: str = "") -> IngestResult
 
     # Extension takes priority; MIME is often generic octet-stream from FastAPI
     if ext in ("xlsx", "xlsm"):
-        return await _run(_parse_xlsx, data, filename)
+        return await _run(_parse_xlsx, data, filename, only_sheet)
     if ext in ("docx",):
         return await _run(_parse_docx, data, filename)
     if ext == "pdf":
@@ -84,7 +86,7 @@ async def parse_file(data: bytes, filename: str, mime: str = "") -> IngestResult
     if "pdf" in mime_lc:
         return await _run(_parse_pdf, data, filename)
     if "spreadsheet" in mime_lc or "excel" in mime_lc:
-        return await _run(_parse_xlsx, data, filename)
+        return await _run(_parse_xlsx, data, filename, only_sheet)
     if "word" in mime_lc or "officedocument.wordprocessingml" in mime_lc:
         return await _run(_parse_docx, data, filename)
     if "csv" in mime_lc:
@@ -224,7 +226,32 @@ async def _parse_docx(data: bytes, filename: str) -> IngestResult:
     return IngestResult(clean_text=capped, tables=tables, warnings=warnings)
 
 
-async def _parse_xlsx(data: bytes, filename: str) -> IngestResult:
+def xlsx_content_sheets(data: bytes) -> list[str]:
+    """Rule-based list of XLSX sheets that carry tabular content (>= 2 non-empty
+    rows). Used at upload to decide whether to ask about multi-sheet merging.
+    Returns [] if the file is unreadable as XLSX."""
+    try:
+        import openpyxl
+    except ImportError:
+        return []
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True, read_only=True)
+    except Exception:
+        return []
+    out: list[str] = []
+    for name in wb.sheetnames:
+        ws = wb[name]
+        nonempty = 0
+        for row in ws.iter_rows(values_only=True):
+            if any(c is not None and str(c).strip() for c in row):
+                nonempty += 1
+                if nonempty >= 2:
+                    out.append(name)
+                    break
+    return out
+
+
+async def _parse_xlsx(data: bytes, filename: str, only_sheet: str | None = None) -> IngestResult:
     try:
         import openpyxl
     except ImportError:
@@ -236,7 +263,13 @@ async def _parse_xlsx(data: bytes, filename: str) -> IngestResult:
     tables: list[Table] = []
     analysis_rows: list[dict[str, Any]] = []
 
-    for sheet_name in wb.sheetnames:
+    sheet_names = wb.sheetnames
+    if only_sheet is not None:
+        if only_sheet not in sheet_names:
+            return IngestResult(warnings=[f"Sheet {only_sheet!r} not found in workbook."], ok=False)
+        sheet_names = [only_sheet]
+
+    for sheet_name in sheet_names:
         ws = wb[sheet_name]
         # Collect first ~MAX_TABLE_ROWS rows; detect header
         raw_rows: list[tuple] = []

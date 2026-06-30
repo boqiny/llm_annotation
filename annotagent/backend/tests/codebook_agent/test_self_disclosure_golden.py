@@ -57,47 +57,75 @@ def test_deterministic_pipeline_matches_golden():
 # These assertions derive dimension names FROM the golden rather than hard-coding
 # them, because the drafting LLM varies its exact wording/casing run to run; what
 # must hold is the STRUCTURE, not the strings.
+#
+# Topic taxonomy is a TWO-step gated cascade off the disclosure level:
+#   Level of disclosure (gate) -> Topics (gated) -> Topic thematic categories
+#       (gated by the same level, predicted with the chosen Topic as context).
 
-def _gated_dim(g: dict) -> dict:
-    gated = [d for d in g["dimensions"] if d.get("gated_by")]
-    assert len(gated) == 1, f"expected exactly one gated dimension, got {[d['name'] for d in gated]}"
-    return gated[0]
+def _gated_dims(g: dict) -> list[dict]:
+    return [d for d in g["dimensions"] if d.get("gated_by")]
+
+
+def _topics_dim(g: dict) -> dict:
+    cands = [d for d in _gated_dims(g) if not d.get("context_dims")]
+    assert len(cands) == 1, f"expected one fine gated dim, got {[d['name'] for d in cands]}"
+    return cands[0]
+
+
+def _category_dim(g: dict) -> dict:
+    cands = [d for d in _gated_dims(g) if d.get("context_dims")]
+    assert len(cands) == 1, f"expected one context-gated category dim, got {[d['name'] for d in cands]}"
+    return cands[0]
 
 
 def test_golden_dimensions_contract():
     g = _load("golden_codebook.json")
     names = [d["name"] for d in g["dimensions"]]
-    # 6 dimensions; thematic categories are NOT a separate flat dimension (they
-    # live as the topic leaves' path parents + a derived output, not a dimension).
-    assert len(names) == 6
-    assert not any("thematic" in n.lower() for n in names)
-    _gated_dim(g)  # exactly one gated dimension
+    # 4 disclosure themes + Topics + Temporality + Topic thematic categories.
+    assert len(names) == 7
+    # Exactly two gated dimensions, both gated by the same disclosure level.
+    topics, cat = _topics_dim(g), _category_dim(g)
+    assert topics["gated_by"] == cat["gated_by"]
+    # The category is PREDICTED (gated), with the topic injected as context — not a
+    # derived rollup.
+    assert cat["context_dims"] == [topics["name"]]
+    assert "thematic" in cat["name"].lower()
+    assert not any(d.get("derived_from") for d in g["dimensions"])
+    assert not any(d.get("category_dimension") for d in g["dimensions"])
 
 
-def test_gated_dim_subsets_match_gate_labels():
+def test_topics_subsets_key_on_gate_labels():
     g = _load("golden_codebook.json")
-    topics = _gated_dim(g)
+    topics = _topics_dim(g)
     gate_dim = next(d for d in g["dimensions"] if d["name"] == topics["gated_by"])
     gate_labels = {l["name"] for l in gate_dim["labels"]}
     gate_values = set()
     for l in topics["labels"]:
-        assert len(l["path"]) == 2, f"expected [gate, category], got {l['path']}"
+        assert len(l["path"]) == 1, f"expected [gate], got {l['path']}"
         gate_values.add(l["path"][0])
-    # the disclosure scale is High/Low/No, and the topic subsets key on exactly it
     assert gate_values == gate_labels == {"High", "Low", "No"}
 
 
-def test_derived_category_dimension_is_set():
+def test_category_subsets_key_on_gate_labels():
     g = _load("golden_codebook.json")
-    topics = _gated_dim(g)
-    assert topics.get("category_dimension"), "gated dim should name its parent-category output"
-    # every leaf carries a category (path[-1]) to derive that output from
-    assert all(len(l["path"]) >= 2 and l["path"][-1] for l in topics["labels"])
+    cat = _category_dim(g)
+    gate_dim = next(d for d in g["dimensions"] if d["name"] == cat["gated_by"])
+    gate_labels = {l["name"] for l in gate_dim["labels"]}
+    gate_values = set()
+    for l in cat["labels"]:
+        assert len(l["path"]) == 1, f"expected [gate], got {l['path']}"
+        gate_values.add(l["path"][0])
+    assert gate_values == gate_labels == {"High", "Low", "No"}
+    # the per-level category subset narrows: High discloses broader topical range
+    # than No, so High lists strictly more categories.
+    high = [l["name"] for l in cat["labels"] if l["path"][0] == "High"]
+    no = [l["name"] for l in cat["labels"] if l["path"][0] == "No"]
+    assert len(high) > len(no)
 
 
 def test_no_self_referential_or_duplicate_topic_leaves():
     g = _load("golden_codebook.json")
-    topics = _gated_dim(g)
+    topics = _topics_dim(g)
     seen = set()
     for l in topics["labels"]:
         path_lc = [p.lower() for p in l["path"]]
@@ -108,7 +136,7 @@ def test_no_self_referential_or_duplicate_topic_leaves():
 
 
 def test_critic_has_no_false_duplicate_warnings():
-    # Same topic under different levels is legitimate, not a duplicate.
+    # Same topic/category under different levels is legitimate, not a duplicate.
     flags = _run_critic(_load("golden_codebook.json"))
     dups = [f for f in flags if "Duplicate label name" in f["message"]]
     assert dups == [], dups
@@ -122,50 +150,66 @@ async def test_decompose_orders_and_gates_topics():
     steps = await decompose_codebook(cb)
     names = [s["name"] for s in steps]
 
-    gated_name = _gated_dim(g)["name"]
-    gate_name = _gated_dim(g)["gated_by"]
-    assert names.index(gate_name) < names.index(gated_name)  # gate predicted first
+    topics, cat = _topics_dim(g), _category_dim(g)
+    gate_name = topics["gated_by"]
+    # Level predicted first, then Topics, then the category (which needs Topics).
+    assert names.index(gate_name) < names.index(topics["name"]) < names.index(cat["name"])
 
-    topic = next(s for s in steps if s["name"] == gated_name)
-    assert topic.get("gate_by") == gate_name
-    assert set(topic.get("conditional_prompts", {})) == {"High", "Low", "No"}
+    ts = next(s for s in steps if s["name"] == topics["name"])
+    assert ts.get("gate_by") == gate_name
+    assert set(ts.get("conditional_prompts", {})) == {"High", "Low", "No"}
 
     # the per-level prompt is genuinely narrowed: pick a topic that is in High's
     # subset but NOT in No's, and assert it only shows in High's prompt.
-    topics_dim = _gated_dim(g)
-    high = {l["name"] for l in topics_dim["labels"] if l["path"][0] == "High"}
-    no = {l["name"] for l in topics_dim["labels"] if l["path"][0] == "No"}
+    high = {l["name"] for l in topics["labels"] if l["path"][0] == "High"}
+    no = {l["name"] for l in topics["labels"] if l["path"][0] == "No"}
     high_only = sorted(high - no)
     assert high_only, "expected at least one High-only topic"
     probe = high_only[0]
-    assert probe in topic["conditional_prompts"]["High"]
-    assert probe not in topic["conditional_prompts"]["No"]
+    assert probe in ts["conditional_prompts"]["High"]
+    assert probe not in ts["conditional_prompts"]["No"]
 
 
-def test_derived_category_is_a_recognized_dimension():
-    # "Topic thematic categories" must be exposed as a real dimension (for gold
-    # validation + the schema UI), derived from the gated Topics dimension.
-    from app.engine.gold_align import build_gold_schema, schema_for_ui
+async def test_decompose_category_is_gated_with_topic_context():
+    g = _load("golden_codebook.json")
+    cb = parse_codebook(g)
+    steps = await decompose_codebook(cb)
+    topics, cat = _topics_dim(g), _category_dim(g)
+
+    cs = next(s for s in steps if s["name"] == cat["name"])
+    assert cs.get("gate_by") == cat["gated_by"]
+    assert cs.get("context_from") == [topics["name"]]          # topic injected as context
+    assert set(cs.get("conditional_labels", {})) == {"High", "Low", "No"}
+
+    # category is narrowed per level: every No-category is among the codebook's
+    # categories, and High offers options No does not.
+    high = set(cs["conditional_labels"]["High"])
+    no = set(cs["conditional_labels"]["No"])
+    assert high - no, "High should offer categories No does not"
+
+    # the topic step no longer carries a derived category output — it is predicted.
+    ts = next(s for s in steps if s["name"] == topics["name"])
+    assert not ts.get("derived_dimensions")
+
+
+def test_category_is_a_recognized_gated_dimension():
+    # "Topic thematic categories" must be a real dimension for gold validation +
+    # the schema UI, with the distinct categories as its labels.
+    from app.engine.gold_align import _norm, build_gold_schema, schema_for_ui
 
     g = _load("golden_codebook.json")
-    topics = _gated_dim(g)
-    cat_name = topics["category_dimension"]
-    cats = []
-    for l in topics["labels"]:
-        if len(l["path"]) > 1 and l["path"][-1] not in cats:
-            cats.append(l["path"][-1])
+    cat = _category_dim(g)
+    cat_name = cat["name"]
+    cats = {l["name"] for l in cat["labels"]}
 
     schema = build_gold_schema(g)
     assert cat_name in schema["dimensions"]
-    assert set(schema["dimensions"][cat_name]["labels"]) == set(cats)
+    assert set(schema["dimensions"][cat_name]["labels"]) == cats
 
     ui = schema_for_ui(g)
-    ui_dim = next((d for d in ui["dimensions"] if d["name"] == cat_name), None)
-    assert ui_dim is not None
-    assert ui_dim.get("derived_from") == topics["name"]
+    assert any(d["name"] == cat_name for d in ui["dimensions"])
 
     # a gold column named "Topic thematic category" (singular) must norm-match it.
-    from app.engine.gold_align import _norm
     assert schema["norm_dims"].get(_norm("Topic thematic category")) == cat_name
 
 
@@ -186,20 +230,6 @@ async def test_few_shot_toggle_changes_prompt():
     assert not has_block(off), "few_shot=False should not inject examples"
 
 
-async def test_decompose_emits_derived_category_output():
-    g = _load("golden_codebook.json")
-    cb = parse_codebook(g)
-    steps = await decompose_codebook(cb)
-    topic = next(s for s in steps if s["name"] == _gated_dim(g)["name"])
-    derived = topic.get("derived_dimensions") or []
-    assert len(derived) == 1
-    d = derived[0]
-    assert d["name"] == _gated_dim(g)["category_dimension"]
-    assert d["from"] == topic["name"]
-    # the map sends each topic leaf to its parent category
-    assert d["map"], "derived category map should be non-empty"
-
-
 # ── optional live test: actually run the agent (LLM + network + API key) ──
 
 @pytest.mark.skipif(
@@ -217,15 +247,18 @@ async def test_live_agent_structural_invariants():
     )
     assert res.ok, res.error_message
     cb = parse_codebook(res.draft_json)
-    names = [d.name for d in cb.dimensions]
-    # loose invariants that must hold regardless of LLM wording:
-    assert not any("thematic" in n.lower() for n in names)        # no split thematic dim
-    topics = [d for d in cb.dimensions if "topic" in d.name.lower()]
+    # loose invariants that must hold regardless of LLM wording: a "thematic"
+    # dimension must be the gated (predicted) category, not a flat split or rollup.
+    for d in cb.dimensions:
+        if "thematic" in d.name.lower():
+            assert d.gated_by, f"thematic dim {d.name!r} must be gated/predicted"
+            assert d.context_dims, f"thematic dim {d.name!r} should take the topic as context"
+    topics = [d for d in cb.dimensions
+              if "topic" in d.name.lower() and "thematic" not in d.name.lower()]
     assert len(topics) == 1                                       # one merged Topic dim
     t = topics[0]
     assert t.gated_by, "Topics should be gated by the disclosure level"
     gate_values = {l.path[0] for l in t.labels if l.path}
     assert gate_values == {"High", "Low", "No"}
-    # no self-referential leaves
-    for l in t.labels:
+    for l in t.labels:                                            # no self-referential leaves
         assert l.name.lower() not in [p.lower() for p in l.path]

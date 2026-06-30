@@ -18,7 +18,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.agents.codebook_agent import run_codebook_agent
+from pydantic import BaseModel
+
+from app.agents.codebook_agent import _run_critic, run_codebook_agent
 from app.config import resolve_api_key, settings
 from app.database import get_db
 from app.engine.codebook_parser import parse_codebook, validate_codebook
@@ -87,6 +89,7 @@ def _draft_to_out(draft: CodebookDraft) -> CodebookDraftOut:
         has_cleaned_data=bool(draft.cleaned_data),
         cleaned_data_rows=len(draft.cleaned_data or []),
         drafter_model=draft.drafter_model or "",
+        sheet_options=list((draft.draft_json or {}).get("_sheet_options") or []),
         accepted_for_project_id=draft.accepted_for_project_id,
         created_at=draft.created_at,
         updated_at=draft.updated_at,
@@ -97,10 +100,16 @@ def _draft_to_out(draft: CodebookDraft) -> CodebookDraftOut:
 async def create_draft_from_upload(
     file: UploadFile = File(...),
     project_id: int = Form(...),
+    merge_sheets: bool = Form(False),
+    sheet: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ):
     """Door A — upload a file. Ingestor + Drafter run inline (they're bounded
-    by asyncio.wait_for timeouts), then response returns with status=ready|failed."""
+    by asyncio.wait_for timeouts), then response returns with status=ready|failed.
+
+    Multi-sheet XLSX guardrail: if an .xlsx has more than one content sheet and the
+    caller has not chosen, returns status="needs_sheet_choice" with sheet_options so
+    the UI can ask to merge all (merge_sheets=True) or import one (sheet=<name>)."""
     # ─── Validate at the door ───
     mime = (file.content_type or "").lower()
     filename = file.filename or "upload"
@@ -117,6 +126,34 @@ async def create_draft_from_upload(
         raise HTTPException(413, f"File too large ({len(data):,} bytes > {MAX_UPLOAD_BYTES:,} cap).")
     if not data:
         raise HTTPException(400, "Empty upload.")
+
+    # ─── Multi-sheet guardrail (rule-based, before any drafting) ───
+    only_sheet: str | None = None
+    if ext in ("xlsx", "xlsm"):
+        from app.engine.format_parsers import xlsx_content_sheets
+        sheets = xlsx_content_sheets(data)
+        if sheet:
+            if sheet not in sheets:
+                raise HTTPException(400, f"Sheet {sheet!r} not found. Available: {sheets}")
+            only_sheet = sheet
+        elif len(sheets) > 1 and not merge_sheets:
+            # Pause and ask the user how to handle the multiple sheets.
+            draft = CodebookDraft(
+                source="upload",
+                source_filename=filename,
+                source_bytes=len(data),
+                status="needs_sheet_choice",
+                draft_json={"_sheet_options": sheets},
+                warnings=[
+                    f"'{filename}' has {len(sheets)} sheets ({', '.join(sheets)}). "
+                    "Choose to merge them into one codebook or import a single sheet."
+                ],
+            )
+            db.add(draft)
+            await db.commit()
+            await db.refresh(draft)
+            return _draft_to_out(draft)
+        # merge_sheets=True (or a single content sheet): only_sheet stays None → merge all.
 
     # Persist an initial draft row so the user can see status even if we crash later
     draft = CodebookDraft(
@@ -137,6 +174,7 @@ async def create_draft_from_upload(
             provider=provider,
             model=model,
             api_key=api_key,
+            only_sheet=only_sheet,
         )
     except Exception as e:
         logger.exception(f"CodebookAgent crashed on draft {draft.id}")
@@ -245,6 +283,46 @@ async def create_draft_from_json(
 
     # Unreachable — source is validated to ("paste", "preset") at the top.
     raise HTTPException(400, f"Invalid source: {body.source!r}")
+
+
+class FromCodebookRequest(BaseModel):
+    codebook_id: int
+
+
+@router.post("/from-codebook", response_model=CodebookDraftOut)
+async def create_draft_from_codebook(
+    body: FromCodebookRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Seed an editable draft from an EXISTING codebook so the user can revise it
+    in the wizard (left: editable dimensions, right: structure/arrow) and re-accept.
+    No LLM call — the stored ``raw_json`` already carries the full structure."""
+    cb = await db.get(Codebook, body.codebook_id)
+    if not cb:
+        raise HTTPException(404, "Codebook not found")
+    raw = dict(cb.raw_json or {})
+    errors = validate_codebook(raw)
+    if errors:
+        raise HTTPException(422, detail={"errors": errors,
+                                          "message": "Stored codebook failed validation"})
+    raw.setdefault("_meta", {})
+    raw["_meta"].update({"source_filename": f"codebook:{cb.name}", "drafter_model": "edit"})
+
+    draft = CodebookDraft(
+        source="codebook",
+        source_filename=f"codebook:{cb.name}",
+        source_bytes=0,
+        status="ready",
+        draft_json=raw,
+        cleaned_data=[],
+        warnings=[f"Editing existing codebook '{cb.name}'. Accepting saves a new version."],
+        critic_flags=_run_critic(raw),
+        drafter_model="edit",
+    )
+    db.add(draft)
+    await db.commit()
+    await db.refresh(draft)
+    return _draft_to_out(draft)
 
 
 @router.get("/{draft_id}", response_model=CodebookDraftOut)
