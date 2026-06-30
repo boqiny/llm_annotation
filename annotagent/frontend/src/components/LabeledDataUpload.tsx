@@ -39,6 +39,11 @@ export default function LabeledDataUpload({
     }
   }
 
+  // A dimension some rows leave blank, with no "-" no-label option yet: the user
+  // should be offered to add one (and say when it applies) before loading.
+  const hasOpenEmptyDims = (r: GoldReport | null | undefined) =>
+    !!r && Object.values(r.empty_dimensions || {}).some(info => info.count > 0 && !info.has_no_label)
+
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; e.target.value = ''
     if (!file) return
@@ -46,7 +51,8 @@ export default function LabeledDataUpload({
     try {
       const v = await validateLabeledUpload(projectId, file, true)
       setValidation(v); setSchema(v.schema)
-      if (v.report.ok) { await commit(v, v.items); return }   // matches → load straight away
+      // Load straight away only if it matches AND has no blank dimensions to resolve.
+      if (v.report.ok && !hasOpenEmptyDims(v.report)) { await commit(v, v.items); return }
       setPhase('review')
     } catch (e: any) {
       setError(e?.response?.data?.detail || e?.message || 'Validation failed')
@@ -143,8 +149,9 @@ export default function LabeledDataUpload({
 
           <ReportSummary report={report} />
 
-          {/* interactive manual fixer — map each mismatch to the codebook yourself */}
-          {!report.ok && schema && (
+          {/* interactive manual fixer — map mismatches, and/or add a "-" no-label
+              option for dimensions some rows leave blank */}
+          {(!report.ok || hasOpenEmptyDims(report)) && schema && (
             <MismatchFixer
               projectId={projectId}
               schema={schema}

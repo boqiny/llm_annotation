@@ -329,7 +329,13 @@ async def export_results(
             }
         rows[ann.data_item_id][ann.dimension_name] = ann.predicted_label
 
-    all_dims = sorted({ann.dimension_name for ann in annotations})
+    # Order columns by the codebook's prediction order (pipeline step_order), not
+    # alphabetically, so the export preserves the same schema/structure as the
+    # input — e.g. Level → … → Topics → Topic thematic categories.
+    dim_order: dict[str, int] = {}
+    for ann in annotations:
+        dim_order.setdefault(ann.dimension_name, ann.step_order)
+    all_dims = sorted(dim_order, key=lambda d: (dim_order[d], d))
 
     if format == "json":
         return list(rows.values())

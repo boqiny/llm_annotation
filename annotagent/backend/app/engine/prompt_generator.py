@@ -18,7 +18,15 @@ def _is_binary(dim: DimensionDef) -> bool:
 
 
 def _label_names(dim: DimensionDef) -> str:
-    return ", ".join(f'"{lbl.name}"' for lbl in dim.labels)
+    # Dedup by name: a gated dimension repeats the same leaf under each gate value
+    # (different `path`), so the flat answer list would otherwise list duplicates.
+    seen: set[str] = set()
+    names: list[str] = []
+    for lbl in dim.labels:
+        if lbl.name not in seen:
+            seen.add(lbl.name)
+            names.append(lbl.name)
+    return ", ".join(f'"{n}"' for n in names)
 
 
 def _has_no_label(dim: DimensionDef) -> bool:

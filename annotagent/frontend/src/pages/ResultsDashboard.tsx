@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { Download } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { getJob, getMetrics, getConfusionMatrix, exportResults, editResult, listCodebooks } from '../lib/api'
 import { formatTokens, formatPercent } from '../lib/utils'
@@ -95,15 +96,21 @@ export default function ResultsDashboard() {
           >
             Back to annotation
           </Link>
-          <button onClick={() => handleExport('csv')} className="px-4 py-2 text-sm font-medium text-ink border border-seam hover:border-ink transition-colors">
-            Export · CSV
-          </button>
-          <button onClick={() => handleExport('xlsx')} className="px-4 py-2 text-sm font-medium text-ink border border-seam hover:border-ink transition-colors">
-            Export · XLSX
-          </button>
-          <button onClick={() => handleExport('json')} className="px-4 py-2 text-sm font-medium text-ink border border-seam hover:border-ink transition-colors">
-            Export · JSON
-          </button>
+          <div className="inline-flex items-stretch rounded-md overflow-hidden border border-emerald-600 shadow-sm">
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 text-white text-sm font-semibold">
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Export
+            </span>
+            {(['csv', 'xlsx', 'json'] as const).map((fmt, i) => (
+              <button
+                key={fmt}
+                onClick={() => handleExport(fmt)}
+                className={`px-4 py-2 text-sm font-medium bg-white text-emerald-800 hover:bg-emerald-50 active:bg-emerald-100 transition-colors ${i > 0 ? 'border-l border-emerald-200' : ''}`}
+              >
+                {fmt.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
