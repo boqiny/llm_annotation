@@ -183,16 +183,19 @@ async def run_codebook_agent(
     mime: str = "",
     pasted_text: str = "",
     provider: str = "openai",
-    model: str = "gpt-5.4-mini",
+    model: str = "gpt-5.5",
     api_key: str = "",
+    only_sheet: str | None = None,
 ) -> DraftResult:
-    """Main entry point. Runs Ingestor → Drafter → Critic. Never raises."""
+    """Main entry point. Runs Ingestor → Drafter → Critic.
+
+    ``only_sheet`` restricts an XLSX upload to one sheet (else all sheets merge)."""
     warnings: list[str] = []
     analysis_rows: list[dict[str, Any]] = []
 
     # ─── Ingestor ───
     if file_bytes is not None:
-        ingest = await parse_file(file_bytes, filename, mime=mime)
+        ingest = await parse_file(file_bytes, filename, mime=mime, only_sheet=only_sheet)
     elif pasted_text:
         from app.engine.format_parsers import _parse_text
         ingest = await _parse_text(pasted_text.encode("utf-8"), filename or "pasted.txt")
@@ -535,14 +538,25 @@ async def _extract_dependency_map(
 
 
 def _apply_dependency_map(draft: dict[str, Any], dep: dict[str, Any]) -> list[str]:
-    """Deterministically fold the gate map into the codebook. Rewrites each gated
-    dimension's labels so every (gate_value, leaf) becomes a leaf with
-    path=[gate_value, category], and sets the dimension's `gated_by`. Returns a list
-    of human-readable warnings (hallucinated leaves/gate values dropped)."""
+    """Deterministically fold the gate map into the codebook.
+
+    For each gated dimension (e.g. Topics) the source restricts per gate value
+    (e.g. Level of disclosure), this:
+      1. rewrites that dimension's labels so each allowed (gate_value, leaf) is a
+         leaf with path=[gate_value], and sets its ``gated_by``; and
+      2. when the source also pairs a coarser thematic-category column with it,
+         emits that category as its OWN sibling dimension, ALSO gated by the same
+         gate (its labels are the categories available under each gate value), to
+         be predicted after the fine dimension with the fine value as context
+         (``context_dims``). The category is a real prediction, not a rollup.
+
+    Returns human-readable warnings (hallucinated leaves/gate values dropped).
+    """
     warnings: list[str] = []
     dims = draft.get("dimensions", [])
     by_norm = {_norm_label(d.get("name", "")): d for d in dims}
     leaf_cat = {_norm_label(k): str(v) for k, v in (dep.get("leaf_to_category") or {}).items()}
+    new_category_dims: list[dict[str, Any]] = []
 
     for entry in dep.get("gated_dimensions") or []:
         gd = by_norm.get(_norm_label(entry.get("dimension", "")))
@@ -556,6 +570,9 @@ def _apply_dependency_map(draft: dict[str, Any], dep: dict[str, Any]) -> list[st
                             for l in (gg.get("labels") or [])}
         new_labels: list[dict[str, Any]] = []
         seen: set[tuple[str, str]] = set()
+        # Per gate value, the distinct thematic categories its allowed leaves carry
+        # (source order). This becomes the category dimension's per-gate label set.
+        cats_by_gate: dict[str, list[str]] = {}
         for gate_value, leaves in (entry.get("allowed") or {}).items():
             gnorm = _norm_label(gate_value)
             if gnorm not in gate_label_norms:
@@ -572,24 +589,45 @@ def _apply_dependency_map(draft: dict[str, Any], dep: dict[str, Any]) -> list[st
                 if sig in seen:
                     continue
                 seen.add(sig)
-                cat = leaf_cat.get(lnorm, "")
-                path = [gate_canon] + ([cat] if cat else [])
                 new_labels.append({
                     "name": src.get("name", leaf),
                     "definition": src.get("definition", ""),
                     "examples": src.get("examples", []),
-                    "path": path,
+                    "path": [gate_canon],
                 })
+                cat = leaf_cat.get(lnorm, "")
+                if cat:
+                    bucket = cats_by_gate.setdefault(gate_canon, [])
+                    if _norm_label(cat) not in {_norm_label(c) for c in bucket}:
+                        bucket.append(cat)
         if not new_labels:
             warnings.append(f"gate for {gd.get('name')!r} produced no valid leaves — left ungated")
             continue
         gd["labels"] = new_labels
         gd["gated_by"] = gg.get("name", "")
-        # Name for the derived thematic-category output (the coarse parent column),
-        # only kept if leaves actually carry a category in their path.
-        cat_dim = str(entry.get("category_dimension", "") or "").strip()
-        if cat_dim and any(len(l.get("path", [])) > 1 for l in new_labels):
-            gd["category_dimension"] = cat_dim
+
+        # Emit the thematic-category column as a sibling dimension gated by the same
+        # gate, predicted after this one with this one's value as context.
+        cat_dim_name = str(entry.get("category_dimension", "") or "").strip()
+        if cat_dim_name and cats_by_gate and _norm_label(cat_dim_name) not in by_norm:
+            cat_labels = [
+                {"name": c, "definition": "", "examples": [], "path": [gate_canon]}
+                for gate_canon, cats in cats_by_gate.items() for c in cats
+            ]
+            by_norm[_norm_label(cat_dim_name)] = {}  # reserve the name
+            new_category_dims.append({
+                "name": cat_dim_name,
+                "type": gd.get("type", "single_label"),
+                "instructions": (
+                    f"Gated by {gg.get('name', '')}: choose the single thematic category "
+                    f"for the chosen {gd.get('name', '')}. Only the categories listed under "
+                    f"the predicted {gg.get('name', '')} apply."
+                ),
+                "gated_by": gg.get("name", ""),
+                "context_dims": [gd.get("name", "")],
+                "labels": cat_labels,
+            })
+    dims.extend(new_category_dims)
     return warnings
 
 
@@ -631,6 +669,8 @@ def _run_critic(draft: dict[str, Any]) -> list[dict[str, Any]]:
         return flags
 
     for dim in cb.dimensions:
+        if dim.derived_from:
+            continue  # derived entry (e.g. thematic category) — not authored, not predicted
         hierarchical = any(l.path for l in dim.labels)
 
         if len(dim.labels) < 2:

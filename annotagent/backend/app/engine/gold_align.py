@@ -84,6 +84,9 @@ def build_gold_schema(codebook_raw: dict[str, Any]) -> dict[str, Any]:
 # Names that mark a "no label applies here" option for a dimension.
 _NO_LABEL_NORMS = {_norm(n) for n in ("-", "no label", "none", "n/a", "not applicable")}
 
+# label_map target sentinel: discard the source value instead of mapping it.
+_DROP_VALUE = "__drop__"
+
 
 def _no_label_of(spec_dim: dict[str, Any]) -> str | None:
     """Return the dimension's no-label option (canonical spelling) if it has one."""
@@ -97,15 +100,22 @@ def schema_for_ui(codebook_raw: dict[str, Any]) -> dict[str, Any]:
     """Compact, display-friendly view of the expected schema for the frontend."""
     parsed = parse_codebook(codebook_raw)
     out: list[dict[str, Any]] = []
+    seen = {_norm(d.name) for d in parsed.dimensions}
     for d in parsed.dimensions:
-        out.append({"name": d.name, "type": d.dim_type or "single_label",
-                    "labels": [l.name for l in d.labels]})
-        if d.category_dimension:
+        entry: dict[str, Any] = {"name": d.name, "type": d.dim_type or "single_label",
+                                 "labels": [l.name for l in d.labels]}
+        if d.derived_from:
+            entry["derived_from"] = d.derived_from
+        out.append(entry)
+        # Surface the derived thematic-category rollup, unless it is already a
+        # materialized dimension of its own (avoids listing it twice).
+        if d.category_dimension and _norm(d.category_dimension) not in seen:
             cats: list[str] = []
             for l in d.labels:
                 if len(l.path) > 1 and l.path[-1] and l.path[-1] not in cats:
                     cats.append(l.path[-1])
             if cats:
+                seen.add(_norm(d.category_dimension))
                 out.append({"name": d.category_dimension,
                             "type": d.dim_type or "single_label", "labels": cats,
                             "derived_from": d.name})
@@ -259,6 +269,8 @@ def apply_transform(items: list[dict[str, Any]], spec: dict[str, Any],
       item_overrides: {row_index: {dimension: value}},  # per-row override; value ""
                                                         # drops that dim for that row
     }
+    A label_map entry whose target is the sentinel "__drop__" discards that source
+    value (it is removed from the gold rather than mapped to a label).
     """
     dims = schema["dimensions"]
     norm_dims = schema["norm_dims"]
@@ -313,7 +325,10 @@ def apply_transform(items: list[dict[str, Any]], spec: dict[str, Any],
             remap = label_map.get(canonical_dim, {})
             canon_values = []
             for v in values:
-                mapped = remap.get(_norm(v)) or spec_dim["norm_labels"].get(_norm(v)) or v
+                rm = remap.get(_norm(v))
+                if rm == _DROP_VALUE:
+                    continue  # user chose to discard this value
+                mapped = rm or spec_dim["norm_labels"].get(_norm(v)) or v
                 if mapped not in canon_values:
                     canon_values.append(mapped)
 

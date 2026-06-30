@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Pencil, Loader2, Check } from 'lucide-react'
 import {
-  uploadCodebookDraft, pasteCodebookDraft, presetCodebookDraft,
+  uploadCodebookDraft, pasteCodebookDraft, presetCodebookDraft, codebookToDraft,
   acceptCodebookDraft, deleteCodebookDraft, patchCodebookDraft,
   artifactDownloadUrl, getPreset,
   type CodebookDraft,
@@ -15,13 +15,17 @@ export default function CodebookDraftWizard({
   presets,
   onAccepted,
   replacingName,
+  seedFromCodebookId,
 }: {
   projectId: number
   presets: PresetInfo[]
   onAccepted: () => void
   replacingName?: string
+  // When set, the wizard opens with this codebook loaded as an editable draft
+  // (revise it in place) instead of the empty door chooser.
+  seedFromCodebookId?: number
 }) {
-  const [door, setDoor] = useState<Door>('preset')            // Door C default
+  const [door, setDoor] = useState<Door>('upload')            // Door A default
   const [draft, setDraft] = useState<CodebookDraft | null>(null)
   const [loading, setLoading] = useState<string>('')         // free-form status line
   const [accepting, setAccepting] = useState(false)
@@ -30,10 +34,25 @@ export default function CodebookDraftWizard({
   // Door-specific inputs
   const [pasteText, setPasteText] = useState('')
   const [presetName, setPresetName] = useState(presets[0]?.name || 'self_disclosure')
+  // File awaiting a multi-sheet merge/import decision (XLSX guardrail).
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
 
   useEffect(() => {
     if (!presetName && presets.length > 0) setPresetName(presets[0].name)
   }, [presets, presetName])
+
+  // Seed the editable draft from an existing codebook, once. After a discard the
+  // ref stays set, so the user lands on the door chooser to build a fresh one.
+  const seededRef = useRef(false)
+  useEffect(() => {
+    if (!seedFromCodebookId || draft || seededRef.current) return
+    seededRef.current = true
+    setLoading('Loading codebook for editing…'); setError('')
+    codebookToDraft(seedFromCodebookId)
+      .then(d => { setDraft(d); if (d.status !== 'ready') setError(d.error_message || '') })
+      .catch(e => setError(e?.response?.data?.detail?.message || e?.message || 'Failed to load codebook'))
+      .finally(() => setLoading(''))
+  }, [seedFromCodebookId, draft])
 
   const resetAll = () => {
     setDraft(null); setError(''); setLoading(''); setPasteText('')
@@ -44,18 +63,20 @@ export default function CodebookDraftWizard({
     resetAll()
   }
 
-  const handleUpload = async (file: File) => {
+  const runUpload = async (file: File, opts?: { mergeSheets?: boolean; sheet?: string }) => {
     setLoading(`Ingesting ${file.name}…`); setError(''); setDraft(null)
     try {
-      const d = await uploadCodebookDraft(projectId, file)
+      const d = await uploadCodebookDraft(projectId, file, opts)
       setDraft(d)
-      if (d.status !== 'ready') setError(d.error_message || 'Draft failed.')
+      if (d.status === 'needs_sheet_choice') setPendingFile(file)        // await user's choice
+      else { setPendingFile(null); if (d.status !== 'ready') setError(d.error_message || 'Draft failed.') }
     } catch (e: any) {
       setError(e?.response?.data?.detail || e?.message || 'Upload failed')
     } finally {
       setLoading('')
     }
   }
+  const handleUpload = (file: File) => runUpload(file)
 
   const handlePaste = async () => {
     if (pasteText.trim().length < 20) {
@@ -106,12 +127,13 @@ export default function CodebookDraftWizard({
 
   const inFlight = !!loading
   const hasDraft = draft && draft.status === 'ready'
+  const choosingSheet = draft?.status === 'needs_sheet_choice'
 
   /* Render --------------------------------------------------------------- */
   return (
     <div className="space-y-4">
       {/* Door chooser */}
-      {!hasDraft && (
+      {!hasDraft && !choosingSheet && (
         <div className="space-y-3">
           <div className="border-l-2 border-ink pl-4 text-sm leading-relaxed text-stone-700">
             A codebook is your label definition. Select one option below to define your codebook.
@@ -123,6 +145,7 @@ export default function CodebookDraftWizard({
               onClick={() => setDoor('upload')}
               title="A. Upload a file"
               hint="PDF · DOCX · XLSX · CSV · JSON · TXT — agent parses + cleans"
+              emphasized
             />
             <DoorCard
               door="paste"
@@ -137,14 +160,13 @@ export default function CodebookDraftWizard({
               onClick={() => setDoor('preset')}
               title="C. Use a preset"
               hint={`Self-disclosure · AI behavior · ${presets.length} available`}
-              emphasized
             />
           </div>
         </div>
       )}
 
       {/* Door body */}
-      {!hasDraft && (
+      {!hasDraft && !choosingSheet && (
         <div className="border border-seam bg-white p-4">
           {door === 'upload' && (
             <UploadForm onFile={handleUpload} busy={inFlight} />
@@ -180,8 +202,19 @@ export default function CodebookDraftWizard({
         </div>
       )}
 
+      {/* Multi-sheet guardrail: ask to merge all sheets or import one */}
+      {choosingSheet && !inFlight && (
+        <SheetChoice
+          filename={draft!.source_filename}
+          sheets={draft!.sheet_options || draft!.draft_json?._sheet_options || []}
+          onMerge={() => pendingFile && runUpload(pendingFile, { mergeSheets: true })}
+          onPick={(s) => pendingFile && runUpload(pendingFile, { sheet: s })}
+          onCancel={clearDraft}
+        />
+      )}
+
       {/* Draft preview */}
-      {draft && (
+      {draft && !choosingSheet && (
         <DraftPreview
           draft={draft}
           onAccept={handleAccept}
@@ -190,6 +223,56 @@ export default function CodebookDraftWizard({
           replacingName={replacingName}
         />
       )}
+    </div>
+  )
+}
+
+/* ─── Multi-sheet guardrail ─────────────────────────────────── */
+
+function SheetChoice({
+  filename, sheets, onMerge, onPick, onCancel,
+}: {
+  filename: string
+  sheets: string[]
+  onMerge: () => void
+  onPick: (sheet: string) => void
+  onCancel: () => void
+}) {
+  const [sel, setSel] = useState(sheets[0] || '')
+  return (
+    <div className="border border-amber-200 bg-amber-50/60 p-4 space-y-4">
+      <div>
+        <div className="font-mono-editorial text-amber-800 text-xs mb-1">Multiple sheets detected</div>
+        <p className="text-sm text-stone-700 leading-relaxed">
+          <span className="font-medium">{filename}</span> has {sheets.length} sheets:{' '}
+          {sheets.map((s, i) => (
+            <span key={s}>{i > 0 && ', '}<span className="font-medium">{s}</span></span>
+          ))}.
+          Merge them into one codebook, or import a single sheet?
+        </p>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <button onClick={onMerge}
+                className="px-4 py-2 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition">
+          Merge all {sheets.length} sheets →
+        </button>
+        <div className="flex items-center gap-2">
+          <select value={sel} onChange={e => setSel(e.target.value)}
+                  className="text-sm border border-seam bg-white px-2 py-2 focus:border-ink focus:outline-none">
+            {sheets.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <button onClick={() => sel && onPick(sel)}
+                  className="px-4 py-2 border border-ink text-ink text-sm font-medium hover:bg-ink hover:text-cream transition">
+            Import this sheet →
+          </button>
+        </div>
+      </div>
+
+      <button onClick={onCancel}
+              className="font-mono-editorial text-stone-500 hover:text-ink text-xs">
+        ← cancel, choose another file
+      </button>
     </div>
   )
 }
@@ -533,28 +616,6 @@ function DraftPreview({
       return { ...w, dimensions: dims }
     })
   }
-  // Categories live as each leaf's last path segment; rename/remove across all
-  // leaves under that category (every gate value it appears in).
-  const renameCategory = (i: number, oldCat: string, newCat: string) => {
-    setWorking((w: any) => {
-      const dims = [...(w.dimensions || [])]
-      dims[i] = { ...dims[i], labels: (dims[i].labels || []).map((l: any) => {
-        const p = l.path || []
-        if (p.length && p[p.length - 1] === oldCat) { const np = [...p]; np[np.length - 1] = newCat; return { ...l, path: np } }
-        return l
-      }) }
-      return { ...w, dimensions: dims }
-    })
-  }
-  const removeCategory = (i: number, cat: string) => {
-    setWorking((w: any) => {
-      const dims = [...(w.dimensions || [])]
-      dims[i] = { ...dims[i], labels: (dims[i].labels || []).filter((l: any) => {
-        const p = l.path || []; return !(p.length && p[p.length - 1] === cat)
-      }) }
-      return { ...w, dimensions: dims }
-    })
-  }
   const removeDim = (i: number) => {
     setWorking((w: any) => {
       const dims = [...(w.dimensions || [])]
@@ -571,7 +632,9 @@ function DraftPreview({
         {dirty ? <span className="text-amber-700">unsaved edits</span> : <span>no edits</span>}
         <span className="text-stone-400 mx-2">·</span>
         {dimensions.length} dimensions ·{' '}
-        {dimensions.reduce((n, d) => n + (d.labels?.length || 0), 0)} labels
+        {dimensions.reduce((n, d) => n + (d.gated_by
+          ? new Set((d.labels || []).map((l: any) => l.name).filter(Boolean)).size
+          : (d.labels?.length || 0)), 0)} labels
       </div>
       <div className="flex items-center gap-2">
         <button
@@ -626,6 +689,12 @@ function DraftPreview({
                 {(i + 1).toString().padStart(2, '0')}
               </div>
               <div className="flex-1 min-w-0 space-y-2.5">
+                {dim.derived_from && (
+                  <p className="text-[11px] leading-relaxed text-stone-500 border-l-2 border-indigo-200 pl-2">
+                    Derived from <span className="font-medium text-indigo-700">{dim.derived_from}</span>: filled
+                    automatically from the chosen topic. Editable here, but not predicted on its own yet.
+                  </p>
+                )}
                 <div className="space-y-2">
                   <div className="relative">
                     <Pencil className="absolute left-0 top-2 h-3.5 w-3.5 text-stone-400" aria-hidden="true" />
@@ -649,7 +718,11 @@ function DraftPreview({
                       <option value="multi_label">Multi-label (a set per item)</option>
                     </select>
                     <span className="text-sm text-stone-500">
-                      {(dim.labels || []).length} labels
+                      {/* Gated dimensions repeat a label once per gate value; count
+                          the distinct labels so it matches the chip list. */}
+                      {dim.gated_by
+                        ? new Set((dim.labels || []).map((l: any) => l.name).filter(Boolean)).size
+                        : (dim.labels || []).length} labels
                     </span>
                     <button
                       onClick={() => removeDim(i)}
@@ -670,14 +743,14 @@ function DraftPreview({
                     aria-label="Edit dimension instructions"
                   />
                 </div>
-                {dim.category_dimension && (dim.labels || []).some((l: any) => l.path?.length) ? (
+                {dim.gated_by && (dim.labels || []).some((l: any) => l.path?.length) ? (
+                  // Gated dimension: show the distinct labels as a normal compact
+                  // list. The per-gate-value breakdown lives in the right structure panel.
                   <FlatTwoLists
                     dim={dim}
                     onRenameTopic={(oldN, newN) => renameLeavesByName(i, oldN, newN)}
                     onRemoveTopic={(n) => removeLeavesByName(i, n)}
                     onAddTopic={() => addLabel(i)}
-                    onRenameCategory={(oldC, newC) => renameCategory(i, oldC, newC)}
-                    onRemoveCategory={(c) => removeCategory(i, c)}
                   />
                 ) : (dim.labels || []).some((l: any) => l.path?.length) ? (
                   <div className="space-y-2">
@@ -740,19 +813,29 @@ function DraftPreview({
             </div>
           </div>
 
+          {/* Prediction-flow cascade across the gated dimensions, then each
+              gated dimension's per-gate-value structure underneath. */}
+          {dimensions.some((d: any) => d.gated_by) && (
+            <div>
+              <div className="font-mono-editorial text-stone-500 mb-2">Prediction flow</div>
+              <div className="border border-seam bg-white p-2 overflow-x-auto">
+                <CascadeArrow dims={dimensions} />
+              </div>
+            </div>
+          )}
+
           {dimensions.filter((d: any) => (d.labels || []).some((l: any) => l.path?.length)).map((d: any, idx: number) => (
             <div key={idx}>
               <div className="font-mono-editorial text-stone-500 mb-2">Structure · {d.name}</div>
               {d.gated_by && (
                 <p className="text-[11px] leading-relaxed text-stone-500 mb-2">
-                  Predicted after <span className="font-medium text-indigo-700">{d.gated_by}</span>; the available labels depend on its value.
+                  Predicted after <span className="font-medium text-indigo-700">{d.gated_by}</span>; the available labels depend on its value
+                  {d.context_dims?.length ? <> , with <span className="font-medium text-indigo-700">{d.context_dims.join(', ')}</span> given as context</> : null}.
                 </p>
               )}
               <div className="max-h-[420px] overflow-auto pr-1 border border-seam bg-white p-2">
-                {d.category_dimension
-                  ? <TopicCategoryTree labels={d.labels || []} />
-                  : <WizardTreeLines node={wBuildTree(d.labels || [])} depth={0}
-                      levelKinds={[d.gated_by || '', d.category_dimension || '']} />}
+                <WizardTreeLines node={wBuildTree(d.labels || [])} depth={0}
+                  levelKinds={[d.gated_by || '', '']} />
               </div>
             </div>
           ))}
@@ -895,39 +978,57 @@ function WizardNestedGroups({ node, depth, levelKinds, keyPrefix, onChange, onRe
   )
 }
 
-/* Topic-first structure for a gated dimension: under each gate value, list the
- * TOPICS, each annotated with its thematic category — matching the coder workflow
- * "first pick the topic, then pick its thematic category". */
-function TopicCategoryTree({ labels }: { labels: any[] }) {
-  const byGate = new Map<string, { topic: string; category: string }[]>()
-  for (const l of labels) {
-    const p = l.path || []
-    const gate = p[0] || ''
-    const category = p.length > 1 ? p[p.length - 1] : ''
-    if (!byGate.has(gate)) byGate.set(gate, [])
-    byGate.get(gate)!.push({ topic: l.name, category })
+/* Prediction-flow cascade across the gated dimensions: the temporal order in
+ * which a coder works, e.g. "Level of disclosure -> Topics -> Topic thematic
+ * categories". Built universally from the dimension graph: each gate (a name some
+ * dimension is `gated_by`) is followed by the dimensions it gates, ordered so a
+ * dimension that takes another as `context_dims` comes after it. */
+function CascadeArrow({ dims }: { dims: any[] }) {
+  const distinct = (d: any) => new Set<string>((d.labels || []).map((l: any) => l.name).filter(Boolean)).size
+  const gateValues = (d: any) => new Set<string>((d.labels || []).map((l: any) => (l.path || [])[0]).filter(Boolean)).size
+
+  const orderByContext = (group: any[]) => {
+    const placed: any[] = []
+    const remaining = [...group]
+    let progress = true
+    while (remaining.length && progress) {
+      progress = false
+      for (let i = 0; i < remaining.length; i++) {
+        const ctx = (remaining[i].context_dims || []).filter((c: string) => group.some(g => g.name === c))
+        if (ctx.every((c: string) => placed.some(p => p.name === c))) {
+          placed.push(remaining.splice(i, 1)[0]); progress = true; break
+        }
+      }
+    }
+    return [...placed, ...remaining]
   }
+
+  const gateNames = Array.from(new Set(dims.filter(d => d.gated_by).map(d => d.gated_by)))
+
   return (
-    <ul className="space-y-1.5">
-      {[...byGate.entries()].map(([gate, items], gi) => (
-        <li key={gi}>
-          {gate && (
-            <div className="flex items-baseline gap-1.5 text-[11px]">
-              <span className="text-indigo-700 font-medium">{gate}</span>
-              <span className="font-mono text-[10px] text-stone-400">{items.length}</span>
-            </div>
-          )}
-          <ul className="space-y-0.5 mt-0.5">
-            {items.map((it, ii) => (
-              <li key={ii} className="text-[11px] leading-snug" style={{ paddingLeft: gate ? 12 : 0 }}>
-                <span className="text-stone-700">{it.topic}</span>
-                {it.category && <span className="text-stone-400"> · {it.category}</span>}
-              </li>
+    <div className="space-y-3">
+      {gateNames.map(gate => {
+        const gateDim = dims.find(d => d.name === gate)
+        const gated = orderByContext(dims.filter(d => d.gated_by === gate))
+        const nodes: { label: string; sub: string }[] = [
+          { label: gate, sub: `${gateDim ? distinct(gateDim) : gateValues(gated[0])} values` },
+          ...gated.map(d => ({ label: d.name, sub: `${distinct(d)} labels` })),
+        ]
+        return (
+          <div key={gate} className="flex flex-wrap items-center gap-1.5">
+            {nodes.map((n, i) => (
+              <div key={n.label} className="flex items-center gap-1.5">
+                {i > 0 && <span className="text-stone-400 text-sm" aria-hidden="true">&rarr;</span>}
+                <div className="border border-seam bg-white px-2.5 py-1.5">
+                  <div className="text-[12px] font-medium text-stone-800 leading-tight">{n.label}</div>
+                  <div className="font-mono text-[10px] text-stone-400 mt-0.5">{n.sub}</div>
+                </div>
+              </div>
             ))}
-          </ul>
-        </li>
-      ))}
-    </ul>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -1014,49 +1115,32 @@ function PresetPreviewModal({ name, data, onClose }: { name: string; data: any; 
 /* Gated dimension shown as two normal lists: the topics (deduped, editable by
  * name across gate values) and the thematic categories (read-only chips). The
  * conditional tree itself lives in the right-hand "Structure" panel. */
-function FlatTwoLists({ dim, onRenameTopic, onRemoveTopic, onAddTopic, onRenameCategory, onRemoveCategory }: {
+function FlatTwoLists({ dim, onRenameTopic, onRemoveTopic, onAddTopic }: {
   dim: any
   onRenameTopic: (oldName: string, newName: string) => void
   onRemoveTopic: (name: string) => void
   onAddTopic: () => void
-  onRenameCategory: (oldName: string, newName: string) => void
-  onRemoveCategory: (name: string) => void
 }) {
   const labels = dim.labels || []
   const topics: string[] = []
   const seenT = new Set<string>()
   for (const l of labels) if (l.name && !seenT.has(l.name)) { seenT.add(l.name); topics.push(l.name) }
-  const cats: string[] = []
-  const seenC = new Set<string>()
-  for (const l of labels) { const c = (l.path || []).slice(-1)[0]; if (c && !seenC.has(c)) { seenC.add(c); cats.push(c) } }
+  // Categories are not edited here — they live in their own derived "thematic
+  // categories" entry below, which keeps both representations in sync.
   return (
-    <div className="space-y-4">
-      <div>
-        <div className="font-mono-editorial text-[10px] uppercase tracking-wider text-stone-400 mb-1.5">
-          {dim.name} · {topics.length}
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {topics.map(t => (
-            <TopicChip key={t} name={t} onRename={n => onRenameTopic(t, n)} onRemove={() => onRemoveTopic(t)} />
-          ))}
-          <button onClick={onAddTopic}
-            className="text-xs px-2 py-1 border border-dashed border-seam hover:border-ink text-stone-500 hover:text-ink">
-            + add
-          </button>
-        </div>
+    <div>
+      <div className="font-mono-editorial text-[10px] uppercase tracking-wider text-stone-400 mb-1.5">
+        {dim.name} · {topics.length}
       </div>
-      {cats.length > 0 && (
-        <div>
-          <div className="font-mono-editorial text-[10px] uppercase tracking-wider text-stone-400 mb-1.5">
-            {dim.category_dimension} · {cats.length}
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {cats.map(c => (
-              <TopicChip key={c} name={c} onRename={n => onRenameCategory(c, n)} onRemove={() => onRemoveCategory(c)} />
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="flex flex-wrap gap-1.5">
+        {topics.map(t => (
+          <TopicChip key={t} name={t} onRename={n => onRenameTopic(t, n)} onRemove={() => onRemoveTopic(t)} />
+        ))}
+        <button onClick={onAddTopic}
+          className="text-xs px-2 py-1 border border-dashed border-seam hover:border-ink text-stone-500 hover:text-ink">
+          + add
+        </button>
+      </div>
     </div>
   )
 }
