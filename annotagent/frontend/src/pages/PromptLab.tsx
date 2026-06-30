@@ -234,11 +234,22 @@ export default function PromptLabV2() {
   const autoPromptCacheKey = activeCb ? `annotagent.autoPrompt.${projectId}.${activeCb.id}` : null
   useEffect(() => {
     if (!activeCb || !autoPromptCacheKey || autoPrompt) return
+    // Only trust a cached entry if its prompts match the CURRENT codebook's
+    // dimensions. Codebook ids can be reused (e.g. after a local DB reset), so a
+    // stale entry can collide on the same key and surface another codebook's
+    // prompts; validating dimension names prevents that.
+    const codebookDims = new Set(activeCb.dimensions.map(d => d.name))
     try {
       const cached = localStorage.getItem(autoPromptCacheKey)
       if (cached) {
         const parsed = JSON.parse(cached)
-        if (parsed && Array.isArray(parsed.prompts)) { setAutoPrompt(parsed); return }
+        const dims: string[] = Array.isArray(parsed?.prompts)
+          ? parsed.prompts.map((p: any) => p?.dimension_name) : []
+        const matchesCodebook = dims.length > 0
+          && dims.length === codebookDims.size
+          && dims.every(n => codebookDims.has(n))
+        if (matchesCodebook) { setAutoPrompt(parsed); return }
+        localStorage.removeItem(autoPromptCacheKey)   // stale (codebook changed) — drop it
       }
     } catch {}
     setAutoPromptLoading(true)
