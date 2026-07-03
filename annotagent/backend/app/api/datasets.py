@@ -1,6 +1,7 @@
 """Dataset API routes — upload CSV/JSON, parse into data_items; preview; load seeds."""
 from __future__ import annotations
 
+import logging
 import re
 from pathlib import Path
 
@@ -22,9 +23,15 @@ from app.models.tables import (
     OptimizerRun, Project,
 )
 from app.schemas.schemas import DatasetOut, DatasetPreview, DataItemOut
-from app.utils.file_parsers import _csv_rows_with_header, parse_json_dataset, parse_csv_dataset
+from app.utils.file_parsers import (
+    _csv_rows_with_header,
+    decode_text_upload,
+    parse_json_dataset,
+    parse_csv_dataset,
+)
 
 router = APIRouter(prefix="/api/projects/{project_id}/datasets", tags=["datasets"])
+logger = logging.getLogger(__name__)
 
 
 def _norm_dim(value: str) -> str:
@@ -125,7 +132,7 @@ async def upload_dataset(
     if not project:
         raise HTTPException(404, "Project not found")
 
-    content = (await file.read()).decode("utf-8")
+    content = decode_text_upload(await file.read())
     filename = file.filename or "dataset"
 
     if filename.endswith(".csv"):
@@ -235,7 +242,7 @@ async def validate_labeled_upload(
     if raw is None:
         raise HTTPException(400, "Accept a codebook before uploading labeled data.")
 
-    content = (await file.read()).decode("utf-8")
+    content = decode_text_upload(await file.read())
     filename = file.filename or "dataset"
     items, file_type = _parse_upload(content, filename)
     schema = build_gold_schema(raw)
@@ -371,7 +378,7 @@ async def extract_preview(
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
-    raw = (await file.read()).decode("utf-8", errors="replace")
+    raw = decode_text_upload(await file.read())
     filename = file.filename or "input"
     if filename.endswith(".csv"):
         rows = _csv_rows_with_header(raw)

@@ -7,8 +7,14 @@ import json
 from typing import Any
 
 
+def decode_text_upload(data: bytes) -> str:
+    """Decode user-uploaded text/CSV/JSON bytes, tolerating UTF-8 BOM exports."""
+    return data.decode("utf-8-sig", errors="replace")
+
+
 def parse_json_dataset(content: str) -> list[dict[str, Any]]:
     """Parse JSON dataset content into list of data items."""
+    content = content.lstrip("\ufeff")
     data = json.loads(content)
 
     # Handle different JSON structures
@@ -47,6 +53,7 @@ def _csv_rows_with_header(content: str) -> list[dict[str, Any]]:
     mirrors the XLSX annotator-sheet handling so coder exports parse the same way
     in either format. Falls back to a normal row-1 header otherwise.
     """
+    content = content.lstrip("\ufeff")
     raw = list(csv.reader(io.StringIO(content)))
     if not raw:
         return []
