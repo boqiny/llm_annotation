@@ -23,6 +23,25 @@ def test_parse_theme_level_csv_as_gold_labels():
     }
 
 
+def test_parse_two_row_annotator_csv_ignores_utf8_bom():
+    content = """\ufeff#,User ,FL,,,,,
+,,Logs (Donated vs. T1/T2/T3/T4),Coding theme,Level,Topic,Time stamp,Relevant quotes 
+1,R_1,Donated,Listening strategy,Question-asking,Causal conversation,8/5/2025,"How did you come up with it?"
+1,R_1,Donated,Support type,Emotional support,Causal conversation,8/5/2025,"How did you come up with it?"
+"""
+
+    items = parse_csv_dataset(content)
+
+    assert len(items) == 1
+    assert items[0]["content"] == "How did you come up with it?"
+    assert items[0]["gold_labels"] == {
+        "Listening strategy": "Question-asking",
+        "Support type": "Emotional support",
+        "Topic": "Causal conversation",
+    }
+    assert "\ufeff#" not in items[0]["metadata"]
+
+
 def test_parse_theme_level_csv_preserves_multiple_levels_for_same_theme():
     content = """Coding theme,Level,Relevant quotes 
 Listening strategy,Question-asking,"Tell me more."
