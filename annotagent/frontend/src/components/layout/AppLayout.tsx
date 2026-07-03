@@ -18,7 +18,7 @@ export default function AppLayout() {
               {APP_NAME}
             </span>
             <span className="font-mono-editorial text-stone-400 hidden sm:inline">
-              codebook-driven annotation
+              codebook-aligned annotation
             </span>
           </Link>
 

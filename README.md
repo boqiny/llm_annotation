@@ -1,6 +1,6 @@
-# AnnotAgent
+# CALICO
 
-Codebook-driven LLM annotation framework with a React frontend and FastAPI backend. Demo paper target: EMNLP 2026 System Demonstrations.
+Codebook-Aligned LLM-assisted Iterative Coding and Optimization: a human-centered workflow for codebook-aligned LLM annotation. Demo paper target: EMNLP 2026 System Demonstrations.
 
 ## Architecture
 
