@@ -1,0 +1,39 @@
+name: Deploy demo
+
+# Redeploys the live demo server whenever the app changes on main.
+# Requires these repo secrets (Settings -> Secrets and variables -> Actions):
+#   DEMO_SSH_HOST  - demo server address (e.g. 8.228.248.132)
+#   DEMO_SSH_USER  - ssh user on the server
+#   DEMO_SSH_KEY   - private key for that user
+#   DEMO_APP_DIR   - path of the repo checkout on the server (e.g. /root/calico-annotation)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "annotagent/**"
+      - ".github/workflows/deploy-demo.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: demo-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEMO_SSH_HOST }}
+          username: ${{ secrets.DEMO_SSH_USER }}
+          key: ${{ secrets.DEMO_SSH_KEY }}
+          script: |
+            set -e
+            cd "${{ secrets.DEMO_APP_DIR }}"
+            git fetch origin main
+            git reset --hard origin/main
+            cd annotagent
+            docker compose up -d --build
+            docker image prune -f
