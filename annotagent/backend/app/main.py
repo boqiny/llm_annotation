@@ -88,8 +88,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="AnnotAgent",
-    description="Codebook-driven LLM annotation framework",
+    title="CALICO",
+    description="Codebook-aligned LLM-assisted iterative coding and optimization",
     version="0.1.0",
     lifespan=lifespan,
 )

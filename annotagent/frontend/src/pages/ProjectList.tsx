@@ -96,7 +96,7 @@ export default function ProjectList() {
       <section className="pt-6 pb-2 grid lg:grid-cols-12 gap-10 items-center">
         <div className="lg:col-span-5">
           <div className="font-mono-editorial text-stone-500 mb-6">
-            Codebook-driven text annotation
+            Codebook-aligned text annotation
           </div>
           <h1 className="text-5xl font-medium tracking-tight leading-[0.95]">
             Label text the way<br />
