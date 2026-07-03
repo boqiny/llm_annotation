@@ -30,7 +30,7 @@ const flags = Object.fromEntries(
 )
 
 const route = positional[0] || '/'
-const out = positional[1] || '/tmp/annotagent-ui.png'
+const out = positional[1] || '/tmp/calico-ui.png'
 const baseUrl = process.env.BASE_URL || 'http://localhost:5173'
 const width = Number(flags.w || 1440)
 const height = Number(flags.h || 900)
