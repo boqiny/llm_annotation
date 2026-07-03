@@ -1,8 +1,9 @@
-# AnnotAgent — repo guide for Claude
+# CALICO — repo guide for Claude
 
-EMNLP 2026 System Demonstrations target. Codebook-driven LLM annotation
-framework with a React frontend and FastAPI backend. Demo-ability matters more
-than feature breadth — keep the golden-path UX working.
+EMNLP 2026 System Demonstrations target. CALICO is a codebook-aligned,
+LLM-assisted iterative coding and optimization system with a React frontend and
+FastAPI backend. Demo-ability matters more than feature breadth — keep the
+golden-path UX working.
 
 ## Where things live
 

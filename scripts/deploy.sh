@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy AnnotAgent on this server. Idempotent — safe to re-run.
+# Deploy CALICO on this server. Idempotent — safe to re-run.
 #
 # Assumes:
 #   - Repo is at $PWD (workflow `cd`s here before calling)

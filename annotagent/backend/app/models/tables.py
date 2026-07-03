@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models for AnnotAgent."""
+"""SQLAlchemy ORM models for CALICO."""
 from __future__ import annotations
 
 import datetime

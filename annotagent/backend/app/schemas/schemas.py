@@ -1,4 +1,4 @@
-"""Pydantic request/response schemas for AnnotAgent API."""
+"""Pydantic request/response schemas for CALICO API."""
 from __future__ import annotations
 
 import datetime
