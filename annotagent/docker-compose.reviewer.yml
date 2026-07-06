@@ -1,0 +1,37 @@
+# Reviewer demo stack — runs alongside the frozen :8080 stack (Fiona & Chang's
+# dedicated instance). Separate compose project name, ports, and data volume;
+# same images. The frontend's nginx proxies /api and /ws to the backend over
+# the internal network, so the backend needs no public host port.
+name: calico-reviewer
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "127.0.0.1:8002:8000"   # local-only, for deploy health checks
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:////data/annotagent.db
+      - CORS_ORIGINS=["http://localhost","http://localhost:5173","http://localhost:8000"]
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - MAX_CONCURRENCY=${MAX_CONCURRENCY:-10}
+      - SEED_DATA_DIR=/app/assets/data
+    volumes:
+      - reviewer-backend-data:/data
+      - ./assets:/app/assets:ro
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\" || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  reviewer-backend-data:
