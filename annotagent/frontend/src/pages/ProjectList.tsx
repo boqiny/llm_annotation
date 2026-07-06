@@ -132,8 +132,7 @@ export default function ProjectList() {
         </div>
         <figure className="lg:col-span-7">
           <img
-            // src="/workflow_0517.png"
-            src="/workflow_0702.png"
+            src="/workflow_0705.png"
             alt={`${APP_NAME} workflow: set up, generate, refine, then get results`}
             className="w-full h-auto block"
             onError={(e) => { (e.currentTarget.style.display = 'none') }}
