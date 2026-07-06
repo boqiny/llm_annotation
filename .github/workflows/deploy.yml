@@ -11,6 +11,9 @@ concurrency:
   group: deploy-dev
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: self-hosted
@@ -24,13 +27,21 @@ jobs:
 
       # Update the existing checkout at $REPO_DIR rather than cloning into the
       # runner's _work/ — keeps a single source of truth on the server.
+      # The remote URL is derived from github.repository and the fetch is
+      # authenticated with the job's ephemeral GITHUB_TOKEN, so the server
+      # needs no stored git credentials and repo renames/transfers can't
+      # break this step again. The token is passed per-fetch via header and
+      # never written to .git/config.
       - name: Pull latest
         env:
           REPO_DIR: ${{ vars.REPO_DIR || '/home/ubuntu/llm_annotation' }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           cd "$REPO_DIR"
-          git fetch --prune origin
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --prune origin
           git reset --hard "origin/${GITHUB_REF_NAME}"
           git rev-parse --short HEAD
 
