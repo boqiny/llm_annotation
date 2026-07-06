@@ -1,9 +1,10 @@
 name: Deploy reviewer demo
 
-# Deploys ONLY the reviewer demo stack (frontend :8000) from main.
-# The :8080 stack at /home/ubuntu/llm_annotation is frozen — dedicated to
-# Fiona & Chang — and is no longer touched by CI (except a one-time port
-# rebind below, which frees host port 8000 for the reviewer frontend).
+# Deploys ONLY the reviewer demo stack (frontend :80, reviewer URL
+# http://<server-ip>/) from main. The :8080 stack at
+# /home/ubuntu/llm_annotation is frozen — dedicated to Fiona & Chang —
+# and is never modified by CI (its .env is read once to seed the reviewer
+# stack's API keys).
 
 on:
   push:
@@ -32,22 +33,6 @@ jobs:
           echo "host: $(hostname)"
           echo "user: $(whoami)"
           echo "commit: $GITHUB_SHA"
-
-      # One-time: the frozen stack's backend used to publish host port 8000,
-      # which the reviewer frontend needs. Rebind it to 127.0.0.1:8001 — its
-      # own frontend reaches it over the docker network (nginx proxy), so
-      # nothing user-facing changes at :8080. No-op once applied.
-      - name: Free host port 8000 from the frozen stack
-        run: |
-          set -euo pipefail
-          COMPOSE="$OLD_DIR/annotagent/docker-compose.yml"
-          if [ -f "$COMPOSE" ] && grep -q '"8000:8000"' "$COMPOSE"; then
-            sed -i 's/"8000:8000"/"127.0.0.1:8001:8000"/' "$COMPOSE"
-            (cd "$OLD_DIR/annotagent" && docker compose up -d backend)
-            echo "rebound frozen-stack backend to 127.0.0.1:8001"
-          else
-            echo "port 8000 already free"
-          fi
 
       # Bootstrap the reviewer checkout on first run; reuse the frozen
       # stack's .env (API keys) if the reviewer copy doesn't have one yet.
