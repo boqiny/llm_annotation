@@ -2,6 +2,10 @@
 
 Codebook-Aligned LLM-assisted Iterative Coding and Optimization: a human-centered workflow for codebook-aligned LLM annotation. Demo paper target: EMNLP 2026 System Demonstrations.
 
+## Workflow
+<img src="annotagent/frontend/public/workflow_0705.png" alt="Description of figure" width="100%" />
+
+
 ## Architecture
 
 - **Backend**: FastAPI + SQLAlchemy + SQLite (async)
