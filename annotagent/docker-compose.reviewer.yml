@@ -1,7 +1,8 @@
 # Reviewer demo stack — runs alongside the frozen :8080 stack (Fiona & Chang's
 # dedicated instance). Separate compose project name, ports, and data volume;
 # same images. The frontend's nginx proxies /api and /ws to the backend over
-# the internal network, so the backend needs no public host port.
+# the internal network, so the backend needs no public host port. The
+# frontend publishes on :80 (reviewer URL: http://<server-ip>/).
 name: calico-reviewer
 
 services:
@@ -28,7 +29,7 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "8000:80"
+      - "80:80"
     depends_on:
       backend:
         condition: service_healthy
