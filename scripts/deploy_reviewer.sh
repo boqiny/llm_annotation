@@ -35,4 +35,4 @@ for i in $(seq 1 30); do
   fi
 done
 
-echo "[reviewer-deploy] done · reviewer frontend http://$(hostname -I | awk '{print $1}'):8000"
+echo "[reviewer-deploy] done · reviewer frontend http://$(hostname -I | awk '{print $1}')/"
