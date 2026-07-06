@@ -1,14 +1,17 @@
-name: Deploy to dev server
+name: Deploy reviewer demo
+
+# Deploys ONLY the reviewer demo stack (frontend :8000) from main.
+# The :8080 stack at /home/ubuntu/llm_annotation is frozen — dedicated to
+# Fiona & Chang — and is no longer touched by CI (except a one-time port
+# rebind below, which frees host port 8000 for the reviewer frontend).
 
 on:
   push:
     branches: [main]
   workflow_dispatch: {}
 
-# Cancel an older deploy if a newer push lands while it's still running —
-# avoids two `docker compose up --build` racing on the same server.
 concurrency:
-  group: deploy-dev
+  group: deploy-reviewer
   cancel-in-progress: true
 
 permissions:
@@ -18,6 +21,11 @@ jobs:
   deploy:
     runs-on: self-hosted
 
+    env:
+      DEMO_DIR: ${{ vars.DEMO_DIR || '/home/ubuntu/calico-demo' }}
+      OLD_DIR: ${{ vars.REPO_DIR || '/home/ubuntu/llm_annotation' }}
+      GH_TOKEN: ${{ github.token }}
+
     steps:
       - name: Show context
         run: |
@@ -25,30 +33,52 @@ jobs:
           echo "user: $(whoami)"
           echo "commit: $GITHUB_SHA"
 
-      # Update the existing checkout at $REPO_DIR rather than cloning into the
-      # runner's _work/ — keeps a single source of truth on the server.
-      # The remote URL is derived from github.repository and the fetch is
-      # authenticated with the job's ephemeral GITHUB_TOKEN, so the server
-      # needs no stored git credentials and repo renames/transfers can't
-      # break this step again. The token is passed per-fetch via header and
-      # never written to .git/config.
-      - name: Pull latest
-        env:
-          REPO_DIR: ${{ vars.REPO_DIR || '/home/ubuntu/llm_annotation' }}
-          GH_TOKEN: ${{ github.token }}
+      # One-time: the frozen stack's backend used to publish host port 8000,
+      # which the reviewer frontend needs. Rebind it to 127.0.0.1:8001 — its
+      # own frontend reaches it over the docker network (nginx proxy), so
+      # nothing user-facing changes at :8080. No-op once applied.
+      - name: Free host port 8000 from the frozen stack
         run: |
           set -euo pipefail
-          cd "$REPO_DIR"
+          COMPOSE="$OLD_DIR/annotagent/docker-compose.yml"
+          if [ -f "$COMPOSE" ] && grep -q '"8000:8000"' "$COMPOSE"; then
+            sed -i 's/"8000:8000"/"127.0.0.1:8001:8000"/' "$COMPOSE"
+            (cd "$OLD_DIR/annotagent" && docker compose up -d backend)
+            echo "rebound frozen-stack backend to 127.0.0.1:8001"
+          else
+            echo "port 8000 already free"
+          fi
+
+      # Bootstrap the reviewer checkout on first run; reuse the frozen
+      # stack's .env (API keys) if the reviewer copy doesn't have one yet.
+      - name: Bootstrap reviewer checkout
+        run: |
+          set -euo pipefail
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
+          if [ ! -d "$DEMO_DIR/.git" ]; then
+            git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" \
+              clone "https://github.com/${GITHUB_REPOSITORY}.git" "$DEMO_DIR"
+          fi
+          if [ ! -f "$DEMO_DIR/annotagent/.env" ] && [ -f "$OLD_DIR/annotagent/.env" ]; then
+            cp "$OLD_DIR/annotagent/.env" "$DEMO_DIR/annotagent/.env"
+            echo "copied .env from frozen stack"
+          fi
+
+      # Remote URL derived from github.repository + auth via the job's
+      # ephemeral token (never persisted), so renames/transfers can't break
+      # this and the server needs no stored git credentials.
+      - name: Pull latest
+        run: |
+          set -euo pipefail
+          cd "$DEMO_DIR"
           git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
           AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
           git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --prune origin
           git reset --hard "origin/${GITHUB_REF_NAME}"
           git rev-parse --short HEAD
 
-      - name: Deploy
-        env:
-          REPO_DIR: ${{ vars.REPO_DIR || '/home/ubuntu/llm_annotation' }}
+      - name: Deploy reviewer stack
         run: |
           set -euo pipefail
-          cd "$REPO_DIR"
-          bash scripts/deploy.sh
+          cd "$DEMO_DIR"
+          bash scripts/deploy_reviewer.sh
