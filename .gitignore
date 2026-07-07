@@ -41,4 +41,9 @@ paper_draft
 !/CLAUDE.md
 review-stage/
 emnlp2025_demo_study/
-fiona_codebooks/
+EMNLP26_Demo_AnnotAgent/
+
+# Experiment run outputs and logs under scripts/ — regenerable optimizer
+# result sidecars and run logs. Kept on disk for audit, not tracked in the repo.
+annotagent/backend/scripts/*.json
+annotagent/backend/scripts/*.log
