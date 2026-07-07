@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  getProject, updateProject, listPresets, listCodebooks,
+  getProject, updateProject, listCodebooks,
   listDatasets, deleteDataset, decomposePipeline, previewDataset,
-  listSeedDatasets, loadSeedDataset, getBackendConfig,
-  type SeedDatasetInfo, type BackendConfig,
+  getBackendConfig,
+  type BackendConfig,
 } from '../lib/api'
-import type { Project, Codebook, Dataset, DatasetPreview, PresetInfo } from '../types'
+import type { Project, Codebook, Dataset, DatasetPreview } from '../types'
 import CodebookDraftWizard from '../components/CodebookDraftWizard'
 import LabeledDataUpload from '../components/LabeledDataUpload'
 import { APP_NAME } from '../lib/brand'
@@ -18,29 +18,20 @@ const MODEL_OPTIONS: Record<string, string[]> = {
   anthropic: ['claude-sonnet-4-5-20250929', 'claude-opus-4-1-20250805', 'claude-3-5-haiku-20241022'],
 }
 
-function isSelfDisclosure(cb: Codebook | undefined | null): boolean {
-  if (!cb) return false
-  const n = (cb.name || '').toLowerCase()
-  return n.includes('self-disclosure') || n.includes('self_disclosure') || n.includes('self disclosure')
-}
-
 export default function ProjectSetupV2() {
   const { id } = useParams<{ id: string }>()
   const projectId = Number(id)
   const navigate = useNavigate()
 
   const [project, setProject] = useState<Project | null>(null)
-  const [presets, setPresets] = useState<PresetInfo[]>([])
   const [codebooks, setCodebooks] = useState<Codebook[]>([])
   const [datasets, setDatasets] = useState<Dataset[]>([])
-  const [seeds, setSeeds] = useState<SeedDatasetInfo[]>([])
   const [backendCfg, setBackendCfg] = useState<BackendConfig | null>(null)
   const [llmProvider, setLlmProvider] = useState('openai')
   const [llmModel, setLlmModel] = useState('gpt-5.4-mini')
   const [apiKey, setApiKey] = useState('')
   const [step, setStep] = useState<Step>('model')
   const [loading, setLoading] = useState(false)
-  const [loadingSeed, setLoadingSeed] = useState<string | null>(null)
   const [removingDataset, setRemovingDataset] = useState<number | null>(null)
   const [fewShot, setFewShot] = useState(false)
   // When a codebook is already loaded, the Codebook step shows it; the setup
@@ -48,25 +39,18 @@ export default function ProjectSetupV2() {
   const [changingCodebook, setChangingCodebook] = useState(false)
 
   const loadData = useCallback(async () => {
-    const [p, pr, cb, ds, sd, cfg] = await Promise.all([
+    const [p, cb, ds, cfg] = await Promise.all([
       getProject(projectId),
-      listPresets(projectId),
       listCodebooks(projectId),
       listDatasets(projectId),
-      listSeedDatasets(projectId),
       getBackendConfig().catch(() => null),
     ])
-    setProject(p); setPresets(pr); setCodebooks(cb); setDatasets(ds); setSeeds(sd); setBackendCfg(cfg)
+    setProject(p); setCodebooks(cb); setDatasets(ds); setBackendCfg(cfg)
     setLlmProvider(p.llm_provider); setLlmModel(p.llm_model)
   }, [projectId])
 
   useEffect(() => { loadData() }, [loadData])
 
-  const handleLoadSeed = async (seedId: string) => {
-    setLoadingSeed(seedId)
-    try { await loadSeedDataset(projectId, seedId); setDatasets(await listDatasets(projectId)) }
-    finally { setLoadingSeed(null) }
-  }
   const handleRemoveDataset = async (datasetId: number) => {
     setRemovingDataset(datasetId)
     try {
@@ -162,7 +146,6 @@ export default function ProjectSetupV2() {
                 activeCb={activeCb}
                 changing={changingCodebook}
                 setChanging={setChangingCodebook}
-                presets={presets}
                 projectId={projectId}
                 onAccepted={() => { setChangingCodebook(false); loadData(); setStep('data') }}
                 onContinue={() => setStep('data')}
@@ -173,12 +156,8 @@ export default function ProjectSetupV2() {
             <div data-tour="setup-data">
               <DataStep
                 projectId={projectId}
-                activeCb={activeCb}
-                seeds={seeds}
                 datasets={datasets}
-                loadingSeed={loadingSeed}
                 removingDataset={removingDataset}
-                onLoadSeed={handleLoadSeed}
                 onRemoveDataset={handleRemoveDataset}
                 onUploaded={async () => setDatasets(await listDatasets(projectId))}
               />
@@ -275,19 +254,18 @@ function StepLink({
 /* ─── Steps ─────────────────────────────────────────────────── */
 
 function CodebookStep({
-  activeCb, changing, setChanging, presets, projectId, onAccepted, onContinue,
+  activeCb, changing, setChanging, projectId, onAccepted, onContinue,
 }: {
   activeCb?: Codebook
   changing: boolean
   setChanging: (b: boolean) => void
-  presets: PresetInfo[]
   projectId: number
   onAccepted: () => void
   onContinue: () => void
 }) {
-  // No codebook yet: the empty door chooser (upload / paste / preset).
+  // No codebook yet: the empty door chooser (upload / paste).
   if (!activeCb) {
-    return <CodebookDraftWizard projectId={projectId} presets={presets} onAccepted={onAccepted} />
+    return <CodebookDraftWizard projectId={projectId} onAccepted={onAccepted} />
   }
 
   // "Start a different codebook": the empty door chooser, replacing the current one.
@@ -307,7 +285,6 @@ function CodebookStep({
         <CodebookDraftWizard
           key="new-codebook"
           projectId={projectId}
-          presets={presets}
           onAccepted={onAccepted}
           replacingName={activeCb.name}
         />
@@ -342,7 +319,6 @@ function CodebookStep({
       <CodebookDraftWizard
         key={`edit-${activeCb.id}`}
         projectId={projectId}
-        presets={presets}
         onAccepted={onAccepted}
         replacingName={activeCb.name}
         seedFromCodebookId={activeCb.id}
@@ -352,22 +328,15 @@ function CodebookStep({
 }
 
 function DataStep({
-  projectId, activeCb, seeds, datasets, loadingSeed, removingDataset, onLoadSeed, onRemoveDataset, onUploaded,
+  projectId, datasets, removingDataset, onRemoveDataset, onUploaded,
 }: {
   projectId: number
-  activeCb?: Codebook
-  seeds: SeedDatasetInfo[]
   datasets: Dataset[]
-  loadingSeed: string | null
   removingDataset: number | null
-  onLoadSeed: (id: string) => void
   onRemoveDataset: (id: number) => void
   onUploaded: () => void | Promise<void>
 }) {
-  const labeledDatasets = datasets.filter(ds =>
-    ds.is_gold
-    || seeds.some(s => s.role !== 'test' && s.label === ds.name)
-  )
+  const labeledDatasets = datasets.filter(ds => ds.is_gold)
   const [preview, setPreview] = useState<DatasetPreview | null>(null)
   const [previewing, setPreviewing] = useState<number | null>(null)
   const openPreview = async (id: number) => {
@@ -396,45 +365,6 @@ function DataStep({
           object, for example <span className="font-mono text-[11px]">{'{"Listening strategy": "Question-asking"}'}</span>.
         </p>
       </div>
-
-      {seeds.length > 0 && isSelfDisclosure(activeCb) && (
-        <div>
-          <div className="font-mono-editorial text-stone-500 text-xs mb-2">Bundled labeled data · self-disclosure</div>
-          <ul className="divide-y divide-seam border-y border-seam">
-            {seeds.filter(s => s.role !== 'test').map(s => {
-              const loadedDataset = datasets.find(d => d.name === s.label)
-              return (
-                <li key={s.id} className={`flex items-center gap-4 py-2.5 ${s.available ? '' : 'opacity-50'}`}>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2 min-w-0">
-                      <span className="font-medium truncate">{s.label}</span>
-                      <span className="font-mono-editorial text-stone-400 text-[11px] shrink-0">{s.role}</span>
-                    </div>
-                    <div className="text-xs text-stone-500 truncate">{s.description}</div>
-                  </div>
-                  <div className="shrink-0 w-28 text-right">
-                    {!s.available ? <span className="font-mono-editorial text-stone-400 text-xs">missing</span>
-                      : loadedDataset ? (
-                        <button
-                          onClick={() => onRemoveDataset(loadedDataset.id)}
-                          disabled={removingDataset === loadedDataset.id}
-                          className="px-2 py-1 text-xs font-medium border border-red-300 text-red-700 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          {removingDataset === loadedDataset.id ? 'Removing…' : 'Remove'}
-                        </button>
-                      )
-                      : <button onClick={() => onLoadSeed(s.id)} disabled={loadingSeed === s.id}
-                                className="px-2 py-1 text-xs font-medium border border-ink hover:bg-ink hover:text-cream disabled:opacity-50">
-                          {loadingSeed === s.id ? '…' : 'Load'}
-                        </button>
-                    }
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      )}
 
       <div>
         <div className="font-mono-editorial text-stone-500 text-xs mb-2">Upload labeled data</div>
