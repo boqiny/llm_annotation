@@ -242,3 +242,270 @@ The Improve-page screenshot in the paper is a real run: ReflectAgent on
 49.6% -> 62.2% (+12.6pp, n=135, leakage-guarded); 19 rules learned; 1,030,520 tokens (exact). The ~$2.71 figure is the tool's over-estimate at gpt-4o rates; actual cost is ~3x lower.
 Full artifact (held-out test scores, splits, audit, rule library, trajectory):
 `exp_result_fig2_confession_fiona.json`.
+
+---
+
+# GEPA baseline — implementation + smoke test (wiring only, not a result yet)
+
+Status: the GEPA baseline optimizer is implemented and verified to run end-to-end.
+This is a plumbing smoke test on a tiny subset; the real per-coder baseline numbers
+for Table 1 are still TODO (run on the same train/val/test splits as ReflectAgent).
+
+## Design decisions (chosen 2026-06-29)
+
+- **Fair seed.** GEPA starts from the *same* initial per-dimension prompt ReflectAgent
+  starts from, not a generic stub. (`make_classifier_module(..., initial_prompt=...)`
+  in `app/optimizers/_dspy_shim.py`; MIPROv2 seeded the same way for parity.)
+- **Feedback metric.** GEPA optimizes a `{score, feedback}` metric (`feedback_metric`,
+  returns `dspy.Prediction(score, feedback)`), giving the reflective loop its intended
+  signal rather than a scalar-only strawman. Score is identical to exact-match accuracy
+  so it is comparable to ReflectAgent's.
+- **reflection_lm = same model** (`gpt-5.4-mini`), for a controlled, single-model comparison.
+- **Budget** `auto="light"` (DSPy's ~6-candidate budget).
+
+Code: `app/optimizers/gepa.py` (thin `dspy.GEPA` wrapper, dspy 3.2.1), `_dspy_shim.py`.
+Verified against the official DSPy GEPA API (overview + advanced docs) and the installed
+`dspy.GEPA` signature.
+
+## Smoke setup
+
+- Dimension `Level of disclosure` (labels No / Low / High), data from
+  `annotagent/seed/self_disclosure_demo.json`, split **6 train / 4 val**.
+- Model `gpt-5.4-mini`, `auto="light"`.
+- Script `annotagent/backend/scripts/smoke_gepa.py`; sidecar
+  `scripts/smoke_gepa_result.json`; full log `scripts/smoke_gepa.log`.
+
+## What the smoke test confirmed
+
+GEPA ran the real reflective Genetic-Pareto loop (budget ~396 metric calls / 39.6 full
+evals on train+val): it scored the seeded base program at val **0.75**, then across
+iterations **proposed multiple new candidate instructions** (e.g. a reformatted
+label-definition prompt), full-evaluated them, and maintained a Pareto front. No
+candidate beat the seed on the 4-example valset, so GEPA correctly **returned the seed
+program (index 0) as best** at 0.75. This is genuine GEPA behavior, not the
+exception-fallback path (no compile error in the log).
+
+| Field | Value |
+|---|---|
+| optimizer | gepa |
+| dimension | Level of disclosure |
+| base/initial val score | 0.75 |
+| GEPA best valset score (internal) | 0.75 (seed kept; no candidate beat it on n=4) |
+| final re-eval (harness) | 0.50 |
+| harness eval tokens | 892 (the 8 baseline+final scoring calls only; GEPA-internal dspy calls not counted) |
+| n_train / n_val | 6 / 4 |
+| result | end-to-end PASS |
+
+Caveats (why this is not a number to cite):
+- **n_val = 4** is far too small to be meaningful. The `0.75 -> 0.50` final-eval drop is
+  sampling noise (one of four items flipped at temperature > 0 when the harness re-scored
+  the *same* prompt); GEPA's internal valset score for that prompt was a stable 0.75.
+- Token/cost accounting only covers the shared eval harness; GEPA's internal reflection
+  and candidate-eval calls go through `dspy.LM` and are not yet captured. Capture full
+  `dspy`/litellm usage before reporting GEPA cost.
+
+## First real run: Level of disclosure (Fiona, seed 0)
+
+Same split as the ReflectAgent table (production `_stratified_split`,
+seed = SHA-256(`fiona|Level of disclosure|0`)): n=323, train 48 / val 136 / test 139.
+Both task and reflection LM = `gpt-5.4-mini`; GEPA `auto="light"`, 16 threads;
+`EXPERIMENTAL_OPENAI_API_KEY`. Driver `scripts/run_gepa_baseline.py`, sidecar
+`scripts/gepa_baseline_result.json`, log `scripts/gepa_baseline.log`.
+
+| Metric | Zero-shot | GEPA | Δ |
+|---|---|---|---|
+| Test agreement (acc) | 69.1% | **75.5%** | **+6.5pp** |
+| Test macro-F1 | 0.599 | 0.674 | +0.075 |
+| Val (GEPA internal) | 0.654 | 0.699 | +0.045 |
+
+- **Time:** 154.5s total at 16 threads (zero-shot eval 9.7s, GEPA optimize 134.1s,
+  test eval 8.8s). GEPA evolved the prompt (`prompt_changed=true`).
+- **Budget reality:** DSPy `light` issued **~924 metric calls (5.02 full evals on
+  train+val)**, not the ~7,300 pre-estimate. Auto-light caps full-evals as the valset
+  grows, so cost scales far more slowly than linear-in-n. Tokens ≈ 1.27M+ (196k eval
+  harness + ~1.07M task-LM internal; reflection-LM calls are extra and not captured).
+
+**Honest read (matters for the paper framing).** On *this* dimension and seed, GEPA
+(75.5%, +6.5pp) **beats** the ReflectAgent table mean for the same cell
+(Level of disclosure, Fiona: +RA 70.0%, +1.9pp). Caveats: this is a single seed vs a
+3-seed mean, and the zero-shot here (69.1) is the seed-0 baseline, slightly above the
+3-seed ZS mean (68.1). Importantly, **Level was ReflectAgent's weakest Fiona dimension**
+(+1.9pp, its smallest gain), so GEPA winning here is consistent with the paper's actual
+claim. The paper does NOT argue ReflectAgent beats GEPA on raw accuracy everywhere; it
+argues comparable accuracy plus inspectable rules, cross-session memory, and per-coder
+calibration. This result is evidence the comparison is being run honestly, and it says
+the strong rows for the ReflectAgent story are the high-gain dimensions (Confession,
+Intimacy) and the base-rate calibration on Confession, not Level.
+
+For a clean same-seed comparison, run ReflectAgent on seed 0 too (cheap, budget 5) so the
+table reports GEPA vs ReflectAgent on the identical split rather than GEPA-seed0 vs
+ReflectAgent-3seed-mean.
+
+### Prompt audit: memorization vs leakage
+
+The 784-word optimized prompt is ~95% abstracted rules (High/Low/No definitions, a
+decision checklist), but GEPA embedded **3 verbatim train sentences** as in-prompt
+examples (2 under "Examples that should be High", 1 as a Low boundary case). Audit on the
+same split:
+
+| Split | Verbatim sentences (>=25 chars) embedded in the prompt |
+|---|---|
+| train (48) | **3** |
+| val (136) | 0 |
+| test (139) | 0 |
+
+Production leakage auditor (`audit_prompt_for_leakage`): `val_leak_count=0,
+test_leak_count=0, clean=True`.
+
+- **No leakage.** All embedded sentences are from train; none from val/test. The held-out
+  test (75.5%) is honest, not inflated by memorized test items.
+- **Light overfitting to train**, not example-stuffing: ~5% of the prompt is verbatim
+  train quotes. GEPA quotes its training failures into the instruction because it has no
+  constraint against it.
+- **Differentiator, demonstrable from this run:** GEPA memorizes raw train instances into
+  the prompt; ReflectAgent's PatternExtractor is forbidden from quoting full failure
+  sentences verbatim and must abstract them into rules. "Memorized instances vs abstracted
+  rules" is now showable side by side, not just asserted.
+
+## All four single-label dims (Fiona, seed 0)
+
+Same setup for every dim (production `_stratified_split`, seed = SHA-256(`fiona|<dim>|0`),
+both LMs `gpt-5.4-mini`, GEPA `auto="light"`, 16 threads, EXPERIMENTAL key). Per-dim
+sidecars `scripts/gepa_<dim>.json`; log `scripts/gepa_3dims.log`. Each run ~130-167s.
+
+| Dimension | ZS (seed 0) | GEPA (seed 0) | Δ pp | ZS->GEPA macro-F1 | train sents memorized | test leak |
+|---|---|---|---|---|---|---|
+| Level of disclosure | 69.1 | 75.5 | +6.5 | 0.599 -> 0.674 | 3 | none |
+| Disclosure as confession | 55.6 | 79.3 | +23.7 | 0.515 -> 0.707 | 3 | none |
+| Depth of disclosure | 66.2 | 69.0 | +2.8 | 0.584 -> 0.670 | 1 | none |
+| Intimacy of self-disclosure | 56.6 | 81.1 | +24.5 | 0.543 -> 0.656 | 0 | none |
+| **mean** | **61.9** | **76.2** | **+14.4** | | | |
+
+Audit (verbatim sentences >=25 chars embedded in each prompt, same split): **0 test and
+0 val leakage on all four**; train memorization 3/3/1/0. All four GEPA numbers are honest.
+Intimacy's +24.5 came entirely from abstracted rules (0 memorized sentences).
+
+### Caveat: do NOT read this as GEPA vs ReflectAgent
+
+GEPA's **zero-shot** on seed 0 is higher than the ReflectAgent table's 3-seed-mean
+zero-shot on every dimension (69.1>68.1, 55.6>52.6, 66.2>61.0, 56.6>52.2). The zero-shot
+uses the identical initial prompt, so the difference is purely the split: **seed 0's test
+set is easier than the 3-seed average.** Comparing GEPA-seed0 (mean 76.2) to the
+ReflectAgent 3-seed mean (71.5) is therefore confounded and invalid. The only honest
+cross-method statement right now is *within* seed 0: GEPA lifts zero-shot by +14.4pp mean,
+cleanly and without leakage.
+
+To compare the two methods, run **ReflectAgent on seed 0** for these four dims (cheap,
+budget 5) so it is GEPA-seed0 vs RA-seed0 on the identical splits. Until then, GEPA is
+established only as a strong, clean baseline that improves over zero-shot.
+
+## MIPROv2 and OPRO baselines (Fiona, seed 0)
+
+Same pipeline and splits as GEPA (production `_stratified_split`, seed = SHA-256(`fiona|<dim>|0`)),
+both task and optimizer LM = `gpt-5.4-mini`, EXPERIMENTAL key, 16 threads. Driver
+`scripts/run_optimizer_baseline.py`; per-dim sidecars `scripts/opt_<optimizer>_<dim>.json`.
+
+Implementation notes (this run):
+- **MIPROv2 needed `optuna`** (its Bayesian search backend); installed and added to
+  `requirements.txt`. Without it, `compile()` throws and silently falls back to the initial
+  prompt, so the earlier stub would have reported no-ops.
+- **MIPRO demos now reach the eval.** MIPRO jointly optimizes instruction + few-shot demos;
+  the old code extracted only the instruction and dropped the demos, under-powering it. Added
+  `extract_prompt_with_demos` so the 4 bootstrapped demos are appended to the evaluated prompt
+  in the harness's `Sentence: / Answer:` format. Also pass `requires_permission_to_run=False`
+  (else `compile()` blocks on an interactive prompt) and `num_threads`.
+- **OPRO** was already correct and fair (seeds the trajectory with the same initial prompt,
+  keeps the best val candidate, no demos, cannot memorize data since its meta-prompt only sees
+  prior prompts + scores).
+- One MIPRO run (Depth) hung ~8h on an untimed LLM call in its instruction-proposal step; the
+  sweep recovered on its own. Future sweeps wrap each run in `timeout` as a guard.
+
+### Test accuracy, all optimizers (Fiona, seed 0, held-out test, scored once)
+
+| Dimension | GEPA | MIPROv2 | OPRO | RA (3-seed mean) |
+|---|---|---|---|---|
+| Level of disclosure | 75.5 | 75.5 | 77.0 | 70.0 |
+| Disclosure as confession | 79.3 | **90.4** | 56.3 (no gain) | 82.0 |
+| Depth of disclosure | 69.0 | 69.0 | 67.6 (no gain) | 58.7 |
+| Intimacy of self-disclosure | 81.1 | 73.6 | 62.3 | 75.5 |
+| **mean** | **76.2** | **77.1** | **65.8** | **71.5** |
+
+Per-optimizer lift over its own re-measured zero-shot (mean): GEPA +14.4, MIPRO +14.2,
+OPRO +4.2. OPRO proposed 8 candidates/round but all scored below baseline on val for
+Confession and Depth, so it kept the initial prompt (honest no-improvement, not an error).
+
+### Leakage / memorization audit (verbatim sentences in each optimized prompt)
+
+**Zero val or test leakage in all 8 runs.** Train memorization: MIPRO embeds its 4 few-shot
+demos per dim (that is what few-shot is); GEPA 0-3 sentences; OPRO 0 (never sees data). So
+every number is honest, but note MIPRO's prompt, like GEPA's, contains raw training instances;
+only ReflectAgent's output is abstracted, editable rules.
+
+### Honest read (matters for the paper)
+
+- **On raw accuracy, the prompt optimizers are competitive with or stronger than ReflectAgent.**
+  MIPRO (77.1) and GEPA (76.2) both exceed the RA 3-seed mean (71.5) on seed 0; only OPRO (65.8)
+  is clearly weaker, and inconsistently so. Do not claim an accuracy win over these baselines.
+- **Same seed-0 confound as before:** every optimizer's re-measured zero-shot on seed 0 is above
+  RA's 3-seed-mean zero-shot, so seed 0's test is simply easier. GEPA/MIPRO/OPRO-seed0 vs
+  RA-3seed-mean is not a valid comparison. Also, per-run zero-shot varies ~±2-3pp from eval
+  sampling (temperature), so single-run deltas carry noise.
+- **Confession is not a clean ReflectAgent win on Fiona:** MIPRO hit 90.4 with demos, above RA's
+  82.0. The per-coder base-rate calibration advantage must be demonstrated on **Chang** (the
+  conservative coder), where rule-tuning alone was not coder-specific, not on Fiona.
+- **The durable differentiator survives all three:** GEPA, MIPRO, and OPRO all output an opaque
+  prompt (MIPRO and GEPA with memorized train instances inside it). None produce inspectable,
+  editable, versioned rules, cross-session memory, or a per-coder decision threshold. That is
+  where the ReflectAgent / system story must live, not on the accuracy number.
+
+## k=3 optimizer baselines (Fiona, seeds 0/1/2) — the clean comparison
+
+Every optimizer now ran on **the same 3 split seeds as the ReflectAgent table**
+(seed = SHA-256(`fiona|<dim>|k`), k=0,1,2, train 0.15 / val 0.42), so the seed-0
+"easy split" confound is gone: this averages over identical splits. Driver
+`scripts/run_optimizer_baseline.py`; aggregation `scripts/aggregate_k3.py` →
+`scripts/k3_aggregate.json`; per-run sidecars `scripts/opt_<opt>_<dim>_s{0,1,2}.json`.
+All 24 seed-1/2 runs completed (0 failures, 0 timeouts).
+
+Test accuracy, mean ± std over 3 seeds:
+
+| Dimension | GEPA | MIPROv2 | OPRO | ReflectAgent (k=3) |
+|---|---|---|---|---|
+| Level of disclosure | 74.8 ± 1.6 | 72.2 ± 3.0 | 72.4 ± 4.6 | 70.0 ± 1.7 |
+| Disclosure as confession | 77.8 ± 5.5 | 85.2 ± 7.3 | 52.6 ± 2.6 | 82.0 ± 8.7 |
+| Depth of disclosure | 64.8 ± 3.4 | 62.0 ± 5.0 | 58.7 ± 6.3 | 58.7 ± 2.4 |
+| Intimacy of self-disclosure | 78.0 ± 2.4 | 76.1 ± 3.6 | 62.3 ± 4.6 | 75.5 ± 3.1 |
+| **mean** | **73.8** | **73.9** | **61.5** | **71.5** |
+
+Leakage/memorization: **0 val and 0 test leakage across all 36 runs** (12 seed-0 + 24
+seed-1/2). MIPRO embeds its 4 few-shot demos per prompt; GEPA quotes 0-3 train sentences;
+OPRO 0. Only ReflectAgent's output is abstracted, editable rules rather than a prompt
+carrying raw train instances.
+
+### Honest read (k=3, seed-confound resolved)
+
+- **GEPA (73.8) and MIPROv2 (73.9) are statistically on par with ReflectAgent (71.5)** on
+  raw accuracy; the error bars overlap on essentially every dimension. There is **no
+  accuracy win for ReflectAgent, and no decisive loss either** — it is a wash on the number.
+- **OPRO (61.5) is clearly the weakest**, dragged down by Confession, where its
+  trajectory-conditioned proposals never beat the baseline (52.6, no gain), and by high
+  variance elsewhere.
+- **Confession is not a ReflectAgent win on Fiona**: MIPRO 85.2 vs RA 82.0 (overlapping),
+  GEPA 77.8. The per-coder base-rate calibration advantage must be shown on **Chang** (the
+  conservative coder), where rules alone were not coder-specific — not on Fiona.
+- **Depth**: GEPA (64.8) and MIPRO (62.0) beat RA (58.7); this was RA's weak dim.
+- Net: over identical seeds, the strong prompt optimizers match ReflectAgent on accuracy.
+  The paper cannot lead with an accuracy claim; it must lead with what the optimizers
+  structurally do not produce — inspectable/editable rules, cross-session memory, and the
+  per-coder decision threshold.
+
+## Next step (the actual baseline)
+
+1. Run **ReflectAgent k=3 on Chang** and compute the same table; Chang/Confession is the
+   one place the calibration threshold should give ReflectAgent a real accuracy edge that
+   the prompt optimizers cannot reach.
+2. Put GEPA/MIPRO (and optionally OPRO) into Table 1 of `acl_latex.tex` as baseline rows,
+   reporting them as comparable-on-accuracy, and reframe the contribution around
+   interpretability + memory + calibration (per the GEPA-vs-ReflectAgent discussion).
+3. Optionally add the leakage/memorization contrast (optimizers embed raw train instances;
+   ReflectAgent abstracts rules) as a small qualitative figure or column.
