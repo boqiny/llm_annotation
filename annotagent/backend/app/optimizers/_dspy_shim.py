@@ -7,7 +7,6 @@ final optimized instruction text so it can be returned as a plain prompt
 string."""
 from __future__ import annotations
 
-from typing import Callable
 
 import dspy
 

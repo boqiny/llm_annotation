@@ -10,25 +10,22 @@ import io
 import json
 import logging
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from pydantic import BaseModel
 
 from app.agents.codebook_agent import _run_critic, run_codebook_agent
-from app.config import resolve_api_key, settings
+from app.config import resolve_api_key
 from app.database import get_db
-from app.engine.codebook_parser import parse_codebook, validate_codebook
+from app.engine.codebook_parser import validate_codebook
 from app.models.tables import (
-    Codebook, CodebookDraft, Dimension, DimensionType, Label, Project,
+    Codebook, CodebookDraft, Project,
 )
 from app.schemas.schemas import (
-    AcceptDraftRequest, CodebookDraftCreate, CodebookDraftOut, CodebookOut,
+    CodebookDraftCreate, CodebookDraftOut,
 )
 
 logger = logging.getLogger(__name__)

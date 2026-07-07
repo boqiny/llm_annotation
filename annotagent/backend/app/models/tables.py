@@ -1,9 +1,7 @@
 """SQLAlchemy ORM models for CALICO."""
 from __future__ import annotations
 
-import datetime
 import enum
-from typing import Optional
 
 from sqlalchemy import (
     Column,

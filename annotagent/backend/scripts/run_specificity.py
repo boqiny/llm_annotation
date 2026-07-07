@@ -32,7 +32,7 @@ from app.config import resolve_api_key  # noqa: E402
 from app.engine.codebook_parser import parse_codebook  # noqa: E402
 from app.engine.prompt_generator import generate_dimension_prompt  # noqa: E402
 from app.optimizers import Example, evaluate_prompt, get_optimizer  # noqa: E402
-from run_per_user_eval import _match_label, _norm, _load_items, _gold_for, PRESETS_DIR  # noqa: E402
+from run_per_user_eval import _match_label, _load_items, _gold_for, PRESETS_DIR  # noqa: E402
 
 REPO_ROOT = BACKEND.parent.parent
 

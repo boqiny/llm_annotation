@@ -40,7 +40,7 @@ from pathlib import Path
 BACKEND = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND))
 
-from app.config import resolve_api_key, settings  # noqa: E402
+from app.config import resolve_api_key  # noqa: E402
 from app.engine.codebook_parser import parse_codebook  # noqa: E402
 from app.engine.metrics import compute_metrics  # noqa: E402
 from app.engine.prompt_generator import generate_dimension_prompt  # noqa: E402

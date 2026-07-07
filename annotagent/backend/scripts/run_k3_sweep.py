@@ -6,7 +6,6 @@ skips any (optimizer, dim, seed) whose result file already exists.
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
 BACKEND = Path(__file__).resolve().parent.parent

@@ -22,7 +22,7 @@ from app.models.tables import (
     AnnotationJob, AnnotationResult, CalibrationRun, Codebook, Dataset, DataItem,
     OptimizerRun, Project,
 )
-from app.schemas.schemas import DatasetOut, DatasetPreview, DataItemOut
+from app.schemas.schemas import DatasetOut, DatasetPreview
 from app.utils.file_parsers import (
     _csv_rows_with_header,
     decode_text_upload,

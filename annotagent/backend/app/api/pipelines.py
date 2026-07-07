@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.models.tables import Pipeline, Codebook, DataItem, Dataset, Dimension, Label, Project
+from app.models.tables import Pipeline, Codebook, DataItem, Dataset, Project
 from app.schemas.schemas import PipelineOut, PipelineUpdate
 from app.engine.codebook_parser import parse_codebook
 from app.agents.decomposition import decompose_codebook

@@ -18,7 +18,6 @@ items where the surface form differs from the training set.
 # add memory
 from __future__ import annotations
 
-import copy
 import json
 import logging
 

@@ -55,7 +55,6 @@ def _dspy_tokens() -> int:
     try:
         import dspy
         total = 0
-        seen = set()
         for obj in list(globals().values()):
             pass
         # walk dspy's global LM + any LM with history

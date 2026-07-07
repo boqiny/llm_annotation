@@ -109,7 +109,7 @@ async def main() -> None:
         valid_labels=valid, trainset=train, valset=val)
     t_opt = time.perf_counter() - t1
 
-    t2 = time.perf_counter()
+    time.perf_counter()
     opt_acc, opt_preds, opt_tok = await evaluate_prompt(
         result.optimized_prompt, test, valid, provider=args.provider, model=args.model,
         api_key=key, max_concurrency=args.threads)
