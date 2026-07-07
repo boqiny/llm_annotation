@@ -1,0 +1,61 @@
+name: Deploy dedicated (Fiona & Chang)
+
+# Deploys the dedicated :8080 stack at /home/ubuntu/llm_annotation from the
+# 'dedicated' branch ONLY. main deploys the reviewer demo (:80) via
+# deploy.yml. Push (or merge) to 'dedicated' to update Fiona & Chang's
+# instance; main never touches it.
+
+on:
+  push:
+    branches: [dedicated]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-dedicated
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+
+    env:
+      DEDICATED_DIR: ${{ vars.DEDICATED_DIR || '/home/ubuntu/llm_annotation' }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      # Manual dispatch safety: this workflow file also exists on main, so a
+      # workflow_dispatch could be started from the wrong branch. Refuse
+      # anything that isn't 'dedicated'.
+      - name: Guard branch
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "dedicated" ]; then
+            echo "refusing to deploy '${GITHUB_REF_NAME}' to the dedicated server"
+            exit 1
+          fi
+
+      - name: Show context
+        run: |
+          echo "host: $(hostname)"
+          echo "user: $(whoami)"
+          echo "commit: $GITHUB_SHA"
+
+      # Remote URL derived from github.repository + auth via the job's
+      # ephemeral token (never persisted) — no stored git credentials needed.
+      - name: Pull latest
+        run: |
+          set -euo pipefail
+          cd "$DEDICATED_DIR"
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
+          git -c http.extraheader="AUTHORIZATION: basic ${AUTH}" fetch --prune origin
+          git reset --hard "origin/${GITHUB_REF_NAME}"
+          git rev-parse --short HEAD
+
+      - name: Deploy dedicated stack
+        run: |
+          set -euo pipefail
+          cd "$DEDICATED_DIR"
+          bash scripts/deploy.sh
