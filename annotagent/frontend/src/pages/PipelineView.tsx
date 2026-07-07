@@ -2,18 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   listPipelines, listDatasets, startJob, listJobs,
-  listSeedDatasets, loadSeedDataset, listCodebooks,
+  listCodebooks,
   extractInputPreview, extractInputCommit,
-  type SeedDatasetInfo, type ExtractPreview,
+  type ExtractPreview,
 } from '../lib/api'
 import type { Pipeline, PipelineStep, Dataset, Codebook, Job } from '../types'
 import { APP_NAME } from '../lib/brand'
-
-function isSelfDisclosure(cb: Codebook | null | undefined): boolean {
-  if (!cb) return false
-  const n = (cb.name || '').toLowerCase()
-  return n.includes('self-disclosure') || n.includes('self_disclosure') || n.includes('self disclosure')
-}
 
 export default function PipelineView() {
   const { id } = useParams<{ id: string }>()
@@ -22,7 +16,6 @@ export default function PipelineView() {
 
   const [pipeline, setPipeline] = useState<Pipeline | null>(null)
   const [datasets, setDatasets] = useState<Dataset[]>([])
-  const [testSeeds, setTestSeeds] = useState<SeedDatasetInfo[]>([])
   const [activeCb, setActiveCb] = useState<Codebook | null>(null)
   const [selectedDataset, setSelectedDataset] = useState<number | null>(null)
   const [expandedStep, setExpandedStep] = useState<number | null>(null)
@@ -35,19 +28,16 @@ export default function PipelineView() {
     }
   }, [expandedStep])
   const [loading, setLoading] = useState(false)
-  const [loadingSeed, setLoadingSeed] = useState<string | null>(null)
   const [jobs, setJobs] = useState<Job[]>([])
 
   const reload = () => Promise.all([
     listPipelines(projectId),
     listDatasets(projectId),
-    listSeedDatasets(projectId),
     listCodebooks(projectId),
     listJobs(projectId),
-  ]).then(([pipelines, ds, sd, cbs, js]) => {
+  ]).then(([pipelines, ds, cbs, js]) => {
     if (pipelines.length > 0) setPipeline(pipelines[pipelines.length - 1])
     setDatasets(ds)
-    setTestSeeds(sd.filter(s => s.role === 'test'))
     setActiveCb(cbs.length > 0 ? cbs[cbs.length - 1] : null)
     setJobs(js)
     const nonGold = ds.filter(d => !d.is_gold)
@@ -58,18 +48,6 @@ export default function PipelineView() {
   })
 
   useEffect(() => { reload() }, [projectId])
-
-  const handleLoadTestSeed = async (seedId: string) => {
-    setLoadingSeed(seedId)
-    try {
-      const newDs = await loadSeedDataset(projectId, seedId)
-      const ds = await listDatasets(projectId)
-      setDatasets(ds)
-      setSelectedDataset(newDs.id)
-    } finally {
-      setLoadingSeed(null)
-    }
-  }
 
   const [inputPreview, setInputPreview] = useState<ExtractPreview | null>(null)
   const [contentCol, setContentCol] = useState('')
@@ -404,63 +382,6 @@ export default function PipelineView() {
               })}
             </div>
           </section>
-        )}
-
-        {/* Bundled unseen test sets — only relevant for the self-disclosure
-            project (the rest of the test corpus belongs to that codebook). */}
-        {testSeeds.length > 0 && isSelfDisclosure(activeCb) && (
-          <div>
-            <div className="font-mono-editorial text-stone-500 mb-1">
-              Self-disclosure demo test sets
-              <code className="ml-2 font-mono text-[11px] normal-case tracking-normal bg-paper px-1.5 py-0.5 border border-seam">assets/data/test/cleaned/</code>
-            </div>
-            <p className="mb-3 text-xs text-stone-500">
-              Built-in held-out examples for the self-disclosure codebook. These are not files you uploaded.
-            </p>
-            <ul className="divide-y divide-seam border-y border-seam">
-              {testSeeds.map(s => {
-                const loaded = datasets.find(d => d.name === s.label)
-                const isSelected = loaded && selectedDataset === loaded.id
-                return (
-                  <li key={s.id} className={`grid grid-cols-12 gap-4 py-4 items-center ${s.available ? '' : 'opacity-50'}`}>
-                    <div className="col-span-7">
-                      <div className="flex items-baseline gap-3">
-                        <span className="font-medium">{s.label}</span>
-                        <span className="font-mono-editorial text-blue-700">Unseen</span>
-                      </div>
-                      <p className="text-sm text-stone-600 mt-0.5">{s.description}</p>
-                      <p className="font-mono text-[11px] text-stone-400 mt-1 truncate">{s.path}</p>
-                    </div>
-                    <div className="col-span-3 font-mono-editorial text-stone-400">
-                      {s.role}
-                    </div>
-                    <div className="col-span-2 text-right">
-                      {!s.available ? (
-                        <span className="font-mono-editorial text-stone-400">file missing</span>
-                      ) : isSelected ? (
-                        <span className="font-mono-editorial text-emerald-700">selected ✓</span>
-                      ) : loaded ? (
-                        <button
-                          onClick={() => setSelectedDataset(loaded.id)}
-                          className="px-3 py-1.5 text-xs font-medium text-ink border border-seam hover:border-ink transition-colors"
-                        >
-                          Select
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleLoadTestSeed(s.id)}
-                          disabled={loadingSeed === s.id}
-                          className="px-3 py-1.5 text-xs font-medium text-ink border border-ink hover:bg-ink hover:text-cream disabled:opacity-50 transition-colors"
-                        >
-                          {loadingSeed === s.id ? 'Loading…' : 'Load & select'}
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
         )}
 
         {/* Run */}
