@@ -23,7 +23,7 @@ jobs:
     runs-on: self-hosted
 
     env:
-      DEMO_DIR: ${{ vars.DEMO_DIR || '/home/ubuntu/calico-demo' }}
+      DEMO_DIR: ${{ vars.DEMO_DIR || '/home/ubuntu/calico-annotation' }}
       OLD_DIR: ${{ vars.REPO_DIR || '/home/ubuntu/llm_annotation' }}
       GH_TOKEN: ${{ github.token }}
 
