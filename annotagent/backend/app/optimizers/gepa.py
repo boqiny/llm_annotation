@@ -18,7 +18,7 @@ from app.optimizers.base import (
 )
 from app.optimizers._dspy_shim import (
     build_lm, make_classifier_module, to_dspy_examples,
-    exact_match_metric, extract_instruction,
+    feedback_metric, extract_instruction,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,10 +35,12 @@ class GEPAOptimizer(PromptOptimizer):
         api_key: str = "",
         budget: int = 0,           # ignored; we use DSPy's auto-budget
         auto_budget: str = "light",  # "light" | "medium" | "heavy"
+        num_threads: int = 0,        # 0 = DSPy default; >0 parallelizes GEPA's evals
         **_ignored,
     ):
         super().__init__(provider=provider, model=model, api_key=api_key, budget=budget)
         self.auto_budget = auto_budget
+        self.num_threads = num_threads
 
     async def optimize(
         self,
@@ -74,15 +76,19 @@ class GEPAOptimizer(PromptOptimizer):
         lm = build_lm(self.provider, self.model, self.api_key)
         dspy.configure(lm=lm)
 
-        student = make_classifier_module(dimension, valid_labels)
+        # Seed GEPA from the SAME initial prompt the other optimizers start from
+        # (fair, apples-to-apples), not a generic stub.
+        student = make_classifier_module(dimension, valid_labels, initial_prompt=initial_prompt)
         ds_train = to_dspy_examples(trainset)
         ds_val = to_dspy_examples(valset)
 
+        # reflection_lm = same flagship model as the task LM (controlled comparison).
         reflection_lm = build_lm(self.provider, self.model, self.api_key)
         gepa = dspy.GEPA(
-            metric=exact_match_metric,
+            metric=feedback_metric,        # {score, feedback} — GEPA's intended signal
             reflection_lm=reflection_lm,
             auto=self.auto_budget,
+            num_threads=(self.num_threads or None),
             track_stats=True,
         )
 

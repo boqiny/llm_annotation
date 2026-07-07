@@ -21,3 +21,4 @@ jinja2>=3.1.0
 pyyaml>=6.0
 pytest>=8.0
 pytest-asyncio>=0.23
+optuna>=3.0  # MIPROv2 Bayesian search backend (dspy)

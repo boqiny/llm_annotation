@@ -41,4 +41,11 @@ paper_draft
 !/CLAUDE.md
 review-stage/
 emnlp2025_demo_study/
-fiona_codebooks/
+EMNLP26_Demo_AnnotAgent/
+
+# Experiment run outputs — regenerable optimizer result sidecars, trajectories,
+# and run logs. Collected under exp_result/; kept on disk for audit, not tracked.
+# The scripts/*.json,*.log rules cover fresh runs that write into scripts/.
+exp_result/
+annotagent/backend/scripts/*.json
+annotagent/backend/scripts/*.log

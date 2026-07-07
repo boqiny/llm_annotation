@@ -19,7 +19,7 @@ from app.optimizers.base import (
 )
 from app.optimizers._dspy_shim import (
     build_lm, make_classifier_module, to_dspy_examples,
-    exact_match_metric, extract_instruction,
+    exact_match_metric, extract_prompt_with_demos,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,10 +36,12 @@ class MIPROOptimizer(PromptOptimizer):
         api_key: str = "",
         budget: int = 0,           # ignored; DSPy uses auto budget
         auto_budget: str = "light",  # "light" | "medium" | "heavy"
+        num_threads: int = 0,        # 0 = DSPy default; >0 parallelizes evals
         **_ignored,
     ):
         super().__init__(provider=provider, model=model, api_key=api_key, budget=budget)
         self.auto_budget = auto_budget
+        self.num_threads = num_threads
 
     async def optimize(
         self,
@@ -67,22 +69,24 @@ class MIPROOptimizer(PromptOptimizer):
         lm = build_lm(self.provider, self.model, self.api_key)
         dspy.configure(lm=lm)
 
-        student = make_classifier_module(dimension, valid_labels)
+        student = make_classifier_module(dimension, valid_labels, initial_prompt=initial_prompt)
         ds_train = to_dspy_examples(trainset)
         ds_val = to_dspy_examples(valset)
 
         optimizer = MIPROv2(
             metric=exact_match_metric,
             auto=self.auto_budget,
+            num_threads=(self.num_threads or None),
         )
 
         try:
-            compiled = optimizer.compile(student=student, trainset=ds_train, valset=ds_val)
-            optimized_prompt = extract_instruction(compiled, initial_prompt)
-            # MIPRO also bootstraps demos; capture how many it picked
-            n_demos = 0
-            for _, sub in compiled.named_predictors():
-                n_demos = max(n_demos, len(getattr(sub, "demos", []) or []))
+            compiled = optimizer.compile(
+                student=student, trainset=ds_train, valset=ds_val,
+                requires_permission_to_run=False,   # never block on an interactive prompt
+            )
+            # MIPRO's contribution is instruction + bootstrapped demos; fold both into
+            # the evaluated prompt so the demos actually take effect (not instruction-only).
+            optimized_prompt, n_demos = extract_prompt_with_demos(compiled, initial_prompt)
         except Exception as e:
             logger.warning(f"MIPROv2 compile failed: {e}")
             optimized_prompt = initial_prompt
