@@ -1,24 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { Pencil, Loader2, Check } from 'lucide-react'
 import {
-  uploadCodebookDraft, pasteCodebookDraft, presetCodebookDraft, codebookToDraft,
+  uploadCodebookDraft, pasteCodebookDraft, codebookToDraft,
   acceptCodebookDraft, deleteCodebookDraft, patchCodebookDraft,
-  artifactDownloadUrl, getPreset,
+  artifactDownloadUrl,
   type CodebookDraft,
 } from '../lib/api'
-import type { PresetInfo } from '../types'
 
-type Door = 'upload' | 'paste' | 'preset'
+type Door = 'upload' | 'paste'
 
 export default function CodebookDraftWizard({
   projectId,
-  presets,
   onAccepted,
   replacingName,
   seedFromCodebookId,
 }: {
   projectId: number
-  presets: PresetInfo[]
   onAccepted: () => void
   replacingName?: string
   // When set, the wizard opens with this codebook loaded as an editable draft
@@ -33,13 +30,8 @@ export default function CodebookDraftWizard({
 
   // Door-specific inputs
   const [pasteText, setPasteText] = useState('')
-  const [presetName, setPresetName] = useState(presets[0]?.name || 'self_disclosure')
   // File awaiting a multi-sheet merge/import decision (XLSX guardrail).
   const [pendingFile, setPendingFile] = useState<File | null>(null)
-
-  useEffect(() => {
-    if (!presetName && presets.length > 0) setPresetName(presets[0].name)
-  }, [presets, presetName])
 
   // Seed the editable draft from an existing codebook, once. After a discard the
   // ref stays set, so the user lands on the door chooser to build a fresh one.
@@ -95,18 +87,6 @@ export default function CodebookDraftWizard({
     }
   }
 
-  const handlePreset = async () => {
-    setLoading('Loading preset…'); setError(''); setDraft(null)
-    try {
-      const d = await presetCodebookDraft(presetName)
-      setDraft(d)
-    } catch (e: any) {
-      setError(e?.response?.data?.detail || e?.message || 'Preset load failed')
-    } finally {
-      setLoading('')
-    }
-  }
-
   const handleAccept = async (editedJson?: Record<string, any>) => {
     if (!draft) return
     setAccepting(true); setError('')
@@ -154,13 +134,6 @@ export default function CodebookDraftWizard({
               title="B. Text"
               hint="Paste codebook text — annotator notes, instructions, spreadsheet contents, or an old draft"
             />
-            <DoorCard
-              door="preset"
-              active={door === 'preset'}
-              onClick={() => setDoor('preset')}
-              title="C. Use a preset"
-              hint={`Self-disclosure · AI behavior · ${presets.length} available`}
-            />
           </div>
         </div>
       )}
@@ -176,16 +149,6 @@ export default function CodebookDraftWizard({
               value={pasteText}
               onChange={setPasteText}
               onSubmit={handlePaste}
-              busy={inFlight}
-            />
-          )}
-          {door === 'preset' && (
-            <PresetForm
-              projectId={projectId}
-              presets={presets}
-              value={presetName}
-              onChange={setPresetName}
-              onSubmit={handlePreset}
               busy={inFlight}
             />
           )}
@@ -315,12 +278,10 @@ function DoorCard({
 const STAGE_SETS: Record<Door, string[]> = {
   upload: ['Ingesting file', 'Reading sheet structure', 'Drafting label schema', 'Reviewing for overlaps', 'Finalizing codebook'],
   paste: ['Reading your text', 'Drafting label schema', 'Reviewing for overlaps', 'Finalizing codebook'],
-  preset: ['Loading preset'],
 }
 
 function ProcessingPanel({ door, caption }: { door: Door; caption: string }) {
   const stages = STAGE_SETS[door] ?? ['Working']
-  const animated = door !== 'preset'
   const [active, setActive] = useState(0)
 
   // Advance through the agent's stages on a timer. The backend runs synchronously
@@ -361,7 +322,7 @@ function ProcessingPanel({ door, caption }: { door: Door; caption: string }) {
       <ul className="space-y-1.5">
         {stages.map((s, i) => {
           const done = i < active
-          const current = i === active && animated
+          const current = i === active
           return (
             <li key={s} className="flex items-center gap-2.5 text-sm">
               <span className="w-4 h-4 shrink-0 flex items-center justify-center">
@@ -383,9 +344,7 @@ function ProcessingPanel({ door, caption }: { door: Door; caption: string }) {
       </ul>
 
       {caption && <div className="font-mono-editorial text-stone-400 text-[11px] truncate">{caption}</div>}
-      {animated && (
-        <div className="text-xs text-stone-500">A strong model reads the whole codebook, so this usually takes ~15-30s.</div>
-      )}
+      <div className="text-xs text-stone-500">A strong model reads the whole codebook, so this usually takes ~15-30s.</div>
     </div>
   )
 }
@@ -460,78 +419,6 @@ function PasteForm({
           className="px-5 py-2.5 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40 transition-colors"
         >
           {busy ? 'Drafting…' : 'Draft with agent →'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function PresetForm({
-  projectId, presets, value, onChange, onSubmit, busy,
-}: {
-  projectId: number
-  presets: PresetInfo[]
-  value: string
-  onChange: (v: string) => void
-  onSubmit: () => void
-  busy: boolean
-}) {
-  const [preview, setPreview] = useState<{ name: string; data: any } | null>(null)
-  const [loadingPreview, setLoadingPreview] = useState<string | null>(null)
-  const openPreview = async (name: string) => {
-    setLoadingPreview(name)
-    try { setPreview({ name, data: await getPreset(projectId, name) }) }
-    catch { /* ignore */ }
-    finally { setLoadingPreview(null) }
-  }
-  return (
-    <div>
-      <div className="font-mono-editorial text-stone-500 mb-2">
-        Choose a preset — instant load, no LLM drafting
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mb-4">
-        {presets.map(p => (
-          <label
-            key={p.name}
-            className={`flex items-start gap-3 p-3 border cursor-pointer transition-colors ${
-              value === p.name ? 'border-ink bg-paper' : 'border-seam hover:border-stone-400'
-            }`}
-          >
-            <input
-              type="radio"
-              name="preset"
-              value={p.name}
-              checked={value === p.name}
-              onChange={() => onChange(p.name)}
-              className="mt-1"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{p.name}</span>
-                <button
-                  type="button"
-                  onClick={(e) => { e.preventDefault(); openPreview(p.name) }}
-                  className="ml-auto shrink-0 text-[11px] font-mono-editorial text-stone-500 hover:text-ink underline"
-                >
-                  {loadingPreview === p.name ? 'loading…' : 'preview'}
-                </button>
-              </div>
-              <div className="text-xs text-stone-500 mt-0.5">{p.dimensions} dimensions</div>
-              {p.description && (
-                <div className="text-sm text-stone-600 mt-1 leading-relaxed">{p.description}</div>
-              )}
-            </div>
-          </label>
-        ))}
-      </div>
-      {preview && <PresetPreviewModal name={preview.name} data={preview.data} onClose={() => setPreview(null)} />}
-      <div className="flex justify-end">
-        <button
-          onClick={onSubmit}
-          disabled={busy || !value}
-          className="px-5 py-2.5 bg-ink text-cream text-sm font-medium hover:bg-stone-800 disabled:opacity-40 transition-colors"
-        >
-          {busy ? 'Loading…' : 'Load preset →'}
         </button>
       </div>
     </div>
@@ -1054,61 +941,6 @@ function WizardTreeLines({ node, depth, levelKinds }: { node: WNode; depth: numb
         </li>
       ))}
     </ul>
-  )
-}
-
-/* Read-only preview of a preset codebook before loading it. */
-function PresetPreviewModal({ name, data, onClose }: { name: string; data: any; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-  const dims = data?.dimensions || []
-  return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-cream border border-seam w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between gap-4 px-5 py-3 border-b border-seam">
-          <div>
-            <div className="font-medium">{data?.name || name}</div>
-            <div className="font-mono-editorial text-[11px] text-stone-400">{dims.length} dimensions · preview</div>
-          </div>
-          <button onClick={onClose} className="text-stone-400 hover:text-ink text-xl leading-none px-1" title="Close (Esc)">×</button>
-        </div>
-        <div className="overflow-auto p-5 space-y-5">
-          {data?.description && <p className="text-sm text-stone-600 leading-relaxed">{data.description}</p>}
-          {dims.map((d: any, i: number) => {
-            const hier = (d.labels || []).some((l: any) => l.path?.length)
-            return (
-              <div key={i} className="border-l-2 border-stone-200 pl-3">
-                <div className="flex items-baseline gap-2 mb-1.5 flex-wrap">
-                  <span className="font-medium text-ink">{d.name}</span>
-                  <span className={`font-mono-editorial text-[10px] uppercase tracking-wider ${(d.type || '').includes('multi') ? 'text-violet-600' : 'text-indigo-600'}`}>
-                    {(d.type || 'single_label').replace('_', ' ')}
-                  </span>
-                  <span className="font-mono text-[11px] text-stone-400">{(d.labels || []).length}</span>
-                </div>
-                {hier ? (
-                  <div className="max-h-[280px] overflow-auto pr-1">
-                    <WizardTreeLines node={wBuildTree(d.labels || [])} depth={0}
-                      levelKinds={[d.gated_by || '', d.category_dimension || '']} />
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {(d.labels || []).map((l: any, j: number) => (
-                      <span key={j} className="text-xs px-2 py-0.5 bg-white border border-seam text-stone-700">{l.name}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-        <div className="px-5 py-3 border-t border-seam">
-          <button onClick={onClose} className="text-sm px-4 py-1.5 border border-ink hover:bg-paper">Close</button>
-        </div>
-      </div>
-    </div>
   )
 }
 
