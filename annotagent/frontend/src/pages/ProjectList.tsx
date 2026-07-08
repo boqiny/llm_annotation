@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   listProjects, createProject, deleteProject,
-  listPresets, uploadCodebook, listSeedDatasets, loadSeedDataset, decomposePipeline,
   listPipelines,
 } from '../lib/api'
 import { useTour } from '../components/tour/TourProvider'
@@ -14,8 +13,6 @@ export default function ProjectList() {
   const [showCreate, setShowCreate] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [demoBusy, setDemoBusy] = useState(false)
-  const [demoError, setDemoError] = useState<string | null>(null)
   const navigate = useNavigate()
   const { start } = useTour()
 
@@ -57,38 +54,6 @@ export default function ProjectList() {
     setProjects(projects.filter(p => p.id !== id))
   }
 
-  // One-click demo: build a ready-to-run project (preset self-disclosure codebook
-  // + Coder A's labels as the gold target, Coder B as reference, + generated
-  // prompts) and land on the Improve page, so a first-time visitor reaches a working
-  // golden path with no setup. Preset prompts are deterministic, so this needs no
-  // API key; running the loop later does.
-  const startDemo = async () => {
-    setDemoBusy(true); setDemoError(null)
-    try {
-      const project = await createProject({
-        name: 'Demo · Align to Coder A',
-        description: 'One-click demo: calibrate the annotator to Coder A on a self-disclosure codebook.',
-      })
-      const preset = (await listPresets(project.id)).find(p => p.name === 'self_disclosure')
-      if (preset) await uploadCodebook(project.id, { preset_name: preset.name })
-      const seeds = await listSeedDatasets(project.id)
-      // The wedge is per-coder alignment, so the gold target is one chosen coder
-      // (Coder A), with the second coder (Coder B) loaded as reference for contrast.
-      const target = seeds.find(s => s.id === 'sd_coder_a' && s.available)
-        ?? seeds.find(s => s.role === 'reference' && s.available)
-        ?? seeds.find(s => s.available)
-      if (target) await loadSeedDataset(project.id, target.id, true)
-      const other = seeds.find(s => s.id === 'sd_coder_b' && s.available)
-      if (other) await loadSeedDataset(project.id, other.id, false)
-      await decomposePipeline(project.id)
-      navigate(`/projects/${project.id}/prompt-lab?tab=prompts`)
-    } catch {
-      setDemoError('Could not finish building the demo. Open the project from the list to complete setup.')
-      setDemoBusy(false)
-      listProjects().then(setProjects)
-    }
-  }
-
   return (
     <div className="space-y-16">
       {/* Hero — split: the statement on the left, the workflow visual on the
@@ -107,17 +72,10 @@ export default function ProjectList() {
           </p>
           <div className="mt-9 flex flex-wrap items-center gap-5">
             <button
-              onClick={startDemo}
-              disabled={demoBusy}
-              className="px-6 py-3 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition-colors disabled:opacity-50"
-            >
-              {demoBusy ? 'Building demo…' : 'Try the live demo →'}
-            </button>
-            <button
               onClick={openCreate}
-              className="px-6 py-3 border border-ink/30 text-ink text-sm font-medium hover:border-ink transition-colors"
+              className="px-6 py-3 bg-ink text-cream text-sm font-medium hover:bg-stone-800 transition-colors"
             >
-              Start your own project
+              Start your own project →
             </button>
             <button
               onClick={start}
@@ -126,9 +84,6 @@ export default function ProjectList() {
               or take the 60-second tour
             </button>
           </div>
-          {demoError && (
-            <p className="mt-4 text-sm text-red-700">{demoError}</p>
-          )}
         </div>
         <figure className="lg:col-span-7">
           <img
