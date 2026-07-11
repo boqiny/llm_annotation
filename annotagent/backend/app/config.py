@@ -67,4 +67,9 @@ def resolve_api_key(provider: str, project_key: str = "") -> str:
         return settings.ANTHROPIC_API_KEY
     if p in ("gemini", "google"):
         return settings.GEMINI_API_KEY
+    if p in ("local", "vllm"):
+        # self-hosted vLLM ignores the key; return a placeholder (do NOT leak the
+        # real OpenAI key to a third-party server) that is still non-empty so
+        # callers guarding on a truthy key don't bail out.
+        return "EMPTY"
     return settings.OPENAI_API_KEY

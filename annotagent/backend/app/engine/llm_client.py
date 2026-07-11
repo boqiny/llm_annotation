@@ -1,8 +1,9 @@
-"""Thin async wrapper around OpenAI and Anthropic APIs."""
+"""Thin async wrapper around OpenAI, Anthropic, Gemini, and local (vLLM) APIs."""
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 
 import openai
@@ -104,6 +105,34 @@ async def call_gemini(
     )
 
 
+# Self-hosted OpenAI-compatible server (vLLM / Ollama / TGI). Base URL comes from
+# the VLLM_BASE_URL env var, e.g. http://host:8009/v1. Thinking is disabled so
+# reasoning models (Qwen3) emit a terse label instead of <think>...</think>.
+async def call_vllm(
+    messages: list[dict[str, str]],
+    model: str = "",
+    api_key: str = "EMPTY",
+    temperature: float = 0.0,
+    max_tokens: int = 512,
+) -> LLMResponse:
+    base_url = os.environ.get("VLLM_BASE_URL", "").strip()
+    if not base_url:
+        raise RuntimeError("VLLM_BASE_URL is not set (need e.g. http://host:8009/v1)")
+    client = openai.AsyncOpenAI(api_key=api_key or "EMPTY", base_url=base_url)
+    resp = await client.chat.completions.create(
+        model=model, messages=messages, temperature=temperature, max_tokens=max_tokens,
+        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+    )
+    choice = resp.choices[0]
+    usage = resp.usage
+    return LLMResponse(
+        text=choice.message.content or "",
+        input_tokens=usage.prompt_tokens if usage else 0,
+        output_tokens=usage.completion_tokens if usage else 0,
+        model=model,
+    )
+
+
 async def call_anthropic(
     messages: list[dict[str, str]],
     model: str = "claude-sonnet-4-5-20250929",
@@ -160,6 +189,11 @@ async def call_llm(
                 )
             if provider in ("gemini", "google"):
                 return await call_gemini(
+                    messages=messages, model=model, api_key=api_key,
+                    temperature=temperature, max_tokens=max_tokens,
+                )
+            if provider in ("local", "vllm"):
+                return await call_vllm(
                     messages=messages, model=model, api_key=api_key,
                     temperature=temperature, max_tokens=max_tokens,
                 )

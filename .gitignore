@@ -22,11 +22,6 @@ annotagent/backend/annotagent.db-shm
 # Backend filesystem audit trail (DB is canonical; this dir is a mirror)
 annotagent/backend/workspace/
 
-# Legacy artifacts that shouldn't be tracked even though they live under legacy/
-legacy/vis/
-legacy/
-reference.md
-
 annotagent/frontend/node_modules/
 annotagent/frontend/dist/assets/
 annotagent/frontend/dist/
@@ -39,9 +34,6 @@ paper_draft
 /*.md
 !/README.md
 !/CLAUDE.md
-review-stage/
-emnlp2025_demo_study/
-EMNLP26_Demo_AnnotAgent/
 
 # Experiment run outputs — regenerable optimizer result sidecars, trajectories,
 # and run logs. Collected under exp_result/; kept on disk for audit, not tracked.

@@ -157,7 +157,10 @@ async def evaluate_prompt(
                         {"role": "system", "content": prompt},
                         {"role": "user", "content": user_msg},
                     ],
-                    provider=provider, model=model, api_key=api_key, max_tokens=512,
+                    # 2048 (not 512) so reasoning models that emit chain-of-thought
+                    # before the label do not truncate mid-answer; terse models are
+                    # unaffected (they stop at the label well under the cap).
+                    provider=provider, model=model, api_key=api_key, max_tokens=2048,
                 )
                 label = parse_answer(resp.text, valid_labels, is_binary=is_binary)
                 tokens = resp.input_tokens + resp.output_tokens

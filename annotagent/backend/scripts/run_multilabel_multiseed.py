@@ -113,10 +113,38 @@ def _preds_as_sets(cond):
     return golds, preds
 
 
+def _is_valid_run(run):
+    """A run is invalid if any OPTIMIZED condition has >50% empty predictions,
+    which means the LLM calls failed en masse (quota/rate/network) and the
+    metrics are a zero artifact, not a real result. Averaging such a seed in
+    would silently corrupt the mean (as an OpenAI quota exhaustion once did to
+    chang_seed2). Excluded seeds are reported, never hidden."""
+    for cond in ("approach_A", "approach_B"):
+        c = run["conditions"].get(cond)
+        if not c:
+            continue
+        preds = c.get("test_predictions") or []
+        if preds and sum(1 for p in preds if not p["pred"]) / len(preds) > 0.5:
+            return False
+    return True
+
+
 def aggregate(all_runs, outdir):
     """Per coder: mean+/-std micro/macro over seeds, and paired bootstrap on the
     seed-0 test set for approach_B - zero_shot and approach_B - approach_A."""
+    excluded = []
+    for coder in list(all_runs):
+        valid = []
+        for r in all_runs[coder]:
+            if _is_valid_run(r):
+                valid.append(r)
+            else:
+                excluded.append(f"{coder}_seed{r['config']['seed']}")
+        all_runs[coder] = valid
+    all_runs = {c: rs for c, rs in all_runs.items() if rs}
     lines = ["# Rigorous multi-label evaluation (Listening strategy)\n"]
+    if excluded:
+        lines.append(f"**Excluded seeds (API failure, >50% empty preds):** {excluded}\n")
     lines.append("Full dataset every seed; label-balanced stratified 15/42/43 split; "
                  "3 conditions on the same split. micro-F1 (%), mean+/-std over seeds.\n")
     summary = {}

@@ -26,7 +26,7 @@ from typing import Optional
 
 from app.engine.llm_client import call_llm
 from app.engine.metrics import compute_metrics
-from app.agents.reflect_memory import apply_calibration_evidence, apply_rules_to_prompt
+from app.agents.reflect_memory import apply_calibration_evidence, apply_rules_to_prompt, extract_json_array
 from app.optimizers.base import (
     Example, OptimizationResult, ProgressCB, PromptOptimizer,
     _emit, evaluate_prompt,
@@ -143,16 +143,9 @@ async def _dedupe_rules_semantic(
         logger.warning(f"Rule dedup LLM call failed: {e}")
         return rules, 0
 
-    text = (resp.text or "").strip()
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-    try:
-        deduped = json.loads(text)
-    except json.JSONDecodeError:
-        logger.warning("Rule dedup returned non-JSON; keeping input rules")
-        return rules, resp.input_tokens + resp.output_tokens
-
+    deduped = extract_json_array(resp.text)
     if not isinstance(deduped, list):
+        logger.warning("Rule dedup returned non-JSON; keeping input rules")
         return rules, resp.input_tokens + resp.output_tokens
 
     valid = [

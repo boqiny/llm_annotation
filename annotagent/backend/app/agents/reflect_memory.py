@@ -14,6 +14,44 @@ from app.engine.llm_client import call_llm
 
 logger = logging.getLogger(__name__)
 
+
+def extract_json_array(text: str) -> Any:
+    """Best-effort parse of a JSON array from an LLM reply.
+
+    Robust to differences across providers: markdown code fences, surrounding
+    prose, raw (unescaped) control characters in strings, and truncation at the
+    ``max_tokens`` boundary. Returns the parsed value, or ``None`` if nothing
+    parseable is found. This exists because strict ``json.loads`` rejects
+    perfectly usable output from some models (e.g. Gemini emits literal newlines
+    inside string values), which would otherwise silently no-op the rule update.
+    """
+    if not text:
+        return None
+    s = text.strip()
+    if s.startswith("```"):
+        s = s.split("\n", 1)[-1]
+        if s.rstrip().endswith("```"):
+            s = s.rstrip()[:-3]
+    start = s.find("[")
+    if start == -1:
+        return None
+    frag = s[start:]
+    candidates = [frag]
+    last_obj = frag.rfind("}")
+    if last_obj != -1:
+        candidates.append(frag[:last_obj + 1] + "]")   # salvage a truncated array
+    last_arr = frag.rfind("]")
+    if last_arr != -1:
+        candidates.append(frag[:last_arr + 1])
+    for cand in candidates:
+        try:
+            val = json.loads(cand, strict=False)   # strict=False tolerates control chars
+            if isinstance(val, list):
+                return val
+        except Exception:
+            continue
+    return None
+
 _SYSTEM = """You are refining an annotation rule library based on calibration evidence.
 
 The evidence may be direct human feedback, positive guidance about what is already correct,
@@ -87,12 +125,9 @@ Return a JSON array of NEW or UPDATED general rules that address this evidence."
             api_key=api_key,
             max_tokens=max_tokens,
         )
-        text = resp.text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0]
-        new_rules = json.loads(text)
-        if not isinstance(new_rules, list):
-            logger.warning("apply_calibration_evidence: LLM returned non-list")
+        new_rules = extract_json_array(resp.text)
+        if new_rules is None:
+            logger.warning("apply_calibration_evidence: LLM returned non-parseable output")
             return existing_rules
         valid = [r for r in new_rules if isinstance(r, dict) and r.get("boundary")]
         return _merge_rules(existing_rules, valid)
