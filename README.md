@@ -37,15 +37,6 @@ npm install
 npm run dev
 ```
 
-## Smoke test (under a minute)
-
-Sample codebooks and datasets live in [`annotagent/seed/`](./annotagent/seed):
-
-- `annotagent/seed/self_disclosure_demo.json` — 10-item multi-dimensional self-disclosure sample
-- `annotagent/seed/sentiment_demo.json` — 10-item sentiment sample
-
-Create a project, upload one of these in Project Setup, generate prompts, and run annotation end-to-end. An LLM API key (OpenAI or Anthropic) is required for annotation and optimization; everything else (codebook parsing preview, prompt inspection, versioning) works without one.
-
 ## What CALICO supports
 
 - **Codebook ingestion:** PDF, DOCX, XLSX, CSV, JSON, and plain text, parsed into a canonical schema the user reviews and edits before use.
@@ -103,6 +94,3 @@ Not yet supported in the released workflow: multi-label set prediction (a resear
 }
 ```
 
-## Reproducing the paper's experiments
-
-Experiment scripts live in `annotagent/backend/scripts/` (e.g. `run_multiseed.py`, `run_specificity.py`, `run_k3_sweep.py`); raw result files with per-seed artifacts are in `exp_result/`. Splits are deterministic (SHA-256-seeded, stratified); the held-out test split is scored exactly once per run.
