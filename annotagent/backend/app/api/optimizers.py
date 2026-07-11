@@ -907,6 +907,7 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
                     sentence=it.content,
                     gold=canonical_label,
                     context=it.context or "",
+                    source_id=str(it.id),
                 ))
 
         if len(examples) < 15:
@@ -933,10 +934,21 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
         # Guarantees every class has ≥1 item in every split (when class size ≥ 3).
         # Tiny classes (<3 items) go entirely to train so the optimizer can at
         # least see them as failure-mining inputs.
-        trainset, valset, testset, per_class = _stratified_split(
-            examples, train_frac=train_frac, val_frac=val_frac,
+        # Split at the source-item level: a multi-label item explodes into
+        # several Examples sharing one source_id, and those must land in the
+        # same split. For single-label data every group has size 1, so this is
+        # byte-identical to splitting the examples directly.
+        by_item: dict[str, list[Example]] = {}
+        for ex in examples:
+            by_item.setdefault(ex.source_id, []).append(ex)
+        item_reps = [group[0] for group in by_item.values()]
+        tr_reps, va_reps, te_reps, per_class = _stratified_split(
+            item_reps, train_frac=train_frac, val_frac=val_frac,
             seed=rng_seed,
         )
+        trainset = [ex for r in tr_reps for ex in by_item[r.source_id]]
+        valset = [ex for r in va_reps for ex in by_item[r.source_id]]
+        testset = [ex for r in te_reps for ex in by_item[r.source_id]]
         n_train, n_val, n_test = len(trainset), len(valset), len(testset)
         n_total = len(examples)
 
@@ -952,10 +964,18 @@ async def _execute_run(run_id: int, project_id: int, provider: str, model: str, 
                 await session.commit()
             return
 
-        # LEAKAGE GUARD: assert sets are disjoint (cheap O(n) sanity check).
+        # LEAKAGE GUARD: assert sets are disjoint (cheap O(n) sanity check),
+        # both by object identity and by stable source item ID (IDs catch
+        # duplicated source rows and exploded multi-label items).
         assert len({id(x) for x in trainset} & {id(x) for x in valset}) == 0
         assert len({id(x) for x in valset}   & {id(x) for x in testset}) == 0
         assert len({id(x) for x in trainset} & {id(x) for x in testset}) == 0
+        tr_ids = {x.source_id for x in trainset}
+        va_ids = {x.source_id for x in valset}
+        te_ids = {x.source_id for x in testset}
+        assert not (tr_ids & va_ids), "train/val share source items"
+        assert not (va_ids & te_ids), "val/test share source items"
+        assert not (tr_ids & te_ids), "train/test share source items"
 
         logger.info(
             f"Run {run_id} stratified split: total={n_total} train={n_train} val={n_val} "

@@ -85,11 +85,38 @@ async def _tune(label_map, train_sentences, dim, valid, args):
     return res.optimized_prompt, list((res.artifact or {}).get("rule_library") or [])
 
 
-async def _agree(prompt, test_sentences, label_map, valid, args):
-    exs = [Example(sentence=s, gold=label_map[s], context="") for s in test_sentences if s in label_map]
-    acc, *_ = await evaluate_prompt(prompt, exs, valid, provider=args.provider,
-                                    model=args.model, api_key=args.api_key, max_concurrency=args.concurrency)
-    return acc, len(exs)
+async def _predict(prompt, test_sentences, valid, args):
+    """ONE prediction vector per prompt on the shared test items. Both cells in
+    a matrix row score this same vector, so row-wise comparisons are paired and
+    never mix two stochastic prediction runs of the same prompt."""
+    exs = [Example(sentence=s, gold="", context="") for s in test_sentences]
+    _, preds, *_ = await evaluate_prompt(prompt, exs, valid, provider=args.provider,
+                                         model=args.model, api_key=args.api_key,
+                                         max_concurrency=args.concurrency)
+    return preds
+
+
+def _score(preds, test_sentences, label_map):
+    pairs = [(p, label_map[s]) for p, s in zip(preds, test_sentences) if s in label_map]
+    if not pairs:
+        return 0.0, 0
+    return sum(1 for p, g in pairs if p == g) / len(pairs), len(pairs)
+
+
+def _paired_bootstrap_delta(preds_a, preds_b, test_sentences, label_map, iters=10000, seed=0):
+    """95% CI for acc(preds_a) - acc(preds_b) against the same labels, paired
+    by item (both prompts are scored on identical items in each resample)."""
+    idxs = [i for i, s in enumerate(test_sentences) if s in label_map]
+    golds = [label_map[test_sentences[i]] for i in idxs]
+    a = [1 if preds_a[i] == g else 0 for i, g in zip(idxs, golds)]
+    b = [1 if preds_b[i] == g else 0 for i, g in zip(idxs, golds)]
+    n = len(golds)
+    rng = random.Random(seed)
+    diffs = sorted(
+        sum(a[j] - b[j] for j in (rng.randrange(n) for _ in range(n))) / n
+        for _ in range(iters)
+    )
+    return diffs[int(0.025 * iters)], diffs[int(0.975 * iters)]
 
 
 async def main():
@@ -130,16 +157,27 @@ async def main():
     pC, rC = await _tune(chang, c_train, dim, valid, args)
 
     # 2x2: prompt (F,C) x target labels (F,C) on the SAME shared test items.
-    aFF, n = await _agree(pF, sh_test, fiona, valid, args)
-    aCF, _ = await _agree(pC, sh_test, fiona, valid, args)
-    aFC, _ = await _agree(pF, sh_test, chang, valid, args)
-    aCC, _ = await _agree(pC, sh_test, chang, valid, args)
+    # One cached prediction vector per prompt; every cell scores from the cache.
+    predsF = await _predict(pF, sh_test, valid, args)
+    predsC = await _predict(pC, sh_test, valid, args)
+    aFF, n = _score(predsF, sh_test, fiona)
+    aCF, _ = _score(predsC, sh_test, fiona)
+    aFC, _ = _score(predsF, sh_test, chang)
+    aCC, _ = _score(predsC, sh_test, chang)
+
+    # Paired bootstrap for the diagonal advantage (own prompt vs other prompt,
+    # same target labels, same items).
+    ci_fiona = _paired_bootstrap_delta(predsF, predsC, sh_test, fiona)
+    ci_chang = _paired_bootstrap_delta(predsC, predsF, sh_test, chang)
 
     print(f"\nShared test n={n}")
     print(f"                 target=Fiona   target=Chang")
     print(f"  prompt=Fiona      {aFF*100:5.1f}         {aFC*100:5.1f}")
     print(f"  prompt=Chang      {aCF*100:5.1f}         {aCC*100:5.1f}")
-    print(f"\nSpecificity (own minus other): Fiona {(aFF-aCF)*100:+.1f}pp, Chang {(aCC-aFC)*100:+.1f}pp")
+    print(f"\nSpecificity (own minus other): Fiona {(aFF-aCF)*100:+.1f}pp "
+          f"(95% CI [{ci_fiona[0]*100:+.1f}, {ci_fiona[1]*100:+.1f}]), "
+          f"Chang {(aCC-aFC)*100:+.1f}pp "
+          f"(95% CI [{ci_chang[0]*100:+.1f}, {ci_chang[1]*100:+.1f}])")
 
     out = {
         "generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -148,6 +186,15 @@ async def main():
         "matrix": {"prompt_fiona": {"target_fiona": aFF, "target_chang": aFC},
                    "prompt_chang": {"target_fiona": aCF, "target_chang": aCC}},
         "specificity_pp": {"fiona": (aFF - aCF) * 100, "chang": (aCC - aFC) * 100},
+        "specificity_ci95_pp": {
+            "fiona": [ci_fiona[0] * 100, ci_fiona[1] * 100],
+            "chang": [ci_chang[0] * 100, ci_chang[1] * 100],
+        },
+        # Per-item predictions so any pairing/bootstrap can be recomputed offline.
+        "test_sentences": list(sh_test),
+        "predictions": {"prompt_fiona": list(predsF), "prompt_chang": list(predsC)},
+        "gold": {"fiona": {s: fiona.get(s) for s in sh_test},
+                 "chang": {s: chang.get(s) for s in sh_test}},
         "rules_fiona": rF, "rules_chang": rC,
     }
     Path(args.out).write_text(json.dumps(out, indent=2))

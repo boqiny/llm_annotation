@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings
 
 # Search the nearest parent dir that has a .env (supports: annotagent/backend/.env,
 # annotagent/.env, or project-root .env).
-_KEY_NAMES = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY")
+_KEY_NAMES = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY")
 
 
 def _env_defines_key(path: Path) -> bool:
@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./annotagent.db"
     OPENAI_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://localhost:8080"]
     SECRET_KEY: str = "change-me-in-production"
     MAX_CONCURRENCY: int = 10
@@ -64,4 +65,6 @@ def resolve_api_key(provider: str, project_key: str = "") -> str:
     p = (provider or "").lower()
     if p == "anthropic":
         return settings.ANTHROPIC_API_KEY
+    if p in ("gemini", "google"):
+        return settings.GEMINI_API_KEY
     return settings.OPENAI_API_KEY

@@ -78,6 +78,32 @@ async def call_openai(
     )
 
 
+# Gemini exposes an OpenAI-compatible endpoint, so we reuse the OpenAI client
+# with a custom base_url instead of adding the google-genai SDK dependency.
+_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+
+async def call_gemini(
+    messages: list[dict[str, str]],
+    model: str = "gemini-2.5-pro",
+    api_key: str = "",
+    temperature: float = 0.0,
+    max_tokens: int = 512,
+) -> LLMResponse:
+    client = openai.AsyncOpenAI(api_key=api_key, base_url=_GEMINI_BASE_URL)
+    resp = await client.chat.completions.create(
+        model=model, messages=messages, temperature=temperature, max_tokens=max_tokens,
+    )
+    choice = resp.choices[0]
+    usage = resp.usage
+    return LLMResponse(
+        text=choice.message.content or "",
+        input_tokens=usage.prompt_tokens if usage else 0,
+        output_tokens=usage.completion_tokens if usage else 0,
+        model=model,
+    )
+
+
 async def call_anthropic(
     messages: list[dict[str, str]],
     model: str = "claude-sonnet-4-5-20250929",
@@ -129,6 +155,11 @@ async def call_llm(
         try:
             if provider == "anthropic":
                 return await call_anthropic(
+                    messages=messages, model=model, api_key=api_key,
+                    temperature=temperature, max_tokens=max_tokens,
+                )
+            if provider in ("gemini", "google"):
+                return await call_gemini(
                     messages=messages, model=model, api_key=api_key,
                     temperature=temperature, max_tokens=max_tokens,
                 )

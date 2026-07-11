@@ -25,6 +25,10 @@ class Example:
     sentence: str
     gold: str
     context: str = ""
+    # Stable ID of the source data item. Lets the split guard assert
+    # disjointness by item, not just by Python object identity (catches
+    # duplicated rows and multi-label items exploded into several Examples).
+    source_id: str = ""
 
 
 @dataclass
@@ -83,26 +87,30 @@ async def _emit(on_progress: Optional[ProgressCB], payload: dict) -> None:
 
 
 def audit_prompt_for_leakage(
-    prompt: str, valset: list["Example"], testset: list["Example"], *, min_len: int = 40,
+    prompt: str, valset: list["Example"], testset: list["Example"], *, min_len: int = 20,
 ) -> dict:
     """Substring-scan the final prompt for any val/test sentence. Returns a
     dict with leak counts and offending samples. Empty findings = clean.
 
     ``min_len`` filters out very short sentences (a 5-char fragment may match
-    by chance; we want substantive overlap).
+    by chance; we want substantive overlap). Sentences below ``min_len`` are
+    counted in ``skipped_short`` so the audit's coverage is explicit.
     """
     p = (prompt or "").lower()
     val_hits: list[str] = []
     test_hits: list[str] = []
+    skipped_short = 0
     for ex in valset:
         s = (ex.sentence or "").strip()
         if len(s) < min_len:
+            skipped_short += 1
             continue
         if s.lower() in p:
             val_hits.append(s[:120])
     for ex in testset:
         s = (ex.sentence or "").strip()
         if len(s) < min_len:
+            skipped_short += 1
             continue
         if s.lower() in p:
             test_hits.append(s[:120])
@@ -114,6 +122,7 @@ def audit_prompt_for_leakage(
         "checked_val": len(valset),
         "checked_test": len(testset),
         "min_len": min_len,
+        "skipped_short": skipped_short,
         "clean": len(val_hits) + len(test_hits) == 0,
     }
 
